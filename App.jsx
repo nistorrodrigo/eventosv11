@@ -853,7 +853,7 @@ export default function App(){
   const histFileRef = useRef();
   const [activeDay,setActiveDay] = useState("apr14");
   const [schedView,setSchedView] = useState("company"); // "company" | "room"
-  const [dragSrc,setDragSrc] = useState(null); // {meetingId}
+  const [moveSrc,setMoveSrc] = useState(null); // meeting id being moved
   const [search,setSearch]   = useState("");
   const [fileName,setFileName] = useState("");
   const [modal,setModal]     = useState(null);
@@ -1518,28 +1518,28 @@ export default function App(){
     return allRooms.filter(r=>usedRooms.has(r)||allRooms.indexOf(r)<config.numRooms);
   },[meetings,activeDay,config.numRooms]);
 
-  // Drag-and-drop: move meeting to new slot/room
-  function handleMeetingDrop(targetSlotId, targetRoom, targetCoId){
-    if(!dragSrc) return;
-    const m = meetings.find(x=>x.id===dragSrc);
-    if(!m) return;
+  // Click-to-move: select a meeting then click a target slot
+  function handleMeetingMove(targetSlotId, targetRoom, targetCoId){
+    if(!moveSrc) return;
+    const m = meetings.find(x=>x.id===moveSrc);
+    if(!m){ setMoveSrc(null); return; }
     const newSlotId = targetSlotId;
     const newRoom   = targetRoom || m.room;
     const newCoId   = targetCoId || m.coId;
     // conflict check
     const others = meetings.filter(x=>x.id!==m.id);
     const coConflict = others.find(x=>x.coId===newCoId&&x.slotId===newSlotId);
-    const roomConflict = others.find(x=>x.room===newRoom&&x.slotId===newSlotId);
-    const invConflict = (m.invIds||[]).find(invId=>others.find(x=>x.invIds?.includes(invId)&&x.slotId===newSlotId));
+    const roomConflict = newRoom ? others.find(x=>x.room===newRoom&&x.slotId===newSlotId) : false;
+    const invConflict = (m.invIds||[]).find(invId=>others.find(x=>(x.invIds||[]).includes(invId)&&x.slotId===newSlotId));
     if(coConflict||roomConflict||invConflict){
       const msg = coConflict ? `${companies.find(c=>c.id===newCoId)?.name||newCoId} ya tiene reunión a ese horario`
                 : roomConflict ? `${newRoom} ya está ocupada a ese horario`
                 : `Un inversor ya tiene reunión a ese horario`;
       alert("⚠ Conflicto: "+msg);
-      setDragSrc(null); return;
+      setMoveSrc(null); return;
     }
-    setMeetings(prev=>prev.map(x=>x.id===m.id?{...x,slotId:newSlotId,room:newRoom,coId:newCoId}:x));
-    setDragSrc(null);
+    saveCurrentEvent({meetings: meetings.map(x=>x.id===m.id?{...x,slotId:newSlotId,room:newRoom,coId:newCoId}:x)});
+    setMoveSrc(null);
   }
 
   const filtered=useMemo(()=>{
@@ -2186,9 +2186,9 @@ export default function App(){
               <button className="btn bg bs" onClick={()=>setTab("export")}>⬇ Exportar →</button>
             </div>
 
-            {dragSrc&&<div className="alert ai" style={{marginBottom:8,padding:"6px 12px",fontSize:11}}>
-              🖱 Arrastrando reunión — soltá en una celda vacía para moverla.
-              <button className="btn bd bs" style={{marginLeft:10,fontSize:9}} onClick={()=>setDragSrc(null)}>✕ Cancelar</button>
+            {moveSrc&&<div className="alert ai" style={{marginBottom:8,padding:"6px 12px",fontSize:11,display:"flex",alignItems:"center",gap:10}}>
+              <span>✋ <strong>{companies.find(c=>c.id===meetings.find(x=>x.id===moveSrc)?.coId)?.ticker||"Reunión"}</strong> seleccionada para mover — hacé clic en una celda vacía para colocarla.</span>
+              <button className="btn bd bs" style={{fontSize:9}} onClick={()=>setMoveSrc(null)}>✕ Cancelar</button>
             </div>}
 
             {/* ── COMPANY VIEW ── */}
@@ -2226,14 +2226,14 @@ export default function App(){
                             const sclr=SEC_CLR[c.sector]||"var(--gold)";
                             const isGroup=new Set(invs.map(i=>i.fund||i.id).filter(Boolean)).size>1;
                             const isDragging=dragSrc===m.id;
+                            const isSelected = moveSrc===m.id;
                             return(
                               <td key={c.id} className="td-c"
-                                draggable
-                                onDragStart={()=>setDragSrc(m.id)}
-                                onDragEnd={()=>setDragSrc(null)}
-                                onClick={()=>!dragSrc&&setModal({mode:"edit",meeting:m})}
-                                style={{opacity:isDragging?0.4:1,cursor:"grab"}}>
-                                <div className="m-pill" style={{background:`${sclr}11`,borderLeftColor:sclr}}>
+                                onClick={()=>moveSrc ? (moveSrc===m.id ? setMoveSrc(null) : null) : setModal({mode:"edit",meeting:m})}
+                                title={moveSrc ? (moveSrc===m.id?"Cancelar movimiento":"Ocupado") : "Clic para editar · Alt+Clic para mover"}
+                                style={{cursor:moveSrc?(moveSrc===m.id?"not-allowed":"default"):"pointer",outline:isSelected?"2px solid var(--gold)":"none",outlineOffset:-2}}>
+                                <div className="m-pill" style={{background:isSelected?`${sclr}33`:`${sclr}11`,borderLeftColor:sclr,position:"relative"}}>
+                                  {!moveSrc&&<span style={{position:"absolute",top:2,right:4,fontSize:9,color:"var(--dim)",opacity:.5,cursor:"grab"}} onMouseDown={e=>{e.stopPropagation();setMoveSrc(m.id);}}>⠿</span>}
                                   <div className="mp-n">{isGroup?invs.map(i=>i.name.split(" ")[0]).join(" + "):invs[0]?.name}</div>
                                   <div className="mp-f">{isGroup?`${invs[0]?.fund} (${invs.length})`:invs[0]?.fund}</div>
                                   <div className="mp-r">{m.room}</div>
@@ -2243,11 +2243,9 @@ export default function App(){
                           if(isCoBlocked) return <td key={c.id} className="td-c" style={{background:"rgba(214,68,68,.07)",cursor:"default"}}><span style={{color:"rgba(214,68,68,.3)",fontSize:11,display:"block",textAlign:"center",lineHeight:"50px"}}>✕</span></td>;
                           return (
                             <td key={c.id} className="td-c"
-                              onDragOver={e=>{if(dragSrc)e.preventDefault();}}
-                              onDrop={()=>handleMeetingDrop(slotId, fixedRoom[c.id]||null, c.id)}
-                              onClick={()=>!dragSrc&&setModal({mode:"add",prefCoId:c.id,prefSlotId:slotId})}
-                              style={{background:dragSrc?"rgba(30,90,176,.04)":undefined}}>
-                              {dragSrc?<span style={{color:"rgba(30,90,176,.25)",fontSize:18,display:"block",textAlign:"center",lineHeight:"50px"}}>↓</span>:<span className="add-ic">+</span>}
+                              onClick={()=>moveSrc ? handleMeetingMove(slotId, fixedRoom[c.id]||null, c.id) : setModal({mode:"add",prefCoId:c.id,prefSlotId:slotId})}
+                              style={{background:moveSrc?"rgba(30,90,176,.06)":undefined,cursor:moveSrc?"crosshair":"pointer"}}>
+                              {moveSrc?<span style={{color:"rgba(30,90,176,.4)",fontSize:20,display:"block",textAlign:"center",lineHeight:"50px"}}>⬇</span>:<span className="add-ic">+</span>}
                             </td>);
                         })}
                       </tr>
@@ -2290,31 +2288,27 @@ export default function App(){
                             const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
                             const sclr=SEC_CLR[co?.sector]||"var(--gold)";
                             const isGroup=new Set(invs.map(i=>i.fund||i.id).filter(Boolean)).size>1;
-                            const isDragging=dragSrc===m.id;
+                            const isSelectedR = moveSrc===m.id;
                             return(
                               <td key={r} className="td-c"
-                                draggable
-                                onDragStart={()=>setDragSrc(m.id)}
-                                onDragEnd={()=>setDragSrc(null)}
-                                onClick={()=>!dragSrc&&setModal({mode:"edit",meeting:m})}
-                                style={{opacity:isDragging?0.4:1,cursor:"grab"}}>
-                                <div className="m-pill" style={{background:`${sclr}11`,borderLeftColor:sclr}}>
+                                onClick={()=>moveSrc ? (moveSrc===m.id ? setMoveSrc(null) : null) : setModal({mode:"edit",meeting:m})}
+                                style={{cursor:moveSrc?(moveSrc===m.id?"not-allowed":"default"):"pointer",outline:isSelectedR?"2px solid var(--gold)":"none",outlineOffset:-2}}>
+                                <div className="m-pill" style={{background:isSelectedR?`${sclr}33`:`${sclr}11`,borderLeftColor:sclr,position:"relative"}}>
+                                  {!moveSrc&&<span style={{position:"absolute",top:2,right:4,fontSize:9,color:"var(--dim)",opacity:.5,cursor:"grab"}} onMouseDown={e=>{e.stopPropagation();setMoveSrc(m.id);}}>⠿</span>}
                                   <div className="mp-n" style={{color:sclr,fontWeight:700,fontSize:10}}>{co?.ticker||co?.name}</div>
                                   <div className="mp-f">{isGroup?invs.map(i=>i.name.split(" ")[0]).join(" + "):invs[0]?.name}</div>
-                                  <div className="mp-r" style={{color:"var(--dim)"}}>{isGroup?invs[0]?.fund:invs[0]?.fund}</div>
+                                  <div className="mp-r" style={{color:"var(--dim)"}}>{invs[0]?.fund}</div>
                                 </div>
                               </td>);
                           }
                           return (
                             <td key={r} className="td-c"
-                              onDragOver={e=>{if(dragSrc)e.preventDefault();}}
-                              onDrop={()=>{
-                                const srcM=meetings.find(x=>x.id===dragSrc);
-                                handleMeetingDrop(slotId, r, srcM?.coId);
+                              onClick={()=>{
+                                if(moveSrc){ const srcM=meetings.find(x=>x.id===moveSrc); handleMeetingMove(slotId, r, srcM?.coId); }
+                                else setModal({mode:"add",prefSlotId:slotId});
                               }}
-                              onClick={()=>!dragSrc&&setModal({mode:"add",prefSlotId:slotId})}
-                              style={{background:dragSrc?"rgba(30,90,176,.04)":undefined}}>
-                              {dragSrc?<span style={{color:"rgba(30,90,176,.25)",fontSize:18,display:"block",textAlign:"center",lineHeight:"50px"}}>↓</span>:<span className="add-ic">+</span>}
+                              style={{background:moveSrc?"rgba(30,90,176,.06)":undefined,cursor:moveSrc?"crosshair":"pointer"}}>
+                              {moveSrc?<span style={{color:"rgba(30,90,176,.4)",fontSize:20,display:"block",textAlign:"center",lineHeight:"50px"}}>⬇</span>:<span className="add-ic">+</span>}
                             </td>);
                         })}
                       </tr>
