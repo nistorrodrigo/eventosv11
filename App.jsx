@@ -34,7 +34,11 @@ const DEFAULT_CONFIG = {
   eventType    : "LS Conference",  // free text: LS Conference / Investor Conference / Corporate Meetings
   eventDates   : "April 14–15, 2026",
   venue        : "The Langham, New York, Fifth Avenue",
-  contacts     : [], // [{name, role, email, phone}]
+  contacts     : [
+    {name:"Daniela Ramos", role:"Executive Assistant", email:"Daniela.ramos@latinsecurities.ar", phone:"+54-911-6193-7367"},
+    {name:"Rodrigo Nistor", role:"Institutional Sales", email:"rodrigo.nistor@latinsecurities.ar", phone:"+54-911-6493-8815"},
+    {name:"Martin Tapia",   role:"Director",            email:"martin.tapia@latinsecurities.ar",  phone:"+54-911-5064-1807"},
+  ], // [{name, role, email, phone}]
   dinners      : [], // [{id, name, restaurant, address, day, time, companies:[coId]}]
 };
 
