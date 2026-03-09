@@ -1033,6 +1033,7 @@ export default function App(){
     {id:"companies",label:"🏢 Compañías"},
     {id:"schedule",label:"📅 Agenda"},
     {id:"export",label:"⬇ Exportar"},
+    {id:"historical",label:"📊 Histórico"},
   ];
 
   if(!currentEvent) return(
@@ -1389,7 +1390,7 @@ export default function App(){
           {/* ── Previous year comparison ── */}
           <div className="card" style={{marginTop:20}}>
             <div className="card-t">🔍 Comparar con año anterior</div>
-            <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>Subí la lista de inversores del año anterior para ver quién aún no se anotó este año.</p>
+            <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>Subí la lista de inversores del año anterior para ver quién aún no se anotó este año. <strong style={{color:"var(--cream)"}}>Para análisis multi-año usá la tab 📊 Histórico.</strong></p>
             <div className="upz" style={{padding:"18px 20px"}} onClick={()=>prevYearRef.current?.click()}>
               <div style={{fontSize:24,marginBottom:6}}>📂</div>
               <div style={{fontSize:13,color:"var(--cream)",marginBottom:3}}>
@@ -1420,7 +1421,7 @@ export default function App(){
                   <button className="btn bd bs" onClick={()=>setPrevYearData(null)}>✕ Limpiar</button>
                 </div>
                 {prevYearData.missing.length>0&&(
-                  <div style={{maxHeight:280,overflowY:"auto",border:"1px solid rgba(30,90,176,.1)",borderRadius:7}}>
+                  <div style={{maxHeight:180,overflowY:"auto",border:"1px solid rgba(30,90,176,.1)",borderRadius:7}}>
                     <table className="tbl">
                       <thead><tr><th>Nombre</th><th>Fondo / Firma</th><th>Email</th></tr></thead>
                       <tbody>
@@ -1822,7 +1823,7 @@ export default function App(){
             </div>
           </div>
 
-          {historicalYears.length>=1&&(()=>{
+          {historicalYears.length>=1&&(<details open><summary style={{cursor:"pointer",padding:"10px 0",fontSize:13,color:"var(--gold)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em",listStyleType:"none",userSelect:"none"}}>▾ <strong>Ver análisis detallado ({historicalYears.length} año{historicalYears.length!==1?"s":""})</strong></summary><div style={{paddingTop:8}}>{(()=>{
             /* ── Compute all analytics ── */
             const allYears = historicalYears.map(y=>y.year).sort();
             const allCos = COMPANIES_INIT.map(c=>c.id);
@@ -2155,6 +2156,8 @@ export default function App(){
               </div>
             );
           })()}
+
+          </div></details>)}
 
           {historicalYears.length===0&&(
             <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
