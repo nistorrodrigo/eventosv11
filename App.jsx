@@ -279,17 +279,31 @@ function runSchedule(investors, fundGrouping, cfg){
   const invBusy={};investors.forEach(i=>{invBusy[i.id]=new Set();});
   const coBusy={};COMPANIES_INIT.forEach(c=>{coBusy[c.id]=new Set();});
   Object.entries(coBlocks).forEach(([coId,blocked])=>{if(!coBusy[coId])coBusy[coId]=new Set();(blocked||[]).forEach(s=>coBusy[coId].add(s));});
-  const roomBusy={};const coLastRoom={};const meetings=[];const unscheduled=[];
+  const roomBusy={};const meetings=[];const unscheduled=[];
+  // coRoom[coId] = permanent room assignment for this company (set on first meeting, never changes unless forced)
+  const coRoom={...fixedRoom};
 
-  // existing company slots on a given day (indices into allSlots)
+  // ── Helpers ──────────────────────────────────────────────────────
+  // Indices of slots already assigned to a company on a given day
   const coIdxOnDay=(coId,dayId)=>meetings.filter(m=>m.coId===coId&&slotDay(m.slotId)===dayId).map(m=>allSlots.indexOf(m.slotId));
-  // most-used room for a company on a given day (day consistency), fall back to fixed/last
-  const coDayRoom=(coId,dayId)=>{
-    const ms=meetings.filter(m=>m.coId===coId&&slotDay(m.slotId)===dayId);
-    if(!ms.length) return fixedRoom[coId]||coLastRoom[coId]||null;
-    const cnt={};ms.forEach(m=>{cnt[m.room]=(cnt[m.room]||0)+1;});
-    return Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
+
+  // Number of meetings a given room has on a given day (all companies)
+  const roomDayCount=(room,dayId)=>meetings.filter(m=>m.room===room&&slotDay(m.slotId)===dayId).length;
+
+  // Dominant company in a room on a given day, and their count
+  const roomDayDominant=(room,dayId)=>{
+    const ms=meetings.filter(m=>m.room===room&&slotDay(m.slotId)===dayId);
+    if(!ms.length) return{coId:null,count:0};
+    const cnt={};ms.forEach(m=>{cnt[m.coId]=(cnt[m.coId]||0)+1;});
+    const [coId,count]=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+    return{coId,count};
   };
+
+  // ── Pre-compute expected meetings per company ─────────────────────
+  // (used to determine which companies are "heavy" and should own a room)
+  const reqsPerCo={};
+  reqs.forEach(r=>{reqsPerCo[r.coId]=(reqsPerCo[r.coId]||0)+1;});
+  const HEAVY_THRESHOLD=5; // companies with this many+ meetings should own their room
 
   for(const req of reqs){
     let shared=allSlots;
@@ -297,7 +311,7 @@ function runSchedule(investors, fundGrouping, cfg){
     shared=shared.filter(s=>!coBusy[req.coId].has(s));
     if(!shared.length){unscheduled.push(req);continue;}
 
-    // Score slots: prefer adjacent to existing company meetings on same day
+    // ── Score slots: prefer adjacent to existing company meetings on same day ──
     const scored=shared.map(slotId=>{
       const day=slotDay(slotId);
       const idx=allSlots.indexOf(slotId);
@@ -305,31 +319,54 @@ function runSchedule(investors, fundGrouping, cfg){
       const dist=existing.length===0?999:Math.min(...existing.map(ei=>Math.abs(ei-idx)));
       return{slotId,dist,idx};
     });
-    // smallest distance first; ties: earliest slot first
     scored.sort((a,b)=>a.dist!==b.dist?a.dist-b.dist:a.idx-b.idx);
 
-    // Two-pass room assignment:
-    // Pass 1 — preferred room only (keeps company in same room)
-    // Pass 2 — any free room (only if pass 1 found nothing)
     let placed=false;
     const tryPlace=(slotId,room)=>{
       const id=`m-${Date.now()}-${Math.random().toString(36).slice(2,5)}`;
       meetings.push({id,invIds:req.invIds,coId:req.coId,slotId,room});
       req.invIds.forEach(invId=>invBusy[invId].add(slotId));
-      coBusy[req.coId].add(slotId);roomBusy[`${room}::${slotId}`]=true;coLastRoom[req.coId]=room;placed=true;
+      coBusy[req.coId].add(slotId);roomBusy[`${room}::${slotId}`]=true;
+      if(!coRoom[req.coId]) coRoom[req.coId]=room; // lock room on first assignment
+      placed=true;
     };
-    // Pass 1: only use the company's established room for this slot
-    for(const {slotId} of scored){
-      const preferred=coDayRoom(req.coId,slotDay(slotId));
-      if(preferred&&!roomBusy[`${preferred}::${slotId}`]){tryPlace(slotId,preferred);break;}
+
+    // ── PASS 1: use company's locked room (no exceptions) ────────────
+    if(coRoom[req.coId]){
+      for(const {slotId} of scored){
+        if(!roomBusy[`${coRoom[req.coId]}::${slotId}`]){tryPlace(slotId,coRoom[req.coId]);break;}
+      }
     }
-    // Pass 2: preferred room blocked on all good slots — accept any free room
+
+    // ── PASS 2: pick a room that avoids "heavy company" rooms ─────────
+    // A heavy company has ≥HEAVY_THRESHOLD expected meetings and owns their room all day.
+    // New company should take a light/empty room instead.
+    if(!placed){
+      for(const {slotId} of scored){
+        const day=slotDay(slotId);
+        const freeRooms=rooms.filter(r=>!roomBusy[`${r}::${slotId}`]);
+        if(!freeRooms.length) continue;
+        // Sort free rooms: prefer rooms with fewest meetings today AND not dominated by a heavy company
+        const ranked=freeRooms.map(r=>{
+          const{coId:dom,count}=roomDayDominant(r,day);
+          const isHeavyOther=dom&&dom!==req.coId&&(reqsPerCo[dom]||0)>=HEAVY_THRESHOLD;
+          const total=roomDayCount(r,day);
+          return{r,penalty:isHeavyOther?1000:0,total};
+        });
+        ranked.sort((a,b)=>a.penalty!==b.penalty?a.penalty-b.penalty:a.total-b.total);
+        const room=ranked[0].r;
+        tryPlace(slotId,room);break;
+      }
+    }
+
+    // ── PASS 3: last resort — any free room ───────────────────────────
     if(!placed){
       for(const {slotId} of scored){
         const room=rooms.find(r=>!roomBusy[`${r}::${slotId}`])||null;
         if(room){tryPlace(slotId,room);break;}
       }
     }
+
     if(!placed) unscheduled.push(req);
   }
   return{meetings,unscheduled,fixedRoom};
