@@ -654,7 +654,8 @@ html,body{background:var(--ink)}
 /* ═══════════════════════════════════════════════════════════════════
    INVESTOR PROFILE MODAL
 ═══════════════════════════════════════════════════════════════════ */
-function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,onUpdateInv,onToggleFundGroup,onExport,onClose}){
+function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,config:invCfg,onUpdateInv,onToggleFundGroup,onExport,onClose}){
+  const cfg=invCfg||DEFAULT_CONFIG;
   const [activeTab,setActiveTab]=useState("profile");
   const [editField,setEditField]=useState({});
   const invMeetings=meetings.filter(m=>(m.invIds||[]).includes(inv.id)).sort((a,b)=>allSlots.indexOf(a.slotId)-allSlots.indexOf(b.slotId));
@@ -712,9 +713,9 @@ function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,o
             <div>
               <p style={{fontSize:12,color:"var(--dim)",marginBottom:12,lineHeight:1.7}}>Verde = disponible · Rojo = bloqueado · Clic para togglear. Gris = fuera de disponibilidad declarada.</p>
               <div style={{fontSize:11,color:"var(--txt)",marginBottom:10}}><span className="bdg bg-grn">{eff.length}</span> slots efectivos de {allSlots.length}</div>
-              {getDayIds(config).map(d=>(
+              {getDayIds(cfg).map(d=>(
                 <div key={d} style={{marginBottom:14}}>
-                  <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:getDayIds(config).indexOf(d)%2===0?"var(--blu)":"var(--grn)",marginBottom:6,letterSpacing:".06em",textTransform:"uppercase"}}>◆ {getDayShort(config)[d]||d}</div>
+                  <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:getDayIds(cfg).indexOf(d)%2===0?"var(--blu)":"var(--grn)",marginBottom:6,letterSpacing:".06em",textTransform:"uppercase"}}>◆ {getDayShort(cfg)[d]||d}</div>
                   <div style={{display:"grid",gridTemplateColumns:`repeat(${activeHours.length},1fr)`,gap:3}}>
                     {activeHours.map(h=>{const sid=`${d}-${h}`;const inBase=(inv.slots||[]).includes(sid);const isBlocked=(inv.blockedSlots||[]).includes(sid);
                       return <div key={h} className={`slot-cell ${!inBase?"slot-na":isBlocked?"slot-blocked":"slot-avail"}`} onClick={()=>inBase&&toggleSlot(sid)}>{hourLabel(h)}</div>;})}
@@ -744,7 +745,7 @@ function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,o
             invMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Compañía</th><th>Sala</th></tr></thead>
               <tbody>{invMeetings.map(m=>{const co=companies.find(c=>c.id===m.coId);return(<tr key={m.id}>
-                <td><span className={`bdg ${getDayIds(config||DEFAULT_CONFIG).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(config||DEFAULT_CONFIG)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
+                <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:600,fontSize:11}}>{slotLabel(m.slotId)}</td>
                 <td style={{color:"var(--cream)",fontWeight:600}}>{co?.name}<span className="bdg bg-g" style={{marginLeft:6}}>{co?.ticker}</span></td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"var(--gold)"}}>{m.room}</td>
@@ -816,7 +817,7 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
             coMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Inversor(es)</th><th>Sala</th></tr></thead>
               <tbody>{coMeetings.map(m=>{const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);return(<tr key={m.id}>
-                <td><span className={`bdg ${getDayIds(config||DEFAULT_CONFIG).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(config||DEFAULT_CONFIG)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
+                <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:600,fontSize:11}}>{slotLabel(m.slotId)}</td>
                 <td>{invs.map(inv=>(<div key={inv.id} style={{fontSize:12,color:"var(--cream)"}}>{inv.name}<span style={{color:"var(--dim)",fontSize:10}}> — {inv.fund}</span></div>))}</td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"var(--gold)"}}>{m.room}</td>
@@ -1673,7 +1674,7 @@ export default function App(){
     <div className="app"><style>{CSS}</style>
 
     {/* MODALS */}
-    {invProfile&&<InvestorModal inv={invProfile} investors={investors} meetings={meetings} companies={companies}
+    {invProfile&&<InvestorModal inv={invProfile} investors={investors} meetings={meetings} companies={companies} config={config}
       fundGrouping={fundGrouping} allSlots={allSlots}
       onUpdateInv={u=>{setInvestors(prev=>prev.map(i=>i.id===u.id?u:i));setInvProfile(u);}}
       onToggleFundGroup={(fund,val)=>setFundGrouping(p=>({...p,[fund]:val}))}
