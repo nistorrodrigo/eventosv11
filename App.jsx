@@ -952,6 +952,38 @@ export default function App(){
     reader.readAsArrayBuffer(file);
   },[investors]);
 
+  // ── Historical multi-year parser ─────────────────────────────
+  const parseHistoricalFile = useCallback((file, year) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, {type:"array"});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+        if (rows.length < 2) { alert("Archivo vacío o inválido."); return; }
+        const hdrs = rows[0].map(String);
+        const ci = pred => hdrs.findIndex(h => pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
+        const fi=ci(h=>h==="fund"), ni=ci(h=>h==="name"), si=ci(h=>h.startsWith("surname")), ei=ci(h=>h==="email");
+        const coi=ci(h=>h.includes("which meetings"));
+        const g=(row,i)=>i>=0?String(row[i]??"").trim():"";
+        const parsed = rows.slice(1).filter(row=>g(row,fi)||g(row,ni)).map((row,ri) => ({
+          name: capitalizeName([g(row,ni),g(row,si)].filter(Boolean).join(" ")) || `Inv ${ri+1}`,
+          fund: normalizeFundName(g(row,fi)),
+          email: g(row,ei).toLowerCase().trim(),
+          companies: coi>=0 ? [...new Set(g(row,coi).split(";").map(s=>s.trim()).filter(Boolean).map(resolveCo).filter(Boolean))] : [],
+        }));
+        if (parsed.length === 0) { alert(`No se encontraron inversores en el archivo. Verificá que tenga columnas Name/Fund.`); return; }
+        setHistoricalYears(prev => {
+          const filtered = prev.filter(y => y.year !== year);
+          return [...filtered, {year, fileName: file.name, investors: parsed}].sort((a,b)=>a.year.localeCompare(b.year));
+        });
+      } catch(err) {
+        alert("Error al procesar el archivo: " + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
   // ── Generate ─────────────────────────────────────────────────
   function generate(){
     const res=runSchedule(investors,fundGrouping,config);
