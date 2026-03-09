@@ -252,7 +252,7 @@ function buildRoomMap(investors, numRooms, rooms){
 
 function runSchedule(investors, fundGrouping, cfg){
   const {numRooms,hours,coBlocks={}} = cfg||DEFAULT_CONFIG;
-  const rooms    = makeRooms(numRooms);
+  const rooms    = getRooms(cfg);
   const allSlots = makeSlots(hours,cfg);
   const dayIds   = getDayIds(cfg);
   const dayLong  = getDayLong(cfg);
@@ -844,7 +844,7 @@ export default function App(){
 
   // ── Computed from config ──────────────────────────────────────
   const allSlots = makeSlots(config.hours, config);
-  const rooms    = makeRooms(config.numRooms);
+  const rooms    = getRooms(config);
 
   // ── UI state (not persisted) ──────────────────────────────────
   const [tab,setTab]         = useState("upload");
@@ -1514,7 +1514,7 @@ export default function App(){
 
   const activeRooms=useMemo(()=>{
     const usedRooms=new Set(meetings.filter(m=>slotDay(m.slotId)===activeDay).map(m=>m.room).filter(Boolean));
-    const allRooms=makeRooms(config.numRooms);
+    const allRooms=getRooms(config);
     // show used rooms + all configured rooms up to numRooms
     return allRooms.filter(r=>usedRooms.has(r)||allRooms.indexOf(r)<config.numRooms);
   },[meetings,activeDay,config.numRooms]);
@@ -1790,15 +1790,29 @@ export default function App(){
 
           <div className="g2" style={{marginBottom:14}}>
             <div className="card">
-              <div className="card-t">🚪 Cantidad de Salas</div>
-              <div className="flex" style={{marginBottom:10}}>
+              <div className="card-t">🚪 Salas</div>
+              <div className="flex" style={{marginBottom:12}}>
                 <input type="range" min={1} max={18} value={config.numRooms} style={{flex:1,accentColor:"var(--gold)"}}
                   onChange={e=>setConfig(c=>({...c,numRooms:parseInt(e.target.value)}))}/>
                 <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:22,color:"var(--gold)",minWidth:28,textAlign:"right"}}>{config.numRooms}</span>
               </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {rooms.map(r=><span key={r} className="bdg bg-g">{r}</span>)}
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:260,overflowY:"auto"}}>
+                {Array.from({length:config.numRooms},(_,i)=>{
+                  const customName=((config.roomNames)||{})[i]||"";
+                  return (
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:11,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",minWidth:18,textAlign:"right"}}>{i+1}</span>
+                      <input className="inp" style={{flex:1,padding:"5px 8px",fontSize:12}}
+                        placeholder={`Room ${i+1}`}
+                        value={customName}
+                        onChange={e=>{const val=e.target.value;setConfig(c=>({...c,roomNames:{...(c.roomNames||{}),[i]:val}}));}}/>
+                      {customName&&<button className="btn bd bs" style={{fontSize:9,padding:"2px 6px"}}
+                        onClick={()=>setConfig(c=>{const rn={...(c.roomNames||{})};delete rn[i];return{...c,roomNames:rn};})}>✕</button>}
+                    </div>
+                  );
+                })}
               </div>
+              <div style={{fontSize:10,color:"var(--dim)",marginTop:8}}>Dejá vacío para usar el nombre por defecto (Room N).</div>
             </div>
             <div className="card">
               <div className="card-t">🕐 Horarios Globales</div>
