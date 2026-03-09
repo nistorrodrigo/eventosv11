@@ -280,13 +280,37 @@ function runSchedule(investors, fundGrouping, cfg){
   const coBusy={};COMPANIES_INIT.forEach(c=>{coBusy[c.id]=new Set();});
   Object.entries(coBlocks).forEach(([coId,blocked])=>{if(!coBusy[coId])coBusy[coId]=new Set();(blocked||[]).forEach(s=>coBusy[coId].add(s));});
   const roomBusy={};const coLastRoom={};const meetings=[];const unscheduled=[];
+
+  // existing company slots on a given day (indices into allSlots)
+  const coIdxOnDay=(coId,dayId)=>meetings.filter(m=>m.coId===coId&&slotDay(m.slotId)===dayId).map(m=>allSlots.indexOf(m.slotId));
+  // most-used room for a company on a given day (day consistency), fall back to fixed/last
+  const coDayRoom=(coId,dayId)=>{
+    const ms=meetings.filter(m=>m.coId===coId&&slotDay(m.slotId)===dayId);
+    if(!ms.length) return fixedRoom[coId]||coLastRoom[coId]||null;
+    const cnt={};ms.forEach(m=>{cnt[m.room]=(cnt[m.room]||0)+1;});
+    return Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0][0];
+  };
+
   for(const req of reqs){
     let shared=allSlots;
     for(const id of req.invIds){const inv=investors.find(i=>i.id===id);shared=shared.filter(s=>effectiveSlots(inv,allSlots).includes(s)&&!invBusy[id].has(s));}
     shared=shared.filter(s=>!coBusy[req.coId].has(s));
+    if(!shared.length){unscheduled.push(req);continue;}
+
+    // Score slots: prefer adjacent to existing company meetings on same day
+    const scored=shared.map(slotId=>{
+      const day=slotDay(slotId);
+      const idx=allSlots.indexOf(slotId);
+      const existing=coIdxOnDay(req.coId,day);
+      const dist=existing.length===0?999:Math.min(...existing.map(ei=>Math.abs(ei-idx)));
+      return{slotId,dist,idx};
+    });
+    // smallest distance first; ties: earliest slot first
+    scored.sort((a,b)=>a.dist!==b.dist?a.dist-b.dist:a.idx-b.idx);
+
     let placed=false;
-    for(const slotId of shared){
-      const preferred=fixedRoom[req.coId]||coLastRoom[req.coId];
+    for(const {slotId} of scored){
+      const preferred=coDayRoom(req.coId,slotDay(slotId));
       let room=null;
       if(preferred&&!roomBusy[`${preferred}::${slotId}`]) room=preferred;
       else room=rooms.find(r=>!roomBusy[`${r}::${slotId}`])||null;
