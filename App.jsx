@@ -747,7 +747,8 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
 /* ═══════════════════════════════════════════════════════════════════
    MEETING MODAL
 ═══════════════════════════════════════════════════════════════════ */
-function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,onSave,onDelete,onClose}){
+function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,config:modalConfig,onSave,onDelete,onClose}){
+  const cfg = modalConfig||DEFAULT_CONFIG;
   const [invIds,setInvIds]=useState(meeting?.invIds||[]);
   const [coId,setCoId]=useState(meeting?.coId||"");
   const [slotId,setSlotId]=useState(meeting?.slotId||"");
@@ -790,7 +791,7 @@ function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,
           <div><div className="lbl">Día y Hora</div>
             <select className="sel" value={slotId} onChange={e=>setSlotId(e.target.value)}>
               <option value="">-- seleccionar --</option>
-              {getDayIds(config||DEFAULT_CONFIG).map(d=><optgroup key={d} label={getDayShort(config||DEFAULT_CONFIG)[d]||d}>{hours.map(h=><option key={`${d}-${h}`} value={`${d}-${h}`}>{getDayShort(config||DEFAULT_CONFIG)[d]||d} {hourLabel(h)}</option>)}</optgroup>)}
+              {getDayIds(cfg).map(d=><optgroup key={d} label={getDayShort(cfg)[d]||d}>{hours.map(h=><option key={`${d}-${h}`} value={`${d}-${h}`}>{getDayShort(cfg)[d]||d} {hourLabel(h)}</option>)}</optgroup>)}
             </select>
           </div>
           {conflicts.length>0&&<div className="alert aw" style={{marginTop:10}}>⚠ Conflicto: {conflicts.join(" · ")}<br/><span style={{fontSize:10,color:"var(--dim)"}}>Cambiá el horario o la sala para resolver el conflicto.</span></div>}
@@ -1592,7 +1593,7 @@ export default function App(){
       onUpdateCo={u=>{setCompanies(prev=>prev.map(c=>c.id===u.id?u:c));setCoProfile(u);}}
       onExport={exportCompany} onClose={()=>setCoProfile(null)}/>}
     {modal&&<MeetingModal mode={modal.mode} meeting={modal.meeting} investors={investors} meetings={meetings}
-      companies={companies} allSlots={allSlots} rooms={rooms}
+      companies={companies} allSlots={allSlots} rooms={rooms} config={config}
       onSave={handleMeetingSave} onDelete={()=>{setMeetings(prev=>prev.filter(m=>m.id!==modal.meeting.id));setModal(null);}}
       onClose={()=>setModal(null)}/>}
 
