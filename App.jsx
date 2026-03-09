@@ -77,6 +77,7 @@ const COMPANIES_INIT = [
   {id:"IRS",   name:"IRSA / Cresud",         ticker:"IRS",   sector:"Real Estate"},
   {id:"LOMA",  name:"Loma Negra",            ticker:"LOMA",  sector:"Infra"},
   {id:"TEO",   name:"Telecom Argentina",     ticker:"TEO",   sector:"TMT"},
+  {id:"LSCM",  name:"LS Corp & Macro",          ticker:"LSCM",  sector:"LS"},
 ];
 const CO_MAP = {
   "banco macro (bma)":"BMA","banco macro":"BMA",
@@ -96,6 +97,10 @@ const CO_MAP = {
   "irsa (irs) - cresud (cresy)":"IRS","irsa (irs)":"IRS","cresud (cresy)":"IRS","irsa":"IRS",
   "loma negra (loma)":"LOMA","loma negra":"LOMA",
   "telecom argentina (teo)":"TEO","telecom argentina":"TEO",
+  "ls - rodrigo nistor & barabara guerezta - corporate & macro/sovereign overview":"LSCM",
+  "ls - rodrigo nistor & barbara guerezta - corporate & macro/sovereign overview":"LSCM",
+  "ls corp & macro":"LSCM","ls corporate & macro":"LSCM","ls corp & macro/sovereign":"LSCM",
+  "ls corporate":"LSCM","ls macro":"LSCM","lscm":"LSCM",
 };
 const resolveCo = raw => CO_MAP[raw.trim().toLowerCase()]||null;
 const SEC_CLR   = {Financials:"#3399ff",Energy:"#ff8269",Infra:"#acd484","Real Estate":"#23a29e",TMT:"#ebaca2"};
@@ -1002,6 +1007,244 @@ export default function App(){
   // ── Export ───────────────────────────────────────────────────
   function openPrint(html){const w=window.open("","_blank");w.document.write(html);w.document.close();w.focus();}
 
+  // ── Excel export with LS brand colors ────────────────────────
+  function exportExcel(){
+    // LS Brand palette from Visual Identity Guidelines
+    const LS_NAVY   = "00000039";
+    const LS_BLUE   = "003399ff";
+    const LS_BLUE2  = "001e5ab0";
+    const LS_TEAL   = "0023a29e";
+    const LS_GOLD   = "00c9a227";
+    const WHITE     = "00FFFFFF";
+    const LIGHT_BG  = "00EAF1FB"; // soft blue tint for alternating rows
+    const TEAL_LIGHT= "00E0F4F3";
+
+    const wb = XLSX.utils.book_new();
+
+    // Helper: set column widths
+    const setCols = (ws, widths) => { ws['!cols'] = widths.map(w=>({wch:w})); };
+
+    // Helper: style a cell
+    const styleCell = (ws, addr, style) => {
+      if(!ws[addr]) ws[addr] = {v:"", t:"s"};
+      ws[addr].s = style;
+    };
+
+    const headerStyle = (bg=LS_NAVY) => ({
+      fill:{patternType:"solid", fgColor:{rgb:bg}},
+      font:{bold:true, color:{rgb:WHITE}, sz:10, name:"Calibri"},
+      alignment:{horizontal:"center", vertical:"center", wrapText:true},
+      border:{bottom:{style:"medium",color:{rgb:LS_BLUE}}}
+    });
+    const titleStyle = {
+      fill:{patternType:"solid", fgColor:{rgb:LS_NAVY}},
+      font:{bold:true, color:{rgb:"00C9A227"}, sz:13, name:"Calibri"},
+      alignment:{horizontal:"left", vertical:"center"}
+    };
+    const subStyle = {
+      fill:{patternType:"solid", fgColor:{rgb:LS_BLUE2}},
+      font:{bold:true, color:{rgb:WHITE}, sz:10, name:"Calibri"},
+      alignment:{horizontal:"left", vertical:"center"}
+    };
+    const rowStyle = (even, highlight=false) => ({
+      fill:{patternType:"solid", fgColor:{rgb: highlight ? TEAL_LIGHT : (even ? LIGHT_BG : WHITE)}},
+      font:{color:{rgb:"00000039"}, sz:9, name:"Calibri"},
+      alignment:{vertical:"center", wrapText:true},
+      border:{bottom:{style:"thin",color:{rgb:"00CCDDEE"}}}
+    });
+    const boldCell = (even) => ({...rowStyle(even), font:{bold:true, color:{rgb:LS_NAVY}, sz:9, name:"Calibri"}});
+
+    const getDays = () => (config.days||DEFAULT_DAYS);
+
+    // ── Sheet 1: Full Schedule (all meetings, sorted by time) ──────
+    {
+      const rows = [];
+      const headerRow = ["Día","Hora","Compañía","Sector","Inversor","Fondo","Tipo","Sala"];
+      rows.push(headerRow);
+      const sorted = [...meetings].sort((a,b)=>{
+        const di = getDays().findIndex(d=>d.id===a.day) - getDays().findIndex(d=>d.id===b.day);
+        if(di!==0) return di;
+        return (a.slot||"").localeCompare(b.slot||"");
+      });
+      sorted.forEach(m=>{
+        const co = companies.find(c=>c.id===m.coId);
+        const invs = (m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+        const day = getDays().find(d=>d.id===m.day);
+        const mType = invs.length<=1?"1x1":"Group";
+        if(invs.length===0){
+          rows.push([day?.long||m.day, m.slot, co?.name||m.coId, co?.sector||"", "—","—",mType,m.room||""]);
+        } else {
+          invs.forEach((inv,i)=>{
+            rows.push([i===0?day?.long||m.day:"", i===0?m.slot:"", i===0?co?.name||m.coId:"", i===0?co?.sector||"":"", inv.name, inv.fund||"", i===0?mType:"", i===0?m.room||"":""]);
+          });
+        }
+      });
+      // Add dinners
+      (config.dinners||[]).forEach(d=>{
+        const day = getDays().find(dy=>dy.id===d.day);
+        rows.push([day?.long||d.day, d.time||"", d.name, "Event", d.restaurant||"","","Event",d.address||""]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      setCols(ws,[14,9,22,12,22,22,9,10]);
+      ws['!rows'] = [{hpt:22},...rows.slice(1).map(()=>({hpt:18}))];
+      // Title row (insert before)
+      XLSX.utils.sheet_add_aoa(ws,[["ARGENTINA IN NEW YORK 2026 — AGENDA COMPLETA"]],{origin:"A1",sheetStubs:true});
+      // Style header
+      headerRow.forEach((_,ci)=>{
+        const addr = XLSX.utils.encode_cell({r:1,c:ci});
+        styleCell(ws, addr, headerStyle());
+      });
+      // Style data rows
+      for(let r=2;r<rows.length;r++){
+        const isEven = r%2===0;
+        const isEvent = rows[r][3]==="Event";
+        for(let c=0;c<8;c++){
+          const addr = XLSX.utils.encode_cell({r:r+1,c});
+          if(!ws[addr]) ws[addr]={v:"",t:"s"};
+          ws[addr].s = c===0||c===1||c===2 ? boldCell(isEven) : rowStyle(isEven, isEvent);
+        }
+      }
+      ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
+      styleCell(ws,"A1",titleStyle);
+      XLSX.utils.book_append_sheet(wb, ws, "Agenda Completa");
+    }
+
+    // ── Sheet 2: Por Compañía ──────────────────────────────────────
+    {
+      const aoa = [["ARGENTINA IN NEW YORK 2026 — POR COMPAÑÍA"]];
+      let rowIdx = 1;
+      const merges = [{s:{r:0,c:0},e:{r:0,c:5}}];
+      const styleMap = {};
+      styleMap["0:0"] = titleStyle;
+
+      const coList = companies.filter(c=>meetings.some(m=>m.coId===c.id));
+      coList.forEach(co=>{
+        const coMtgs = meetings.filter(m=>m.coId===co.id).sort((a,b)=>{
+          const di=getDays().findIndex(d=>d.id===a.day)-getDays().findIndex(d=>d.id===b.day);
+          return di!==0?di:(a.slot||"").localeCompare(b.slot||"");
+        });
+        aoa.push([co.name+" ("+co.ticker+")", "", "", "", "", ""]);
+        merges.push({s:{r:rowIdx,c:0},e:{r:rowIdx,c:5}});
+        styleMap[rowIdx+":0"] = subStyle;
+        rowIdx++;
+
+        aoa.push(["Día","Hora","Inversor","Fondo","Tipo","Sala"]);
+        styleMap[rowIdx+":0"]=headerStyle(LS_BLUE2);
+        styleMap[rowIdx+":1"]=headerStyle(LS_BLUE2);
+        styleMap[rowIdx+":2"]=headerStyle(LS_BLUE2);
+        styleMap[rowIdx+":3"]=headerStyle(LS_BLUE2);
+        styleMap[rowIdx+":4"]=headerStyle(LS_BLUE2);
+        styleMap[rowIdx+":5"]=headerStyle(LS_BLUE2);
+        rowIdx++;
+
+        coMtgs.forEach((m,mi)=>{
+          const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+          const day=getDays().find(d=>d.id===m.day);
+          const mType=invs.length<=1?"1x1":"Group";
+          if(invs.length===0){
+            aoa.push([day?.long||m.day,m.slot,"—","",mType,m.room||""]);
+            for(let c=0;c<6;c++) styleMap[rowIdx+":"+c]=rowStyle(mi%2===0);
+            rowIdx++;
+          } else {
+            invs.forEach((inv,ii)=>{
+              aoa.push([ii===0?day?.long||m.day:"",ii===0?m.slot:"",inv.name,inv.fund||"",ii===0?mType:"",ii===0?m.room||"":""]);
+              for(let c=0;c<6;c++) styleMap[rowIdx+":"+c]=(c<2?boldCell(mi%2===0):rowStyle(mi%2===0));
+              rowIdx++;
+            });
+          }
+        });
+        aoa.push(["",""," ","","",""]);
+        rowIdx++;
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      setCols(ws,[16,9,24,22,9,10]);
+      ws['!merges'] = merges;
+      Object.entries(styleMap).forEach(([key,style])=>{
+        const [r,c]=key.split(":").map(Number);
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={v:"",t:"s"};
+        ws[addr].s=style;
+      });
+      XLSX.utils.book_append_sheet(wb, ws, "Por Compañía");
+    }
+
+    // ── Sheet 3: Por Inversor ─────────────────────────────────────
+    {
+      const aoa = [["ARGENTINA IN NEW YORK 2026 — POR INVERSOR"]];
+      let rowIdx = 1;
+      const merges = [{s:{r:0,c:0},e:{r:0,c:4}}];
+      const styleMap = {"0:0":titleStyle};
+
+      const invList = investors.filter(inv=>meetings.some(m=>(m.invIds||[]).includes(inv.id)));
+      invList.forEach(inv=>{
+        const invMtgs = meetings.filter(m=>(m.invIds||[]).includes(inv.id)).sort((a,b)=>{
+          const di=getDays().findIndex(d=>d.id===a.day)-getDays().findIndex(d=>d.id===b.day);
+          return di!==0?di:(a.slot||"").localeCompare(b.slot||"");
+        });
+        aoa.push([inv.name+(inv.fund?" — "+inv.fund:""), "","","",""]);
+        merges.push({s:{r:rowIdx,c:0},e:{r:rowIdx,c:4}});
+        styleMap[rowIdx+":0"]=subStyle; rowIdx++;
+
+        aoa.push(["Día","Hora","Compañía","Tipo","Sala"]);
+        for(let c=0;c<5;c++) styleMap[rowIdx+":"+c]=headerStyle(LS_BLUE2);
+        rowIdx++;
+
+        invMtgs.forEach((m,mi)=>{
+          const co=companies.find(c=>c.id===m.coId);
+          const day=getDays().find(d=>d.id===m.day);
+          const mType=(m.invIds||[]).length<=1?"1x1":"Group";
+          aoa.push([day?.long||m.day,m.slot,co?.name||m.coId,mType,m.room||""]);
+          for(let c=0;c<5;c++) styleMap[rowIdx+":"+c]=(c<2?boldCell(mi%2===0):rowStyle(mi%2===0));
+          rowIdx++;
+        });
+        aoa.push([""]);
+        rowIdx++;
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      setCols(ws,[14,9,26,9,10]);
+      ws['!merges']=merges;
+      Object.entries(styleMap).forEach(([key,style])=>{
+        const [r,c]=key.split(":").map(Number);
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={v:"",t:"s"};
+        ws[addr].s=style;
+      });
+      XLSX.utils.book_append_sheet(wb, ws, "Por Inversor");
+    }
+
+    // ── Sheet 4: Lista de Inversores ──────────────────────────────
+    {
+      const header = ["Nombre","Fondo","Email","Teléfono","Cargo","AUM","Reuniones Asignadas","Compañías Solicitadas"];
+      const rows = [header, ...investors.map(inv=>{
+        const nMtgs = meetings.filter(m=>(m.invIds||[]).includes(inv.id)).length;
+        return [inv.name, inv.fund||"", inv.email||"", inv.phone||"", inv.position||"", inv.aum||"", nMtgs, (inv.companies||[]).map(cid=>{const co=companies.find(c=>c.id===cid);return co?.ticker||cid;}).join(", ")];
+      })];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      setCols(ws,[24,22,28,16,18,10,10,34]);
+      ws['!rows']=[{hpt:22},...investors.map(()=>({hpt:16}))];
+      header.forEach((_,ci)=>{
+        const addr=XLSX.utils.encode_cell({r:0,c:ci});
+        if(!ws[addr]) ws[addr]={v:"",t:"s"};
+        ws[addr].s=headerStyle();
+      });
+      for(let r=1;r<rows.length;r++){
+        const isEven=r%2===0;
+        for(let c=0;c<8;c++){
+          const addr=XLSX.utils.encode_cell({r,c});
+          if(!ws[addr]) ws[addr]={v:"",t:"s"};
+          ws[addr].s=(c===0?boldCell(isEven):rowStyle(isEven));
+        }
+      }
+      XLSX.utils.book_append_sheet(wb, ws, "Inversores");
+    }
+
+    const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array", cellStyles:true});
+    downloadBlob("ArgentinaInNY2026_LatinSecurities.xlsx", new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  }
+
   function exportInvestor(inv,format){
     const data=investorToEntity(inv,meetings,companies,config); if(!data){alert("Sin reuniones.");return;}
     const fname=`${inv.fund||inv.name}_${inv.name}`.replace(/[^a-zA-Z0-9_\-]/g,"_").replace(/_+/g,"_");
@@ -1769,6 +2012,14 @@ export default function App(){
                   <div style={{fontSize:26,fontFamily:"Playfair Display,serif",color:"var(--gold)"}}>{meetings.length}</div>
                   <div style={{fontSize:9.5,color:"var(--dim)",textTransform:"uppercase",letterSpacing:".08em",fontFamily:"IBM Plex Mono,monospace",marginTop:3}}>Reuniones</div>
                 </div>
+              </div>
+            </div>
+            <div className="sec-hdr" style={{marginBottom:8}}>📊 Excel con Colores LS</div>
+            <div className="g2" style={{marginBottom:20}}>
+              <div className="ex-card" onClick={exportExcel} style={{border:"1px solid rgba(51,153,255,.3)",background:"rgba(51,153,255,.04)"}}>
+                <div className="ex-card-ico">🟦📊</div>
+                <div className="ex-card-t">Agenda Completa — Excel</div>
+                <div className="ex-card-s">4 solapas: agenda, por compañía, por inversor, lista. Colores Latin Securities.</div>
               </div>
             </div>
             <div className="sec-hdr" style={{marginBottom:8}}>🏢 Por Compañía</div>
