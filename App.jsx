@@ -842,6 +842,8 @@ export default function App(){
 
   // ── UI state (not persisted) ──────────────────────────────────
   const [tab,setTab]         = useState("upload");
+  const [prevYearData,setPrevYearData] = useState(null);
+  const prevYearRef = useRef();
   const [activeDay,setActiveDay] = useState("apr14");
   const [search,setSearch]   = useState("");
   const [fileName,setFileName] = useState("");
@@ -915,6 +917,38 @@ export default function App(){
     };
     reader.readAsArrayBuffer(file);
   },[config.hours,activeEv]);
+
+  // ── Previous year comparison ────────────────────────────────
+  const handlePrevYear = useCallback(e=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const wb=XLSX.read(ev.target.result,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+      if(rows.length<2){alert("Archivo vacío o inválido.");return;}
+      const hdrs=rows[0].map(String);
+      const ci=pred=>hdrs.findIndex(h=>pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
+      const fi=ci(h=>h==="fund"),ni=ci(h=>h==="name"),si=ci(h=>h.startsWith("surname")),ei=ci(h=>h==="email");
+      const g=(row,i)=>i>=0?String(row[i]??"").trim():"";
+      const prevList=rows.slice(1).filter(row=>g(row,fi)||g(row,ni)).map((row,ri)=>({
+        name:capitalizeName([g(row,ni),g(row,si)].filter(Boolean).join(" "))||`Inv ${ri+1}`,
+        fund:normalizeFundName(g(row,fi)),
+        email:g(row,ei).toLowerCase().trim(),
+      }));
+      // Match against current investors by email (primary) or name+fund (fallback)
+      const currentEmails=new Set(investors.map(i=>i.email?.toLowerCase().trim()).filter(Boolean));
+      const currentNameFund=new Set(investors.map(i=>`${normalizeFund(i.name||"")}|||${normalizeFund(i.fund||"")}`));
+      const missing=prevList.filter(p=>{
+        if(p.email && currentEmails.has(p.email)) return false;
+        const key=`${normalizeFund(p.name)}|||${normalizeFund(p.fund)}`;
+        if(currentNameFund.has(key)) return false;
+        return true;
+      });
+      setPrevYearData({fileName:file.name, total:prevList.length, missing});
+    };
+    reader.readAsArrayBuffer(file);
+  },[investors]);
 
   // ── Generate ─────────────────────────────────────────────────
   function generate(){
@@ -1351,6 +1385,59 @@ export default function App(){
             <button className="btn bg" onClick={generate}>🚀 Generar agenda</button>
             <button className="btn bo" onClick={()=>setTab("investors")}>Ver inversores →</button>
           </div>}
+
+          {/* ── Previous year comparison ── */}
+          <div className="card" style={{marginTop:20}}>
+            <div className="card-t">🔍 Comparar con año anterior</div>
+            <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>Subí la lista de inversores del año anterior para ver quién aún no se anotó este año.</p>
+            <div className="upz" style={{padding:"18px 20px"}} onClick={()=>prevYearRef.current?.click()}>
+              <div style={{fontSize:24,marginBottom:6}}>📂</div>
+              <div style={{fontSize:13,color:"var(--cream)",marginBottom:3}}>
+                {prevYearData?prevYearData.fileName:"Seleccionar archivo del año anterior"}
+              </div>
+              <div style={{fontSize:11,color:"var(--dim)"}}>
+                {prevYearData
+                  ?<span style={{color:"var(--grn)"}}>✓ {prevYearData.total} registros cargados</span>
+                  :"Mismo formato que el archivo actual (.xlsx)"}
+              </div>
+              <input ref={prevYearRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handlePrevYear}/>
+            </div>
+            {prevYearData&&(
+              <div style={{marginTop:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{fontSize:13,color:"var(--cream)",fontWeight:600}}>
+                    {prevYearData.missing.length===0
+                      ?"✅ Todos los inversores del año anterior ya se anotaron este año."
+                      :`⚠️ ${prevYearData.missing.length} inversor${prevYearData.missing.length!==1?"es":""} del año anterior aún no se anot${prevYearData.missing.length!==1?"aron":"ó"}`}
+                  </div>
+                  {prevYearData.missing.length>0&&<button className="btn bo bs" onClick={()=>{
+                    const lines=["Name,Fund,Email",...prevYearData.missing.map(p=>`"${p.name}","${p.fund}","${p.email}"`)].join("\n");
+                    const blob=new Blob([lines],{type:"text/csv"});
+                    const url=URL.createObjectURL(blob);
+                    const a=document.createElement("a");a.href=url;a.download="missing_investors.csv";a.click();
+                    setTimeout(()=>URL.revokeObjectURL(url),3000);
+                  }}>⬇ Exportar CSV</button>}
+                  <button className="btn bd bs" onClick={()=>setPrevYearData(null)}>✕ Limpiar</button>
+                </div>
+                {prevYearData.missing.length>0&&(
+                  <div style={{maxHeight:280,overflowY:"auto",border:"1px solid rgba(30,90,176,.1)",borderRadius:7}}>
+                    <table className="tbl">
+                      <thead><tr><th>Nombre</th><th>Fondo / Firma</th><th>Email</th></tr></thead>
+                      <tbody>
+                        {prevYearData.missing.map((p,i)=>(
+                          <tr key={i}>
+                            <td style={{fontSize:12}}>{p.name}</td>
+                            <td style={{fontSize:12,color:"var(--dim)"}}>{p.fund||"—"}</td>
+                            <td style={{fontSize:11,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{p.email||"—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
