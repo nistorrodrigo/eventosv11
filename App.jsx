@@ -23,6 +23,7 @@ const slotHour  = id => parseInt(id.split("-")[1]);
 const hourLabel = h  => h===12?"12:00 PM":h>12?`${h-12}:00 PM`:`${h}:00 AM`;
 const slotLabel = id => hourLabel(slotHour(id));
 const makeRooms = n  => Array.from({length:n},(_,i)=>`Room ${i+1}`);
+const getRooms  = cfg => { const n=(cfg||DEFAULT_CONFIG).numRooms; const names=(cfg||DEFAULT_CONFIG).roomNames||{}; return Array.from({length:n},(_,i)=>names[i]||`Room ${i+1}`); };
 const makeSlots = (hrs,cfg)=> getDayIds(cfg).flatMap(d=>hrs.map(h=>`${d}-${h}`));
 
 const DEFAULT_CONFIG = {
