@@ -519,9 +519,9 @@ html,body{background:var(--ink)}
 .grid-tbl .th-sect{font-size:7.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 6px;text-align:center}
 .grid-tbl .th-co{background:var(--ink2);font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--txt);padding:5px 7px;border-bottom:2px solid;text-align:center;min-width:110px;white-space:nowrap}
 .grid-tbl .td-time{background:rgba(30,90,176,.06);font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--gold);padding:4px 8px;border-right:2px solid rgba(30,90,176,.12);border-bottom:1px solid rgba(255,255,255,.04);text-align:right;white-space:nowrap;font-weight:600;position:sticky;left:0;z-index:9;vertical-align:middle}
-.grid-tbl .td-c{padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);vertical-align:top;height:50px;cursor:pointer;transition:background .1s}
+.grid-tbl .td-c{padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04);border-right:1px solid rgba(255,255,255,.04);vertical-align:top;min-height:50px;cursor:pointer;transition:background .1s}
 .grid-tbl .td-c:hover{background:rgba(30,90,176,.07)}
-.m-pill{border-radius:4px;padding:3px 5px;height:44px;display:flex;flex-direction:column;justify-content:center;border-left:2px solid}
+.m-pill{border-radius:4px;padding:4px 5px;min-height:44px;display:flex;flex-direction:column;justify-content:flex-start;border-left:2px solid;overflow:hidden}
 .mp-n{font-size:10px;color:var(--cream);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 .mp-f{font-size:8.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-r{font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--gold);margin-top:1px}
@@ -2251,7 +2251,10 @@ export default function App(){
                                   {!moveSrc&&<span style={{position:"absolute",top:2,right:4,fontSize:9,color:"var(--dim)",opacity:.5,cursor:"grab"}} onMouseDown={e=>{e.stopPropagation();setMoveSrc(m.id);}}>⠿</span>}
                                   <div className="mp-n">{isGroup?invs.map(i=>i.name.split(" ")[0]).join(" + "):invs[0]?.name}</div>
                                   <div className="mp-f">{isGroup?`${invs[0]?.fund} (${invs.length})`:invs[0]?.fund}</div>
-                                  <div className="mp-r">{m.room}</div>
+                                  <div style={{display:"flex",alignItems:"center",gap:3,marginTop:1}}>
+                                    <span style={{background:sclr,color:"#fff",fontSize:7,fontWeight:800,padding:"1px 3px",borderRadius:2,flexShrink:0}}>{c.ticker}</span>
+                                    <span className="mp-r">{m.room}</span>
+                                  </div>
                                 </div>
                               </td>);
                           }
@@ -2310,7 +2313,10 @@ export default function App(){
                                 style={{cursor:moveSrc?(moveSrc===m.id?"not-allowed":"default"):"pointer",outline:isSelectedR?"2px solid var(--gold)":"none",outlineOffset:-2}}>
                                 <div className="m-pill" style={{background:isSelectedR?`${sclr}33`:`${sclr}11`,borderLeftColor:sclr,position:"relative"}}>
                                   {!moveSrc&&<span style={{position:"absolute",top:2,right:4,fontSize:9,color:"var(--dim)",opacity:.5,cursor:"grab"}} onMouseDown={e=>{e.stopPropagation();setMoveSrc(m.id);}}>⠿</span>}
-                                  <div className="mp-n" style={{color:sclr,fontWeight:700,fontSize:10}}>{co?.ticker||co?.name}</div>
+                                  <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:2}}>
+                                    <span style={{background:sclr,color:"#fff",fontSize:8,fontWeight:800,padding:"1px 4px",borderRadius:3,letterSpacing:".03em",flexShrink:0}}>{co?.ticker||"?"}</span>
+                                    <span style={{fontSize:9,color:"var(--cream)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co?.name}</span>
+                                  </div>
                                   <div className="mp-f">{isGroup?invs.map(i=>i.name.split(" ")[0]).join(" + "):invs[0]?.name}</div>
                                   <div className="mp-r" style={{color:"var(--dim)"}}>{invs[0]?.fund}</div>
                                 </div>
