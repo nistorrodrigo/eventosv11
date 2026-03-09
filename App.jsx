@@ -308,17 +308,26 @@ function runSchedule(investors, fundGrouping, cfg){
     // smallest distance first; ties: earliest slot first
     scored.sort((a,b)=>a.dist!==b.dist?a.dist-b.dist:a.idx-b.idx);
 
+    // Two-pass room assignment:
+    // Pass 1 — preferred room only (keeps company in same room)
+    // Pass 2 — any free room (only if pass 1 found nothing)
     let placed=false;
+    const tryPlace=(slotId,room)=>{
+      const id=`m-${Date.now()}-${Math.random().toString(36).slice(2,5)}`;
+      meetings.push({id,invIds:req.invIds,coId:req.coId,slotId,room});
+      req.invIds.forEach(invId=>invBusy[invId].add(slotId));
+      coBusy[req.coId].add(slotId);roomBusy[`${room}::${slotId}`]=true;coLastRoom[req.coId]=room;placed=true;
+    };
+    // Pass 1: only use the company's established room for this slot
     for(const {slotId} of scored){
       const preferred=coDayRoom(req.coId,slotDay(slotId));
-      let room=null;
-      if(preferred&&!roomBusy[`${preferred}::${slotId}`]) room=preferred;
-      else room=rooms.find(r=>!roomBusy[`${r}::${slotId}`])||null;
-      if(room){
-        const id=`m-${Date.now()}-${Math.random().toString(36).slice(2,5)}`;
-        meetings.push({id,invIds:req.invIds,coId:req.coId,slotId,room});
-        req.invIds.forEach(invId=>invBusy[invId].add(slotId));
-        coBusy[req.coId].add(slotId);roomBusy[`${room}::${slotId}`]=true;coLastRoom[req.coId]=room;placed=true;break;
+      if(preferred&&!roomBusy[`${preferred}::${slotId}`]){tryPlace(slotId,preferred);break;}
+    }
+    // Pass 2: preferred room blocked on all good slots — accept any free room
+    if(!placed){
+      for(const {slotId} of scored){
+        const room=rooms.find(r=>!roomBusy[`${r}::${slotId}`])||null;
+        if(room){tryPlace(slotId,room);break;}
       }
     }
     if(!placed) unscheduled.push(req);
