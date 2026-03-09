@@ -311,15 +311,33 @@ function runSchedule(investors, fundGrouping, cfg){
     shared=shared.filter(s=>!coBusy[req.coId].has(s));
     if(!shared.length){unscheduled.push(req);continue;}
 
-    // ── Score slots: prefer adjacent to existing company meetings on same day ──
+    // ── Score slots ───────────────────────────────────────────────────
+    // Check if ALL investors in this req are fully unconstrained (no time restrictions)
+    const allFreeSlots = makeSlots(hours,cfg);
+    const isUnconstrained = req.invIds.every(id=>{
+      const inv=investors.find(i=>i.id===id);
+      return effectiveSlots(inv,allFreeSlots).length>=allFreeSlots.length;
+    });
+
     const scored=shared.map(slotId=>{
       const day=slotDay(slotId);
       const idx=allSlots.indexOf(slotId);
-      const existing=coIdxOnDay(req.coId,day);
-      const dist=existing.length===0?999:Math.min(...existing.map(ei=>Math.abs(ei-idx)));
-      return{slotId,dist,idx};
+      if(isUnconstrained){
+        // No investor restrictions: always prefer morning (earliest slot first)
+        // Clustering is secondary — don't let it push to afternoon
+        const existing=coIdxOnDay(req.coId,day);
+        const dist=existing.length===0?0:Math.min(...existing.map(ei=>Math.abs(ei-idx)));
+        return{slotId,dist:0,adj:dist,idx};
+      } else {
+        // Has restrictions: cluster adjacent to existing company meetings first
+        const existing=coIdxOnDay(req.coId,day);
+        const dist=existing.length===0?999:Math.min(...existing.map(ei=>Math.abs(ei-idx)));
+        return{slotId,dist,adj:dist,idx};
+      }
     });
-    scored.sort((a,b)=>a.dist!==b.dist?a.dist-b.dist:a.idx-b.idx);
+    // Unconstrained: sort purely by slot time (morning first)
+    // Constrained: sort by proximity to existing meetings, then by time
+    scored.sort((a,b)=>a.dist!==b.dist?a.dist-b.dist:a.idx!==b.idx?a.idx-b.idx:a.adj-b.adj);
 
     let placed=false;
     const tryPlace=(slotId,room)=>{
