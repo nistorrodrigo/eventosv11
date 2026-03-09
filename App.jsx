@@ -1821,21 +1821,24 @@ export default function App(){
       {tab==="historical"&&(
         <div>
           <h2 className="pg-h">Análisis Histórico</h2>
-          <p className="pg-s">Compará la participación y comportamiento a lo largo de los años.</p>
+          <p className="pg-s">
+            Compará ediciones anteriores con <strong style={{color:"var(--cream)"}}>la conferencia actual ({investors.length > 0 ? investors.length+" inversores cargados" : "sin inversores cargados aún"})</strong>.
+            {investors.length===0&&<span style={{color:"var(--gold)"}}> ⚠ Primero cargá el archivo de la conferencia actual en la tab 📥 Cargar.</span>}
+          </p>
 
           {/* ── Year upload cards ── */}
           <div className="card">
-            <div className="card-t">📂 Cargar años anteriores</div>
+            <div className="card-t">📂 Cargar ediciones anteriores para comparar</div>
             <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>
-              Subí el Excel de cada edición anterior (mismo formato Microsoft Forms). Podés cargar tantos años como quieras.
+              Subí los Excel de ediciones anteriores (mismo formato). Se compararán contra los inversores actuales.
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
               {["2022","2023","2024","2025"].map(yr=>{
                 const loaded = historicalYears.find(y=>y.year===yr);
                 return (
-                  <div key={yr} style={{flex:"1 1 160px",minWidth:140,border:"1px solid rgba(30,90,176,"+(loaded?".35":".12")+")",borderRadius:8,padding:"12px 14px",background:loaded?"rgba(30,90,176,.06)":"transparent",cursor:"pointer",position:"relative"}}
+                  <div key={yr} style={{flex:"1 1 140px",minWidth:130,border:"1px solid rgba(30,90,176,"+(loaded?".4":".12")+")",borderRadius:8,padding:"12px 14px",background:loaded?"rgba(30,90,176,.07)":"transparent",cursor:"pointer",position:"relative"}}
                     onClick={()=>{ histFileRef.current.dataset.yr=yr; histFileRef.current.click(); }}>
-                    <div style={{fontSize:20,marginBottom:4}}>{loaded?"✅":"📄"}</div>
+                    <div style={{fontSize:18,marginBottom:3}}>{loaded?"✅":"📄"}</div>
                     <div style={{fontSize:13,fontWeight:700,color:"var(--cream)"}}>{yr}</div>
                     {loaded
                       ? <div style={{fontSize:11,color:"var(--grn)",marginTop:2}}>{loaded.investors.length} inversores</div>
@@ -1846,7 +1849,7 @@ export default function App(){
                 );
               })}
             </div>
-            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
               <input ref={histFileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}}
                 onChange={e=>{const f=e.target.files?.[0]; if(f)parseHistoricalFile(f,histFileRef.current.dataset.yr||"?"); e.target.value="";}}/>
               <button className="btn bo bs" onClick={()=>{
@@ -1857,162 +1860,180 @@ export default function App(){
             </div>
           </div>
 
-          {historicalYears.length>=1&&(<details open><summary style={{cursor:"pointer",padding:"10px 0",fontSize:13,color:"var(--gold)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em",listStyleType:"none",userSelect:"none"}}>▾ <strong>Ver análisis detallado ({historicalYears.length} año{historicalYears.length!==1?"s":""})</strong></summary><div style={{paddingTop:8}}>{(()=>{
-            /* ── Compute all analytics ── */
-            const allYears = historicalYears.map(y=>y.year).sort();
-            const allCos = COMPANIES_INIT.map(c=>c.id);
+          {historicalYears.length>=1&&investors.length>=0&&(()=>{
+            /* ── Key function: match investor across years ── */
+            const invKey = inv => {
+              const e = (inv.email||"").trim().toLowerCase();
+              if(e) return "email:"+e;
+              return "name:"+(normalizeFund((inv.name||""))+"|||"+normalizeFund((inv.fund||"")));
+            };
 
-            /* Key by email if exists, else name+fund */
-            const invKey = inv => inv.email ? inv.email.toLowerCase() : (normalizeFund(inv.name)+"|"+normalizeFund(inv.fund||""));
+            /* Current year investors keyed */
+            const currentKeys = new Set(investors.map(invKey));
 
-            /* Build map: key -> Set of years */
+            /* Build combined dataset: historicalYears + current year */
+            const currentYearLabel = "Actual";
+            const allDatasets = [
+              ...historicalYears,
+              {year: currentYearLabel, fileName:"actual", investors: investors.map(inv=>({
+                name:inv.name, fund:inv.fund, email:(inv.email||"").toLowerCase().trim(),
+                companies: inv.companies||[]
+              }))}
+            ].sort((a,b)=>a.year===currentYearLabel?1:b.year===currentYearLabel?-1:a.year.localeCompare(b.year));
+
+            const allYears = allDatasets.map(y=>y.year);
+
+            /* Per-year key sets */
+            const yearKeySets = {};
+            allDatasets.forEach(({year,investors:invs})=>{
+              yearKeySets[year] = new Set(invs.map(invKey));
+            });
+
+            /* Investor → years map */
             const invYearMap = {};
-            historicalYears.forEach(({year, investors})=>{
-              investors.forEach(inv=>{
+            allDatasets.forEach(({year,investors:invs})=>{
+              invs.forEach(inv=>{
                 const k=invKey(inv);
-                if(!invYearMap[k]) invYearMap[k]={info:inv, years:new Set()};
+                if(!invYearMap[k]) invYearMap[k]={info:inv,years:new Set()};
                 invYearMap[k].years.add(year);
               });
             });
 
-            /* Per-year stats */
-            const yearStats = allYears.map(yr=>{
-              const yrData = historicalYears.find(y=>y.year===yr);
-              const keys = yrData.investors.map(invKey);
-              const prevKeys = new Set(allYears.filter(y=>y<yr).flatMap(y=>(historicalYears.find(d=>d.year===y)||{investors:[]}).investors.map(invKey)));
-              const returning = keys.filter(k=>prevKeys.has(k)).length;
-              const newCount = keys.length - returning;
-              return {yr, total:keys.length, returning, newCount};
-            });
+            /* Per-year stats vs current */
+            const COLORS=["#9b59b6","#e67e22","#3399ff","#23a29e","#1e5ab0","#3a8c5c"];
 
-            /* Company demand per year */
+            /* Company demand */
             const coDemand = {};
             COMPANIES_INIT.forEach(c=>{coDemand[c.id]={};});
-            historicalYears.forEach(({year,investors})=>{
-              investors.forEach(inv=>{
+            allDatasets.forEach(({year,investors:invs})=>{
+              invs.forEach(inv=>{
                 (inv.companies||[]).forEach(coId=>{
                   if(coDemand[coId]) coDemand[coId][year]=(coDemand[coId][year]||0)+1;
                 });
               });
             });
 
-            /* Top repeating investors */
-            const repeaters = Object.values(invYearMap)
-              .filter(v=>v.years.size>1)
-              .sort((a,b)=>b.years.size-a.years.size)
-              .slice(0,20);
-
-            /* Top companies overall */
+            /* Top companies */
             const coTotals = COMPANIES_INIT.map(c=>({
               ...c,
               total: allYears.reduce((s,yr)=>s+(coDemand[c.id][yr]||0),0),
               perYear: allYears.map(yr=>coDemand[c.id][yr]||0)
-            })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,12);
-
-            /* Palette */
-            const COLORS=["#3399ff","#1e5ab0","#23a29e","#3a8c5c","#9b59b6","#e67e22","#e74c3c","#1abc9c"];
-            const maxTotal = Math.max(...yearStats.map(s=>s.total),1);
+            })).filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,14);
             const maxCo = Math.max(...coTotals.map(c=>c.total),1);
 
-            /* SVG helpers */
-            const BAR_H=22, BAR_GAP=6, LABEL_W=90;
+            /* Repeaters (appear in any past year AND current) */
+            const returningToCurrent = Object.values(invYearMap).filter(v=>
+              v.years.has(currentYearLabel) && v.years.size>1
+            ).sort((a,b)=>b.years.size-a.years.size);
+
+            /* Missing: were in a previous year but NOT in current */
+            const missingFromCurrent = {};
+            historicalYears.forEach(({year,investors:invs})=>{
+              invs.forEach(inv=>{
+                const k=invKey(inv);
+                if(!currentKeys.has(k)){
+                  if(!missingFromCurrent[k]) missingFromCurrent[k]={info:inv,years:new Set()};
+                  missingFromCurrent[k].years.add(year);
+                }
+              });
+            });
+            const missingList = Object.values(missingFromCurrent).sort((a,b)=>b.years.size-a.years.size);
+
+            const BAR_H=22, BAR_GAP=6, LABEL_W=100;
+            const maxTotal = Math.max(...allDatasets.map(d=>d.investors.length),1);
 
             return (
               <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-                {/* ── Summary stats row ── */}
+                {/* ── Summary stats ── */}
                 <div className="stats">
-                  {yearStats.map(({yr,total,returning,newCount})=>(
-                    <div key={yr} className="stat" style={{minWidth:110}}>
-                      <div className="sl">{yr}</div>
-                      <div className="sv">{total}</div>
-                      <div style={{fontSize:10,color:"var(--grn)",marginTop:3}}>+{newCount} nuevos</div>
-                      {returning>0&&<div style={{fontSize:10,color:"var(--gold)",marginTop:1}}>↩ {returning} volvieron</div>}
-                    </div>
-                  ))}
+                  {allDatasets.map(({year,investors:invs},i)=>{
+                    const prevYrs = allYears.slice(0,i);
+                    const prevKeys = new Set(prevYrs.flatMap(y=>[...yearKeySets[y]]));
+                    const myKeys = [...yearKeySets[year]];
+                    const returning = myKeys.filter(k=>prevKeys.has(k)).length;
+                    const isCurrentYr = year===currentYearLabel;
+                    return (
+                      <div key={year} className="stat" style={{minWidth:110,border:isCurrentYr?"1px solid rgba(30,90,176,.3)":"none",borderRadius:isCurrentYr?8:0,padding:isCurrentYr?"8px 10px":"0"}}>
+                        <div className="sl" style={{color:isCurrentYr?"var(--gold)":undefined}}>{isCurrentYr?"📍 Actual":year}</div>
+                        <div className="sv">{invs.length}</div>
+                        {returning>0&&<div style={{fontSize:10,color:"var(--gold)",marginTop:2}}>↩ {returning} volvieron</div>}
+                        {isCurrentYr&&returningToCurrent.length>0&&<div style={{fontSize:10,color:"var(--grn)",marginTop:2}}>✓ {returningToCurrent.length} históricos</div>}
+                      </div>
+                    );
+                  })}
                   <div className="stat" style={{minWidth:110}}>
-                    <div className="sl">Inversores únicos</div>
+                    <div className="sl">Únicos históricos</div>
                     <div className="sv">{Object.keys(invYearMap).length}</div>
-                    <div style={{fontSize:10,color:"var(--dim)",marginTop:3}}>histórico total</div>
                   </div>
-                  <div className="stat" style={{minWidth:110}}>
-                    <div className="sl">Repiten 2+ años</div>
-                    <div className="sv">{repeaters.length}</div>
-                    <div style={{fontSize:10,color:"var(--gold)",marginTop:3}}>
-                      {allYears.length>1?Math.round(repeaters.length/Object.keys(invYearMap).length*100):0}% fidelidad
-                    </div>
+                  <div className="stat" style={{minWidth:110,background:"rgba(231,76,60,.06)",borderRadius:6}}>
+                    <div className="sl" style={{color:"#e74c3c"}}>No volvieron</div>
+                    <div className="sv" style={{color:"#e74c3c"}}>{missingList.length}</div>
+                    <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>vs años anteriores</div>
                   </div>
                 </div>
 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-
-                  {/* ── Attendance bar chart ── */}
+                  {/* ── Attendance bars ── */}
                   <div className="card">
-                    <div className="card-t">👥 Participación por año</div>
-                    <svg width="100%" viewBox={"0 0 400 "+((BAR_H+BAR_GAP)*allYears.length+20)} style={{overflow:"visible"}}>
-                      {yearStats.map(({yr,total,returning,newCount},i)=>{
-                        const newW = (newCount/maxTotal)*280;
-                        const retW = (returning/maxTotal)*280;
-                        const y = i*(BAR_H+BAR_GAP);
+                    <div className="card-t">👥 Participación por edición</div>
+                    <svg width="100%" viewBox={"0 0 400 "+((BAR_H+BAR_GAP)*allDatasets.length+24)} style={{overflow:"visible"}}>
+                      {allDatasets.map(({year,investors:invs},i)=>{
+                        const prevYrs = allYears.slice(0,i);
+                        const prevKeys = new Set(prevYrs.flatMap(y=>[...yearKeySets[y]]));
+                        const myKeys = [...yearKeySets[year]];
+                        const returning = myKeys.filter(k=>prevKeys.has(k)).length;
+                        const newCount = invs.length - returning;
+                        const retW=(returning/maxTotal)*270;
+                        const newW=(newCount/maxTotal)*270;
+                        const y2=i*(BAR_H+BAR_GAP);
+                        const isAct=year===currentYearLabel;
                         return (
-                          <g key={yr}>
-                            <text x={LABEL_W-6} y={y+BAR_H/2+4} textAnchor="end" fontSize="11" fill="#7a8fa8" fontFamily="IBM Plex Mono,monospace">{yr}</text>
-                            {/* new investors */}
-                            <rect x={LABEL_W} y={y} width={newW} height={BAR_H} rx="3" fill="#3399ff" opacity="0.85"/>
-                            {/* returning */}
-                            <rect x={LABEL_W+newW} y={y} width={retW} height={BAR_H} rx="3" fill="#23a29e" opacity="0.85"/>
-                            <text x={LABEL_W+newW+retW+6} y={y+BAR_H/2+4} fontSize="11" fill="#2d3f5e" fontFamily="IBM Plex Mono,monospace" fontWeight="700">{total}</text>
+                          <g key={year}>
+                            <text x={LABEL_W-4} y={y2+BAR_H/2+4} textAnchor="end" fontSize="11" fill={isAct?"#c9a227":"#7a8fa8"} fontFamily="IBM Plex Mono,monospace" fontWeight={isAct?"700":"400"}>{isAct?"Actual":year}</text>
+                            <rect x={LABEL_W} y={y2} width={newW} height={BAR_H} rx="3" fill={isAct?"#3399ff":"#4a6a9c"} opacity="0.85"/>
+                            <rect x={LABEL_W+newW} y={y2} width={retW} height={BAR_H} rx="3" fill="#23a29e" opacity="0.8"/>
+                            <text x={LABEL_W+newW+retW+6} y={y2+BAR_H/2+4} fontSize="11" fill={isAct?"#c9a227":"#2d3f5e"} fontFamily="IBM Plex Mono,monospace" fontWeight="700">{invs.length}</text>
                           </g>
                         );
                       })}
-                      {/* legend */}
-                      <g transform={"translate("+LABEL_W+","+(yearStats.length*(BAR_H+BAR_GAP)+6)+")"}>
-                        <rect width="10" height="10" rx="2" fill="#3399ff" opacity="0.85"/>
+                      <g transform={"translate("+LABEL_W+","+(allDatasets.length*(BAR_H+BAR_GAP)+6)+")"}>
+                        <rect width="10" height="10" rx="2" fill="#4a6a9c" opacity="0.85"/>
                         <text x="14" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">Nuevos</text>
-                        <rect x="65" width="10" height="10" rx="2" fill="#23a29e" opacity="0.85"/>
-                        <text x="79" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">Volvieron</text>
+                        <rect x="60" width="10" height="10" rx="2" fill="#23a29e" opacity="0.8"/>
+                        <text x="74" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">Volvieron</text>
                       </g>
                     </svg>
                   </div>
 
-                  {/* ── Retention funnel ── */}
+                  {/* ── Retention to current ── */}
                   <div className="card">
-                    <div className="card-t">🔄 Retención año a año</div>
-                    {allYears.length<2
-                      ? <div style={{color:"var(--dim)",fontSize:12,padding:"20px 0",textAlign:"center"}}>Cargá al menos 2 años para ver retención.</div>
+                    <div className="card-t">🔄 % que vuelve al año actual</div>
+                    {historicalYears.length===0
+                      ? <div style={{color:"var(--dim)",fontSize:12,padding:"20px 0",textAlign:"center"}}>Cargá años anteriores.</div>
                       : (()=>{
-                          const pairs = allYears.slice(1).map((yr,i)=>{
-                            const prev = allYears[i];
-                            const prevKeys = new Set((historicalYears.find(y=>y.year===prev)||{investors:[]}).investors.map(invKey));
-                            const currKeys = (historicalYears.find(y=>y.year===yr)||{investors:[]}).investors.map(invKey);
-                            const ret = currKeys.filter(k=>prevKeys.has(k)).length;
-                            const pct = prevKeys.size>0?Math.round(ret/prevKeys.size*100):0;
-                            return {prev,yr,ret,prevSize:prevKeys.size,pct};
-                          });
-                          const maxPct=100;
+                          const pairs = historicalYears.map(({year,investors:invs})=>{
+                            const prevKeys2 = new Set(invs.map(invKey));
+                            const ret = [...currentKeys].filter(k=>prevKeys2.has(k)).length;
+                            const pct = invs.length>0?Math.round(ret/invs.length*100):0;
+                            return {year, ret, total:invs.length, pct};
+                          }).sort((a,b)=>a.year.localeCompare(b.year));
                           return (
-                            <svg width="100%" viewBox={"0 0 380 "+(pairs.length*(BAR_H+BAR_GAP)+30)} style={{overflow:"visible"}}>
-                              {pairs.map(({prev,yr,ret,prevSize,pct},i)=>{
-                                const bw=(pct/maxPct)*250;
-                                const y=i*(BAR_H+BAR_GAP);
+                            <svg width="100%" viewBox={"0 0 360 "+(pairs.length*(BAR_H+BAR_GAP)+30)} style={{overflow:"visible"}}>
+                              {pairs.map(({year,ret,total,pct},i)=>{
+                                const bw=(pct/100)*230;
+                                const y2=i*(BAR_H+BAR_GAP);
                                 const col=pct>=50?"#3a8c5c":pct>=25?"#e67e22":"#e74c3c";
                                 return (
-                                  <g key={yr}>
-                                    <text x={94} y={y+BAR_H/2+4} textAnchor="end" fontSize="10" fill="#7a8fa8" fontFamily="IBM Plex Mono">{prev}→{yr}</text>
-                                    <rect x={98} y={y} width={bw} height={BAR_H} rx="3" fill={col} opacity="0.8"/>
-                                    <text x={98+bw+6} y={y+BAR_H/2+4} fontSize="11" fill="#2d3f5e" fontFamily="IBM Plex Mono" fontWeight="700">{pct}%</text>
-                                    <text x={98+bw+40} y={y+BAR_H/2+4} fontSize="10" fill="#7a8fa8" fontFamily="IBM Plex Mono">({ret}/{prevSize})</text>
+                                  <g key={year}>
+                                    <text x={78} y={y2+BAR_H/2+4} textAnchor="end" fontSize="11" fill="#7a8fa8" fontFamily="IBM Plex Mono">{year} →</text>
+                                    <rect x={82} y={y2} width={bw||2} height={BAR_H} rx="3" fill={col} opacity="0.8"/>
+                                    <text x={82+bw+6} y={y2+BAR_H/2+4} fontSize="11" fill="#2d3f5e" fontFamily="IBM Plex Mono" fontWeight="700">{pct}%</text>
+                                    <text x={82+bw+44} y={y2+BAR_H/2+4} fontSize="10" fill="#7a8fa8" fontFamily="IBM Plex Mono">({ret}/{total})</text>
                                   </g>
                                 );
                               })}
-                              <g transform={"translate(98,"+(pairs.length*(BAR_H+BAR_GAP)+6)+")"}>
-                                <rect width="10" height="10" rx="2" fill="#3a8c5c" opacity="0.8"/>
-                                <text x="14" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">≥50%</text>
-                                <rect x="50" width="10" height="10" rx="2" fill="#e67e22" opacity="0.8"/>
-                                <text x="64" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">25–50%</text>
-                                <rect x="115" width="10" height="10" rx="2" fill="#e74c3c" opacity="0.8"/>
-                                <text x="129" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">&lt;25%</text>
-                              </g>
+                              <text x={82} y={pairs.length*(BAR_H+BAR_GAP)+16} fontSize="10" fill="#7a8fa8" fontFamily="IBM Plex Mono">de cada año volvieron al año actual</text>
                             </svg>
                           );
                         })()
@@ -2020,97 +2041,108 @@ export default function App(){
                   </div>
                 </div>
 
-                {/* ── Company demand evolution ── */}
-                <div className="card">
-                  <div className="card-t">🏢 Demanda por compañía (top {coTotals.length})</div>
-                  {coTotals.length===0
-                    ? <div style={{color:"var(--dim)",fontSize:12}}>Sin datos de companies en los archivos.</div>
-                    : (() => {
-                        const SVG_H = coTotals.length*(BAR_H+BAR_GAP)+30;
-                        const barW = 280;
-                        const segW = yr => barW/allYears.length;
-                        return (
-                          <div style={{overflowX:"auto"}}>
-                            <svg width="100%" viewBox={"0 0 620 "+SVG_H} style={{overflow:"visible",minWidth:400}}>
-                              {/* year legend */}
-                              <g transform="translate(160,0)">
-                                {allYears.map((yr,i)=>(
-                                  <g key={yr} transform={"translate("+(i*48)+",0)"}>
-                                    <rect width="10" height="10" rx="2" fill={COLORS[i%COLORS.length]} opacity="0.85"/>
-                                    <text x="13" y="9" fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">{yr}</text>
-                                  </g>
-                                ))}
-                              </g>
-                              {coTotals.map((co,ri)=>{
-                                const y=ri*(BAR_H+BAR_GAP)+18;
-                                let xOff=160;
-                                return (
-                                  <g key={co.id}>
-                                    <text x={154} y={y+BAR_H/2+4} textAnchor="end" fontSize="10" fill="#2d3f5e" fontFamily="IBM Plex Mono,monospace">{co.ticker}</text>
-                                    {allYears.map((yr,yi)=>{
-                                      const val=coDemand[co.id][yr]||0;
-                                      const w=(val/maxCo)*barW/allYears.length*0.9;
-                                      const x=xOff; xOff+=barW/allYears.length;
-                                      return val>0?(
-                                        <g key={yr}>
-                                          <rect x={x} y={y+yi*2.5} width={w} height={BAR_H/allYears.length+1} rx="2" fill={COLORS[yi%COLORS.length]} opacity="0.8"/>
-                                          {w>20&&<text x={x+w+3} y={y+yi*2.5+BAR_H/allYears.length} fontSize="9" fill="#7a8fa8" fontFamily="IBM Plex Mono">{val}</text>}
-                                        </g>
-                                      ):null;
-                                    })}
-                                    <text x={xOff+6} y={y+BAR_H/2+4} fontSize="10" fill="#7a8fa8" fontFamily="IBM Plex Mono">{co.total}</text>
-                                  </g>
-                                );
-                              })}
-                            </svg>
-                          </div>
-                        );
-                      })()
-                  }
-                </div>
+                {/* ── Missing investors (were before, not now) ── */}
+                {missingList.length>0&&(
+                  <div className="card">
+                    <div className="card-t" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span>⚠️ Inversores que no volvieron este año ({missingList.length})</span>
+                      <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
+                        const lines=["Nombre,Fondo,Email,Años",...missingList.map(({info,years})=>`"${info.name}","${info.fund||""}","${info.email||""}",[...years].sort().join("+")`)].join("\n");
+                        const b=new Blob([lines],{type:"text/csv"});const u=URL.createObjectURL(b);
+                        const a=document.createElement("a");a.href=u;a.download="no_volvieron.csv";a.click();
+                      }}>⬇ CSV</button>
+                    </div>
+                    <div style={{overflowX:"auto"}}>
+                      <table className="tbl">
+                        <thead><tr><th>#</th><th>Nombre</th><th>Fondo</th><th>Email</th><th>Estuvo en</th></tr></thead>
+                        <tbody>
+                          {missingList.slice(0,50).map(({info,years},i)=>(
+                            <tr key={i}>
+                              <td style={{fontSize:11,color:"var(--dim)"}}>{i+1}</td>
+                              <td style={{fontSize:12,fontWeight:600}}>{info.name}</td>
+                              <td style={{fontSize:11,color:"var(--dim)"}}>{info.fund||"—"}</td>
+                              <td style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{info.email||"—"}</td>
+                              <td>{[...years].sort().map(yr=><span key={yr} className="bdg bg-g" style={{marginRight:3,fontSize:9}}>{yr}</span>)}</td>
+                            </tr>
+                          ))}
+                          {missingList.length>50&&<tr><td colSpan={5} style={{fontSize:11,color:"var(--dim)",textAlign:"center",padding:"8px 0"}}>...y {missingList.length-50} más. Exportá CSV para ver todos.</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
-                {/* ── Company trend table ── */}
+                {/* ── Returning investors ── */}
+                {returningToCurrent.length>0&&(
+                  <div className="card">
+                    <div className="card-t">🏆 Inversores que volvieron este año ({returningToCurrent.length})</div>
+                    <div style={{overflowX:"auto"}}>
+                      <table className="tbl">
+                        <thead><tr><th>#</th><th>Nombre</th><th>Fondo</th><th>Email</th><th>Ediciones</th></tr></thead>
+                        <tbody>
+                          {returningToCurrent.map(({info,years},i)=>(
+                            <tr key={i}>
+                              <td style={{fontSize:11,color:"var(--dim)"}}>{i+1}</td>
+                              <td style={{fontSize:12,fontWeight:600}}>{info.name}</td>
+                              <td style={{fontSize:11,color:"var(--dim)"}}>{info.fund||"—"}</td>
+                              <td style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{info.email||"—"}</td>
+                              <td style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                                {[...years].sort().map(yr=><span key={yr} className={"bdg "+(yr===currentYearLabel?"bg-b":"bg-g")} style={{fontSize:9}}>{yr===currentYearLabel?"Actual":yr}</span>)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Company demand ── */}
                 {coTotals.length>0&&(
                   <div className="card">
-                    <div className="card-t">📈 Tendencia por compañía</div>
+                    <div className="card-t">🏢 Demanda por compañía — evolución histórica</div>
                     <div style={{overflowX:"auto"}}>
                       <table className="tbl">
                         <thead>
                           <tr>
                             <th>Compañía</th>
-                            {allYears.map(yr=><th key={yr}>{yr}</th>)}
-                            <th>Total</th>
+                            {allYears.map(yr=><th key={yr} style={{color:yr===currentYearLabel?"var(--gold)":undefined}}>{yr===currentYearLabel?"Actual":yr}</th>)}
                             <th>Tendencia</th>
                           </tr>
                         </thead>
                         <tbody>
                           {coTotals.map(co=>{
                             const vals=allYears.map(yr=>coDemand[co.id][yr]||0);
-                            const last=vals[vals.length-1], prev=vals.length>1?vals[vals.length-2]:null;
-                            const trend=prev===null?"—":last>prev?"📈 Sube":last<prev?"📉 Baja":"➡ Estable";
-                            const sparkW=60, sparkH=18;
+                            const histVals=vals.slice(0,-1);
+                            const curVal=vals[vals.length-1];
+                            const prevVal=histVals.length>0?histVals[histVals.length-1]:null;
+                            const trend=prevVal===null?"—":curVal>prevVal?"📈":curVal<prevVal?"📉":"➡";
+                            const sparkW=56, sparkH=16;
                             const maxV=Math.max(...vals,1);
                             const pts=vals.map((v,i)=>`${(i/(vals.length-1||1))*sparkW},${sparkH-(v/maxV)*sparkH}`).join(" ");
                             return (
                               <tr key={co.id}>
-                                <td style={{fontSize:12,fontWeight:600}}>{co.ticker}<span style={{fontSize:10,color:"var(--dim)",marginLeft:6}}>{co.name}</span></td>
-                                {vals.map((v,i)=>(
-                                  <td key={i} style={{fontSize:12,textAlign:"center",color:v>0?"var(--txt)":"var(--dim)"}}>
-                                    {v>0?v:"—"}
-                                  </td>
-                                ))}
-                                <td style={{fontSize:13,fontWeight:700,color:"var(--gold)",textAlign:"center"}}>{co.total}</td>
-                                <td style={{fontSize:11}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <td style={{fontSize:12}}><strong>{co.ticker}</strong> <span style={{fontSize:10,color:"var(--dim)"}}>{co.name}</span></td>
+                                {vals.map((v,i)=>{
+                                  const isAct=allYears[i]===currentYearLabel;
+                                  const prevV=i>0?vals[i-1]:null;
+                                  const diff=prevV!==null?v-prevV:null;
+                                  return (
+                                    <td key={i} style={{textAlign:"center",fontSize:12,fontWeight:isAct?700:400,color:isAct?v>0?"var(--gold)":"var(--dim)":v>0?"var(--txt)":"var(--dim)"}}>
+                                      {v>0?v:"—"}
+                                      {diff!==null&&diff!==0&&<sup style={{fontSize:9,color:diff>0?"var(--grn)":"#e74c3c",marginLeft:2}}>{diff>0?"+"+diff:diff}</sup>}
+                                    </td>
+                                  );
+                                })}
+                                <td>
+                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
                                     {vals.length>1&&(
-                                      <svg width={sparkW} height={sparkH} style={{flexShrink:0}}>
+                                      <svg width={sparkW} height={sparkH}>
                                         <polyline points={pts} fill="none" stroke="#3399ff" strokeWidth="1.5" strokeLinejoin="round"/>
-                                        {vals.map((v,i)=>(
-                                          <circle key={i} cx={(i/(vals.length-1||1))*sparkW} cy={sparkH-(v/maxV)*sparkH} r="2" fill="#3399ff"/>
-                                        ))}
+                                        <circle cx={(vals.length-1)/(vals.length-1||1)*sparkW} cy={sparkH-(vals[vals.length-1]/maxV)*sparkH} r="2.5" fill="#c9a227"/>
                                       </svg>
                                     )}
-                                    <span style={{whiteSpace:"nowrap"}}>{trend}</span>
+                                    <span style={{fontSize:12}}>{trend}</span>
                                   </div>
                                 </td>
                               </tr>
@@ -2122,82 +2154,31 @@ export default function App(){
                   </div>
                 )}
 
-                {/* ── Returning investors ── */}
-                {repeaters.length>0&&(
-                  <div className="card">
-                    <div className="card-t">🏆 Inversores más fieles (repiten ≥2 años)</div>
-                    <div style={{overflowX:"auto"}}>
-                      <table className="tbl">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Nombre</th>
-                            <th>Fondo</th>
-                            <th>Email</th>
-                            <th>Años</th>
-                            <th>Ediciones</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {repeaters.map(({info,years},i)=>(
-                            <tr key={i}>
-                              <td style={{fontSize:11,color:"var(--dim)"}}>{i+1}</td>
-                              <td style={{fontSize:12,fontWeight:600}}>{info.name}</td>
-                              <td style={{fontSize:11,color:"var(--dim)"}}>{info.fund||"—"}</td>
-                              <td style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{info.email||"—"}</td>
-                              <td style={{fontSize:11}}>
-                                {[...years].sort().map(yr=>(
-                                  <span key={yr} className="bdg bg-g" style={{marginRight:3,fontSize:9}}>{yr}</span>
-                                ))}
-                              </td>
-                              <td style={{textAlign:"center"}}>
-                                <span className="bdg bg-b" style={{fontSize:11,fontWeight:700}}>{years.size}</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── New investors each year (never seen before) ── */}
-                <div className="card">
-                  <div className="card-t">🌟 Inversores nuevos por año</div>
-                  {allYears.map((yr,yi)=>{
-                    const prevKeys = new Set(allYears.slice(0,yi).flatMap(y=>(historicalYears.find(d=>d.year===y)||{investors:[]}).investors.map(invKey)));
-                    const currInvs = (historicalYears.find(y=>y.year===yr)||{investors:[]}).investors;
-                    const firstTimers = currInvs.filter(inv=>!prevKeys.has(invKey(inv)));
-                    return (
-                      <div key={yr} style={{marginBottom:14}}>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--cream)",marginBottom:6}}>
-                          {yr} — <span style={{color:"var(--grn)"}}>{firstTimers.length} nuevos</span>
-                          {yi===0&&<span style={{color:"var(--dim)",fontWeight:400,fontSize:11}}> (primera edición cargada)</span>}
-                        </div>
-                        {firstTimers.length>0&&(
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                            {firstTimers.slice(0,30).map((inv,j)=>(
-                              <span key={j} className="tag" style={{fontSize:10}}>{inv.name}{inv.fund?` · ${inv.fund}`:""}</span>
-                            ))}
-                            {firstTimers.length>30&&<span className="tag" style={{fontSize:10,color:"var(--dim)"}}>+{firstTimers.length-30} más</span>}
-                          </div>
-                        )}
+                {/* ── New this year (never seen before) ── */}
+                {(()=>{
+                  const allPrevKeys = new Set(historicalYears.flatMap(({investors:invs})=>invs.map(invKey)));
+                  const brandNew = investors.filter(inv=>!allPrevKeys.has(invKey({name:inv.name,fund:inv.fund,email:(inv.email||"").toLowerCase()}))); 
+                  return brandNew.length>0?(
+                    <div className="card">
+                      <div className="card-t">🌟 Nuevos este año — nunca estuvieron ({brandNew.length})</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:5,maxHeight:200,overflowY:"auto"}}>
+                        {brandNew.map((inv,i)=>(
+                          <span key={i} className="tag" style={{fontSize:11}}>{inv.name}{inv.fund?" · "+inv.fund:""}</span>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  ):null;
+                })()}
 
               </div>
             );
           })()}
 
-          </div></details>)}
-
           {historicalYears.length===0&&(
             <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
               <div style={{fontSize:40,marginBottom:12}}>📊</div>
-              <div style={{fontSize:14,color:"var(--cream)",marginBottom:6}}>Cargá al menos un año para ver el análisis</div>
-              <div style={{fontSize:12}}>Usá las tarjetas de arriba para subir los archivos de ediciones anteriores.</div>
+              <div style={{fontSize:14,color:"var(--cream)",marginBottom:6}}>Cargá al menos un año anterior para ver la comparación</div>
+              <div style={{fontSize:12}}>Todo se compara contra los {investors.length} inversores del año actual.</div>
             </div>
           )}
         </div>
