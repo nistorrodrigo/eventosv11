@@ -2225,7 +2225,6 @@ export default function App(){
                             const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
                             const sclr=SEC_CLR[c.sector]||"var(--gold)";
                             const isGroup=new Set(invs.map(i=>i.fund||i.id).filter(Boolean)).size>1;
-                            const isDragging=dragSrc===m.id;
                             const isSelected = moveSrc===m.id;
                             return(
                               <td key={c.id} className="td-c"
