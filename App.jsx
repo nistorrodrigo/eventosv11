@@ -856,6 +856,10 @@ export default function App(){
 
   // ── Create new event ─────────────────────────────────────────
   function createEvent(name){
+    if(events.some(e=>e.name.trim().toLowerCase()===name.trim().toLowerCase())){
+      alert(`Ya existe un evento con el nombre "${name}". Usá un nombre diferente.`);
+      return;
+    }
     const id=`ev-${Date.now()}`;
     const ev={id,name,createdAt:new Date().toISOString(),
       investors:[],companies:COMPANIES_INIT.map(c=>({...c,attendees:[]})),
