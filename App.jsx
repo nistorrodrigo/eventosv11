@@ -844,6 +844,8 @@ export default function App(){
   const [tab,setTab]         = useState("upload");
   const [prevYearData,setPrevYearData] = useState(null);
   const prevYearRef = useRef();
+  const [historicalYears,setHistoricalYears] = useState([]);
+  const histFileRef = useRef();
   const [activeDay,setActiveDay] = useState("apr14");
   const [search,setSearch]   = useState("");
   const [fileName,setFileName] = useState("");
