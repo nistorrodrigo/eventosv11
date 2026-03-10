@@ -518,7 +518,7 @@ function companyToEntity(co,meetings,investors,cfg){
         }))
       ]}))};
 }
-function investorToEntity(inv,meetings,companies,cfg){
+function investorToEntity(inv,meetings,companies,cfg,investors){
   const _allSlots=makeSlots(cfg?.hours||DEFAULT_CONFIG.hours,cfg);
   const _dayLongI=getDayLong(cfg);
   const _dayIds=getDayIds(cfg);
@@ -1548,7 +1548,7 @@ export default function App(){
   }
 
   function exportInvestor(inv,format){
-    const data=investorToEntity(inv,meetings,companies,config); if(!data){alert("Sin reuniones.");return;}
+    const data=investorToEntity(inv,meetings,companies,config,investors); if(!data){alert("Sin reuniones.");return;}
     const fname=`${inv.fund||inv.name}_${inv.name}`.replace(/[^a-zA-Z0-9_\-]/g,"_").replace(/_+/g,"_");
     if(format==="word") downloadBlob(`${fname}.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([data],config));
@@ -1562,7 +1562,7 @@ export default function App(){
     if(!scheduled){alert("Generá la agenda primero.");return;}
     const entities=scope==="companies"
       ?companies.map(co=>companyToEntity(co,meetings,investors,config)).filter(Boolean)
-      :investors.map(inv=>investorToEntity(inv,meetings,companies,config)).filter(Boolean);
+      :investors.map(inv=>investorToEntity(inv,meetings,companies,config,investors)).filter(Boolean);
     if(!entities.length){alert("Sin datos.");return;}
     if(format==="pdf_combined"){openPrint(buildPrintHTML(entities,config));return;}
     const files=entities.map(e=>({name:`${e.name.replace(/[^a-zA-Z0-9\s]/g,"").replace(/\s+/g,"_").slice(0,40)}${format==="word"?".doc":".html"}`,data:format==="word"?buildWordHTML(e.name,e.sub,e.sections,config):buildPrintHTML([e],config)}));
