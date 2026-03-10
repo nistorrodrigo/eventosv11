@@ -1020,6 +1020,11 @@ export default function App(){
 
   // ── UI state (not persisted) ──────────────────────────────────
   const [tab,setTab]         = useState("upload");
+  const [moverStocks,setMoverStocks]   = useState(()=>{try{return JSON.parse(localStorage.getItem("ls_movers")||"[]");}catch{return [];}});
+  const [moverCCL,setMoverCCL]         = useState(null);
+  const [moverCCLLoading,setMoverCCLLoading] = useState(false);
+  const [moverCCLErr,setMoverCCLErr]   = useState(null);
+  const [moverCCLManual,setMoverCCLManual] = useState("");
   const [prevYearData,setPrevYearData] = useState(null);
   const prevYearRef = useRef();
   const [historicalYears,setHistoricalYears] = useState([]);
@@ -1640,6 +1645,63 @@ export default function App(){
     if(format==="word") downloadBlob(`${co.ticker}_schedule.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
+  function saveMoverStocks(arr){setMoverStocks(arr);localStorage.setItem("ls_movers",JSON.stringify(arr));}
+  async function fetchCCL(){
+    setMoverCCLLoading(true);setMoverCCLErr(null);
+    try{
+      const r=await fetch("https://dolarapi.com/v1/dolares/contadoconliquidacion");
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const d=await r.json();
+      setMoverCCL(d.venta||d.compra||null);
+      setMoverCCLManual("");
+    }catch(e){
+      // fallback: argentinadatos
+      try{
+        const r2=await fetch("https://api.argentinadatos.com/v1/cotizaciones/dolares/contadoconliquidacion");
+        if(r2.ok){const d2=await r2.json();const last=Array.isArray(d2)?d2[d2.length-1]:d2;setMoverCCL(last?.venta||last?.cierre||null);setMoverCCLManual("");setMoverCCLLoading(false);return;}
+      }catch{}
+      setMoverCCLErr("No se pudo obtener el CCL automáticamente. Ingresalo manualmente.");
+    }
+    setMoverCCLLoading(false);
+  }
+  function exportMoverPrompt(){
+    const ccl=parseFloat(moverCCLManual)||moverCCL;
+    if(!moverStocks.length){alert("Agregá acciones primero.");return;}
+    const sorted=[...moverStocks].sort((a,b)=>parseFloat(b.varPct||0)-parseFloat(a.varPct||0));
+    const gainers=sorted.filter(s=>parseFloat(s.varPct||0)>0).slice(0,5);
+    const losers=[...sorted].reverse().filter(s=>parseFloat(s.varPct||0)<0).slice(0,5);
+    const fmtLine=(s)=>{
+      const varUSD=ccl&&s.prev&&s.today?((s.today/s.prev-1)*100-(0)).toFixed(1):null;
+      return `  ${s.ticker.padEnd(7)} | ${s.varPct>=0?"+":""}${parseFloat(s.varPct||0).toFixed(1)}% ARS${varUSD!==null?" | "+(varUSD>=0?"+":"")+varUSD+"% USD":""} | ${s.comment||"sin comentario"}`;
+    };
+    const prompt=`You are helping write the "Top Movers" section for the ${config.eventTitle||"Argentina in New York"} conference daily summary.
+
+CCL (Contado con liquidación): ${ccl?"$"+ccl+" ARS/USD":"no disponible"}
+Fecha: ${new Date().toLocaleDateString("es-AR")}
+
+TOP GAINERS (ARS):
+${gainers.map(fmtLine).join("\n")||"  (ninguno)"}
+
+TOP LOSERS (ARS):
+${losers.map(fmtLine).join("\n")||"  (ninguno)"}
+
+TODAS LAS ACCIONES:
+${moverStocks.map(fmtLine).join("\n")}
+
+Por favor escribí un párrafo de 3-4 oraciones para el "Top Movers" del daily summary institucional. Destacá:
+- Las acciones más destacadas (suba y baja) con sus variaciones
+- Si hay un patrón sectorial (bancos, energía, etc.)
+- El contexto del tipo de cambio CCL si es relevante
+- Tono profesional para inversores institucionales, en inglés
+
+Formato:
+Top Movers — [fecha]
+[Párrafo aquí]`;
+    navigator.clipboard.writeText(prompt).then(()=>alert("✅ Prompt copiado. Pegalo en Claude.")).catch(()=>{
+      const w=window.open("","_blank","width=720,height=540");
+      w.document.write("<pre style='font:13px monospace;padding:20px;'>"+prompt.replace(/</g,"&lt;")+"</pre>");w.document.close();
+    });
+  }
   function exportSummaryPrompt(dayId){
     const dayIds=getDayIds(config);
     const dayLong=getDayLong(config);
@@ -1773,6 +1835,7 @@ Daily Summary — ${dayLabel}
     {id:"schedule",label:"📅 Agenda"},
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
+    {id:"mercado",label:"📈 Mercado"},
   ];
 
   if(!currentEvent) return(
@@ -3033,6 +3096,240 @@ Daily Summary — ${dayLabel}
         </div>
       )}
 
+      {tab==="mercado"&&(()=>{
+        const ccl=parseFloat(moverCCLManual)||moverCCL;
+        const PRESETS=[
+  {ticker:"GGAL",name:"Grupo Financiero Galicia",sector:"Financials"},
+  {ticker:"YPFD",name:"YPF",sector:"Energy"},
+  {ticker:"BMA",name:"Banco Macro",sector:"Financials"},
+  {ticker:"BBAR",name:"BBVA Argentina",sector:"Financials"},
+  {ticker:"TXAR",name:"Ternium Argentina",sector:"Industry"},
+  {ticker:"ALUA",name:"Aluar",sector:"Industry"},
+  {ticker:"TECO2",name:"Telecom Argentina",sector:"TMT"},
+  {ticker:"TGSU2",name:"Transportadora Gas del Sur",sector:"Energy"},
+  {ticker:"PAMP",name:"Pampa Energía",sector:"Energy"},
+  {ticker:"HARG",name:"Holcim Argentina",sector:"Industry"},
+  {ticker:"SUPV",name:"Supervielle",sector:"Financials"},
+  {ticker:"VALO",name:"Grupo Supervielle",sector:"Financials"},
+  {ticker:"CEPU",name:"Central Puerto",sector:"Energy"},
+  {ticker:"LOMA",name:"Loma Negra",sector:"Industry"},
+  {ticker:"CRES",name:"Cresud",sector:"Agro"},
+  {ticker:"MIRG",name:"Mirgor",sector:"Industry"},
+  {ticker:"CVH",name:"Cablevision Holding",sector:"TMT"},
+  {ticker:"COME",name:"Sociedad Comercial del Plata",sector:"Conglomerate"},
+  {ticker:"EDN",name:"Edenor",sector:"Energy"},
+  {ticker:"TRAN",name:"Transener",sector:"Energy"}
+];
+        const SECTORS=["Financials","Energy","Industry","TMT","Agro","Conglomerate","Other"];
+        const SECTOR_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","Industry":"#3a6b3a","TMT":"#7b35b0","Agro":"#3a8c5c","Conglomerate":"#b03535","Other":"#555"};
+
+        function calcRow(s){
+          const prev=parseFloat(s.prev);const today=parseFloat(s.today);
+          if(!prev||!today) return{...s,varPct:null,varUSD:null};
+          const varPct=(today/prev-1)*100;
+          const varUSD=ccl?(today/ccl/(prev/ccl)-1)*100:null;
+          return{...s,varPct,varUSD};
+        }
+        const rows=moverStocks.map(calcRow);
+        const sorted=[...rows].sort((a,b)=>(b.varPct??-999)-(a.varPct??-999));
+        const gainers=sorted.filter(r=>r.varPct!=null&&r.varPct>0).slice(0,5);
+        const losers=[...sorted].reverse().filter(r=>r.varPct!=null&&r.varPct<0).slice(0,5);
+
+        function addStock(preset){
+          if(moverStocks.find(s=>s.ticker===preset.ticker)) return;
+          const ns={id:Date.now(),ticker:preset.ticker,name:preset.name,sector:preset.sector||"Other",prev:"",today:"",comment:""};
+          saveMoverStocks([...moverStocks,ns]);
+        }
+        function updateStock(id,field,val){
+          saveMoverStocks(moverStocks.map(s=>s.id===id?{...s,[field]:val}:s));
+        }
+        function removeStock(id){saveMoverStocks(moverStocks.filter(s=>s.id!==id));}
+        function addCustom(){
+          const ns={id:Date.now(),ticker:"",name:"",sector:"Other",prev:"",today:"",comment:""};
+          saveMoverStocks([...moverStocks,ns]);
+        }
+
+        const pctColor=(v)=>v==null?"var(--dim)":v>0?"var(--grn)":v<0?"var(--red)":"var(--dim)";
+        const pctFmt=(v,sign=true)=>v==null?"—":(sign&&v>0?"+":"")+v.toFixed(2)+"%";
+
+        return(
+        <div>
+          <h2 className="pg-h">📈 Top Movers del Mercado</h2>
+          <p className="pg-s">Registrá variaciones de acciones argentinas y calculá retornos en USD usando el CCL.</p>
+
+          {/* CCL card */}
+          <div className="card" style={{marginBottom:14}}>
+            <div className="card-t">💵 Dólar CCL (Contado con Liquidación)</div>
+            <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:8,alignItems:"center",flex:1,minWidth:220}}>
+                <button className="btn bg bs" style={{whiteSpace:"nowrap",gap:6}} onClick={fetchCCL} disabled={moverCCLLoading}>
+                  {moverCCLLoading?"⏳ Buscando...":"🔄 Obtener automático"}
+                </button>
+                {moverCCL&&!moverCCLManual&&(
+                  <div style={{background:"rgba(58,140,92,.12)",border:"1px solid var(--grn)",borderRadius:7,padding:"6px 14px",fontFamily:"IBM Plex Mono,monospace",fontSize:13,color:"var(--grn)",fontWeight:700}}>
+                    ${moverCCL.toLocaleString("es-AR",{minimumFractionDigits:2})} ARS
+                    <span style={{fontSize:9,color:"var(--dim)",display:"block",fontWeight:400}}>dolarapi.com</span>
+                  </div>
+                )}
+                {moverCCLErr&&<div style={{fontSize:11,color:"var(--red)",maxWidth:260}}>{moverCCLErr}</div>}
+              </div>
+              <div style={{flex:1,minWidth:200}}>
+                <div className="lbl" style={{marginBottom:3}}>O ingresá manualmente:</div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <span style={{color:"var(--dim)",fontSize:13}}>$</span>
+                  <input className="inp" style={{fontSize:13,fontFamily:"IBM Plex Mono,monospace",width:130}}
+                    type="number" placeholder="ej. 1187.50" value={moverCCLManual}
+                    onChange={e=>{setMoverCCLManual(e.target.value);}}/>
+                  <span style={{fontSize:11,color:"var(--dim)"}}>ARS/USD</span>
+                  {moverCCLManual&&<div style={{fontSize:10,color:"var(--gold)",background:"rgba(30,90,176,.1)",borderRadius:4,padding:"2px 7px",fontFamily:"IBM Plex Mono,monospace"}}>manual</div>}
+                </div>
+              </div>
+              {ccl&&<div style={{background:"var(--ink3)",borderRadius:7,padding:"8px 14px",fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"var(--txt)"}}>
+                <div style={{fontSize:10,color:"var(--dim)",marginBottom:2}}>USD activo</div>
+                <div style={{fontSize:15,fontWeight:700,color:"var(--cream)"}}>$ {ccl.toLocaleString("es-AR",{minimumFractionDigits:2})}</div>
+              </div>}
+            </div>
+          </div>
+
+          {/* Top Movers summary cards */}
+          {(gainers.length>0||losers.length>0)&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+            <div className="card" style={{borderTop:"3px solid var(--grn)",padding:"14px 16px"}}>
+              <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,letterSpacing:".1em",color:"var(--grn)",marginBottom:10,textTransform:"uppercase"}}>🟢 Top Gainers</div>
+              {gainers.map(r=>(
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid rgba(30,90,176,.06)"}}>
+                  <div>
+                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:12,fontWeight:700,color:"var(--cream)"}}>{r.ticker}</span>
+                    <span style={{fontSize:10,color:"var(--dim)",marginLeft:6}}>{r.name}</span>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:13,fontWeight:700,color:"var(--grn)"}}>+{r.varPct.toFixed(2)}%</div>
+                    {r.varUSD!=null&&<div style={{fontSize:9,color:"var(--dim)"}}>USD {r.varUSD>=0?"+":""}{r.varUSD.toFixed(2)}%</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="card" style={{borderTop:"3px solid var(--red)",padding:"14px 16px"}}>
+              <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,letterSpacing:".1em",color:"var(--red)",marginBottom:10,textTransform:"uppercase"}}>🔴 Top Losers</div>
+              {losers.map(r=>(
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid rgba(30,90,176,.06)"}}>
+                  <div>
+                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:12,fontWeight:700,color:"var(--cream)"}}>{r.ticker}</span>
+                    <span style={{fontSize:10,color:"var(--dim)",marginLeft:6}}>{r.name}</span>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:13,fontWeight:700,color:"var(--red)"}}>{r.varPct.toFixed(2)}%</div>
+                    {r.varUSD!=null&&<div style={{fontSize:9,color:"var(--dim)"}}>USD {r.varUSD>=0?"+":""}{r.varUSD.toFixed(2)}%</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {/* Preset quick-add */}
+          <div className="card" style={{marginBottom:14}}>
+            <div className="card-t">⚡ Agregar del panel Merval</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {PRESETS.map(p=>{
+                const already=moverStocks.find(s=>s.ticker===p.ticker);
+                return(
+                  <button key={p.ticker} className="btn bo bs"
+                    style={{fontSize:10,padding:"4px 10px",opacity:already?.1:1,background:already?"rgba(30,90,176,.1)":"transparent",fontFamily:"IBM Plex Mono,monospace"}}
+                    onClick={()=>addStock(p)}>
+                    {already?"✓ ":""}{p.ticker}
+                  </button>
+                );
+              })}
+              <button className="btn bg bs" style={{fontSize:10,padding:"4px 10px",marginLeft:4}} onClick={addCustom}>+ Custom</button>
+            </div>
+          </div>
+
+          {/* Stocks table */}
+          {moverStocks.length>0&&(
+          <div className="card" style={{marginBottom:14,padding:0,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(30,90,176,.08)"}}>
+              <div className="card-t" style={{margin:0}}>📋 Acciones cargadas</div>
+            </div>
+            <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"rgba(30,90,176,.05)"}}>
+                  {["Ticker","Nombre","Sector","Cierre prev. (ARS)","Cierre hoy (ARS)","Var ARS %","Precio USD","Var USD %","Comentario",""].map(h=>(
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:9,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".07em",color:"var(--dim)",borderBottom:"1px solid rgba(30,90,176,.1)",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s,i)=>(
+                  <tr key={s.id} style={{borderBottom:"1px solid rgba(30,90,176,.05)",background:i%2===0?"rgba(30,90,176,.015)":"transparent"}}>
+                    <td style={{padding:"6px 10px",fontFamily:"IBM Plex Mono,monospace",fontWeight:700,fontSize:12,color:"var(--cream)"}}>
+                      <input className="inp" style={{width:65,fontFamily:"IBM Plex Mono,monospace",fontWeight:700,fontSize:12,padding:"3px 6px",textTransform:"uppercase"}}
+                        value={s.ticker} placeholder="GGAL" onChange={e=>updateStock(s.id,"ticker",e.target.value.toUpperCase())}/>
+                    </td>
+                    <td style={{padding:"6px 10px"}}>
+                      <input className="inp" style={{width:150,fontSize:11,padding:"3px 6px"}} value={s.name} placeholder="Nombre" onChange={e=>updateStock(s.id,"name",e.target.value)}/>
+                    </td>
+                    <td style={{padding:"6px 10px"}}>
+                      <select className="sel" style={{width:110,fontSize:11,padding:"3px 6px"}} value={s.sector||"Other"} onChange={e=>updateStock(s.id,"sector",e.target.value)}>
+                        {SECTORS.map(sec=><option key={sec} value={sec}>{sec}</option>)}
+                      </select>
+                    </td>
+                    <td style={{padding:"6px 10px"}}>
+                      <input className="inp" style={{width:100,fontFamily:"IBM Plex Mono,monospace",fontSize:12,padding:"3px 6px",textAlign:"right"}} type="number"
+                        value={s.prev} placeholder="0.00" onChange={e=>updateStock(s.id,"prev",e.target.value)}/>
+                    </td>
+                    <td style={{padding:"6px 10px"}}>
+                      <input className="inp" style={{width:100,fontFamily:"IBM Plex Mono,monospace",fontSize:12,padding:"3px 6px",textAlign:"right"}} type="number"
+                        value={s.today} placeholder="0.00" onChange={e=>updateStock(s.id,"today",e.target.value)}/>
+                    </td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"IBM Plex Mono,monospace",fontSize:13,fontWeight:700,color:pctColor(s.varPct)}}>
+                      {pctFmt(s.varPct)}
+                    </td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"IBM Plex Mono,monospace",fontSize:12,color:"var(--dim)"}}>
+                      {s.today&&ccl?("$"+(parseFloat(s.today)/ccl).toFixed(2)):"—"}
+                    </td>
+                    <td style={{padding:"6px 10px",textAlign:"right",fontFamily:"IBM Plex Mono,monospace",fontSize:13,fontWeight:700,color:pctColor(s.varUSD)}}>
+                      {pctFmt(s.varUSD)}
+                    </td>
+                    <td style={{padding:"6px 10px",minWidth:180}}>
+                      <input className="inp" style={{width:"100%",fontSize:11,padding:"3px 6px"}} value={s.comment||""} placeholder="Comentario breve..."
+                        onChange={e=>updateStock(s.id,"comment",e.target.value)}/>
+                    </td>
+                    <td style={{padding:"6px 10px"}}>
+                      <button className="btn bd bs" style={{padding:"3px 8px",fontSize:10}} onClick={()=>removeStock(s.id)}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </div>
+          )}
+
+          {moverStocks.length===0&&(
+            <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+              <div style={{fontSize:36,marginBottom:10}}>📈</div>
+              <div style={{fontSize:14,color:"var(--cream)",marginBottom:6}}>Agregá acciones del panel Merval o con + Custom</div>
+              <div style={{fontSize:12}}>Ingresá precio de ayer y de hoy para calcular variaciones ARS y USD CCL.</div>
+            </div>
+          )}
+
+          {/* Export prompt */}
+          {moverStocks.length>0&&(
+          <div className="card">
+            <div className="card-t">🤖 Generar texto para el Daily Summary</div>
+            <p style={{fontSize:12,color:"var(--dim)",marginBottom:10,lineHeight:1.6}}>
+              Generá un prompt para Claude con toda la data de Top Movers para incluirlo en el Daily Summary institucional.
+            </p>
+            <button className="btn bg bs" style={{gap:6}} onClick={exportMoverPrompt}>
+              📋 Copiar prompt para Claude
+            </button>
+          </div>
+          )}
+        </div>
+        );
+      })()}
 
     </div>
   </div>
