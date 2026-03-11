@@ -675,15 +675,15 @@ function DatePicker({value,onChange,onClose}){
   return(
     <div style={{position:"absolute",zIndex:999,background:"#fff",border:"1px solid rgba(30,90,176,.2)",borderRadius:10,boxShadow:"0 8px 32px rgba(30,90,176,.15)",padding:14,minWidth:240,top:"100%",left:0}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <button style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#1e5ab0",padding:"2px 6px"}} onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{...v,m:v.m-1})}>‹</button>
+        <button style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#1e5ab0",padding:"2px 6px"}} onClick={()=>setView(v=>v.m===0?{y:v.y-1,m:11}:{...v,m:v.m-1})} aria-label="Mes anterior">‹</button>
         <span style={{fontFamily:"Lora,serif",fontWeight:700,fontSize:13,color:"#000039"}}>{MONTHS[view.m]} {view.y}</span>
-        <button style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#1e5ab0",padding:"2px 6px"}} onClick={()=>setView(v=>v.m===11?{y:v.y+1,m:0}:{...v,m:v.m+1})}>›</button>
+        <button style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#1e5ab0",padding:"2px 6px"}} onClick={()=>setView(v=>v.m===11?{y:v.y+1,m:0}:{...v,m:v.m+1})} aria-label="Mes siguiente">›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
         {WDAYS.map(w=><div key={w} style={{textAlign:"center",fontSize:9,color:"#9aabbf",fontFamily:"IBM Plex Mono,monospace",padding:"2px 0"}}>{w}</div>)}
         {cells.map((d,i)=>d===null
           ?<div key={"e"+i}/>
-          :<div key={d} onClick={()=>{onChange(isoStr(d));onClose();}}
+          :<div key={d} role="button" tabIndex={0} aria-label={`${d} ${MONTHS[view.m]} ${view.y}`} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){onChange(isoStr(d));onClose();}}} onClick={()=>{onChange(isoStr(d));onClose();}}
               style={{textAlign:"center",fontSize:11.5,padding:"5px 2px",borderRadius:5,cursor:"pointer",fontWeight:isSelected(d)?700:400,
                 background:isSelected(d)?"#1e5ab0":"transparent",color:isSelected(d)?"#fff":"#2d3f5e",
                 border:d===today.getDate()&&view.m===today.getMonth()&&view.y===today.getFullYear()?"1px solid #3399ff":"1px solid transparent"}}
@@ -723,14 +723,14 @@ function DayDateInput({day,di,onChange}){
     <div style={{position:"relative"}} ref={ref}>
       <div style={{display:"flex",alignItems:"center",gap:4}}>
         <button style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#1e5ab0",padding:"0 2px",lineHeight:1}}
-          onClick={()=>{if(day.date){const d=new Date(day.date+"T12:00:00");d.setDate(d.getDate()-1);applyDate(d.toISOString().slice(0,10));}}}>‹</button>
+          aria-label="Día anterior" onClick={()=>{if(day.date){const d=new Date(day.date+"T12:00:00");d.setDate(d.getDate()-1);applyDate(d.toISOString().slice(0,10));}}}>‹</button>
         <button className="inp" style={{flex:1,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px"}}
           onClick={()=>setOpen(o=>!o)}>
           <span style={{fontSize:12,color:"#2d3f5e"}}>{displayLabel}</span>
           <span style={{fontSize:10,color:"#9aabbf"}}>📅</span>
         </button>
         <button style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#1e5ab0",padding:"0 2px",lineHeight:1}}
-          onClick={()=>{if(day.date){const d=new Date(day.date+"T12:00:00");d.setDate(d.getDate()+1);applyDate(d.toISOString().slice(0,10));}}}>›</button>
+          aria-label="Día siguiente" onClick={()=>{if(day.date){const d=new Date(day.date+"T12:00:00");d.setDate(d.getDate()+1);applyDate(d.toISOString().slice(0,10));}}}>›</button>
       </div>
       {open&&<DatePicker value={day.date} onChange={applyDate} onClose={()=>setOpen(false)}/>}
     </div>
@@ -825,7 +825,7 @@ function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,c
             </div>
           )}
           {activeTab==="meetings"&&(
-            invMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
+            invMeetings.length===0?<div className="alert ai" aria-live="polite">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Compañía</th><th>Sala</th></tr></thead>
               <tbody>{invMeetings.map(m=>{const co=coById.get(m.coId);return(<tr key={m.id}>
                 <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
@@ -884,7 +884,7 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
               {(co.attendees||[]).map((a,i)=>(
                 <div key={i} className="attendee-row">
                   <div style={{flex:1}}><div style={{fontSize:13,color:"var(--cream)"}}>{a.name}</div>{a.title&&<div style={{fontSize:11,color:"var(--dim)"}}>{a.title}</div>}</div>
-                  <button className="btn bd bs" onClick={()=>onUpdateCo({...co,attendees:(co.attendees||[]).filter((_,j)=>j!==i)})}>✕</button>
+                  <button aria-label="Eliminar representante" className="btn bd bs" onClick={()=>onUpdateCo({...co,attendees:(co.attendees||[]).filter((_,j)=>j!==i)})}>✕</button>
                 </div>
               ))}
               <div style={{display:"flex",gap:8,marginTop:12}}>
@@ -897,7 +897,7 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
             </div>
           )}
           {activeTab==="meetings"&&(
-            coMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
+            coMeetings.length===0?<div className="alert ai" aria-live="polite">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Inversor(es)</th><th>Sala</th></tr></thead>
               <tbody>{coMeetings.map(m=>{const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);return(<tr key={m.id}>
                 <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
@@ -972,7 +972,7 @@ function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,
               {getDayIds(cfg).map(d=><optgroup key={d} label={getDayShort(cfg)[d]||d}>{hours.map(h=><option key={`${d}-${h}`} value={`${d}-${h}`}>{getDayShort(cfg)[d]||d} {hourLabel(h)}</option>)}</optgroup>)}
             </select>
           </div>
-          {conflicts.length>0&&<div className="alert aw" style={{marginTop:10}}>⚠ Conflicto: {conflicts.join(" · ")}<br/><span style={{fontSize:10,color:"var(--dim)"}}>Cambiá el horario o la sala para resolver el conflicto.</span></div>}
+          {conflicts.length>0&&<div className="alert aw" aria-live="polite" style={{marginTop:10}}>⚠ Conflicto: {conflicts.join(" · ")}<br/><span style={{fontSize:10,color:"var(--dim)"}}>Cambiá el horario o la sala para resolver el conflicto.</span></div>}
         </div>
         <div className="modal-footer">
           {mode==="edit"&&<button className="btn bd bs" onClick={onDelete}>🗑 Eliminar</button>}
@@ -1954,7 +1954,7 @@ Daily Summary — ${dayLabel}
       </div>
     )}
 
-    <div className="body">
+    <main className="body">
 
       {/* ════ CONFIG ════ */}
       {tab==="config"&&(
@@ -2015,7 +2015,7 @@ Daily Summary — ${dayLabel}
                     onChange={e=>{const nd=[...(config.days||DEFAULT_DAYS)];nd[di]={...nd[di],long:e.target.value};setConfig(c=>({...c,days:nd}));}}/>
                 </div>
                 <div style={{flexShrink:0,paddingTop:18}}>
-                  {(config.days||DEFAULT_DAYS).length>1&&<button className="btn bd bs" onClick={()=>setConfig(c=>({...c,days:c.days.filter((_,j)=>j!==di)}))}>✕</button>}
+                  {(config.days||DEFAULT_DAYS).length>1&&<button aria-label="Eliminar día" className="btn bd bs" onClick={()=>setConfig(c=>({...c,days:c.days.filter((_,j)=>j!==di)}))}>✕</button>}
                 </div>
               </div>
             ))}
@@ -2041,7 +2041,7 @@ Daily Summary — ${dayLabel}
                     </div>
                   ))}
                 </div>
-                <button className="btn bd bs" style={{alignSelf:"flex-end"}} onClick={()=>setConfig(cfg=>({...cfg,contacts:cfg.contacts.filter((_,j)=>j!==i)}))}>✕</button>
+                <button aria-label="Eliminar contacto" className="btn bd bs" style={{alignSelf:"flex-end"}} onClick={()=>setConfig(cfg=>({...cfg,contacts:cfg.contacts.filter((_,j)=>j!==i)}))}>✕</button>
               </div>
             ))}
             <button className="btn bo bs" style={{marginTop:10}} onClick={()=>setConfig(c=>({...c,contacts:[...(c.contacts||[]),{name:"",role:"",email:"",phone:""}]}))}>
@@ -2224,7 +2224,7 @@ Daily Summary — ${dayLabel}
           <h2 className="pg-h">Cargar Respuestas</h2>
           <p className="pg-s">Excel exportado de Microsoft Forms — procesamiento automático.</p>
           <div className="card">
-            <div className="upz" onClick={()=>fileRef.current?.click()}>
+            <div className="upz" role="button" tabIndex={0} aria-label="Subir archivo Excel" onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")fileRef.current?.click();}} onClick={()=>fileRef.current?.click()}>
               <div style={{fontSize:34,marginBottom:8}}>📊</div>
               <div style={{fontSize:15,color:"var(--cream)",marginBottom:4}}>{fileName||"Hacé clic para seleccionar el archivo"}</div>
               <div style={{fontSize:12,color:"var(--dim)"}}>{fileName?<span style={{color:"var(--grn)"}}>✓ {investors.length} inversores cargados</span>:"Formato .xlsx · Microsoft Forms export"}</div>
@@ -2240,7 +2240,7 @@ Daily Summary — ${dayLabel}
           <div className="card" style={{marginTop:20}}>
             <div className="card-t">🔍 Comparar con año anterior</div>
             <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>Subí la lista de inversores del año anterior para ver quién aún no se anotó este año. <strong style={{color:"var(--cream)"}}>Para análisis multi-año usá la tab 📊 Histórico.</strong></p>
-            <div className="upz" style={{padding:"18px 20px"}} onClick={()=>prevYearRef.current?.click()}>
+            <div className="upz" style={{padding:"18px 20px"}} role="button" tabIndex={0} aria-label="Subir archivo de año anterior" onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")prevYearRef.current?.click();}} onClick={()=>prevYearRef.current?.click()}>
               <div style={{fontSize:24,marginBottom:6}}>📂</div>
               <div style={{fontSize:13,color:"var(--cream)",marginBottom:3}}>
                 {prevYearData?prevYearData.fileName:"Seleccionar archivo del año anterior"}
@@ -2348,7 +2348,7 @@ Daily Summary — ${dayLabel}
           </div>
           <div style={{maxHeight:560,overflowY:"auto"}}>
             {filtered.map(inv=>(
-              <div key={inv.id} className="ent-row" onClick={()=>setInvProfile(inv)}>
+              <div key={inv.id} className="ent-row" role="button" tabIndex={0} aria-label={`Ver perfil de ${inv.name}`} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setInvProfile(inv);}} onClick={()=>setInvProfile(inv)}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontFamily:"Playfair Display,serif",fontSize:14,color:"var(--cream)"}}>{inv.name}</span>
@@ -2482,8 +2482,8 @@ Daily Summary — ${dayLabel}
         <div>
           <h2 className="pg-h">Agenda</h2>
           <p className="pg-s">Clic en celda para editar · Compañías fijas · Inversores se mueven</p>
-          {!scheduled&&investors.length===0&&<div className="alert aw">Cargá el archivo Excel primero.</div>}
-          {!scheduled&&investors.length>0&&<div className="alert ai">{investors.length} inversores listos. <button className="btn bg bs" style={{marginLeft:10}} onClick={generate}>🚀 Generar</button></div>}
+          {!scheduled&&investors.length===0&&<div className="alert aw" aria-live="polite">Cargá el archivo Excel primero.</div>}
+          {!scheduled&&investors.length>0&&<div className="alert ai" aria-live="polite">{investors.length} inversores listos. <button className="btn bg bs" style={{marginLeft:10}} onClick={generate}>🚀 Generar</button></div>}
           {scheduled&&(<>
             <div className="stats">
               <div className="stat"><div className="sv">{meetings.length}</div><div className="sl">Reuniones</div></div>
@@ -2492,7 +2492,7 @@ Daily Summary — ${dayLabel}
               <div className="stat"><div className="sv">{meetingStats.counts[getDayIds(config)[1]]||0}</div><div className="sl" style={{color:"var(--grn)"}}>{getDayShort(config)[getDayIds(config)[1]]||'Day 2'}</div></div>
               <div className="stat"><div className="sv">{meetingStats.groupCount}</div><div className="sl">Grupales</div></div>
             </div>
-            {unscheduled.length>0&&<div className="alert aw" style={{marginBottom:12}}>⚠ {unscheduled.length} reunión(es) sin asignar.</div>}
+            {unscheduled.length>0&&<div className="alert aw" aria-live="polite" style={{marginBottom:12}}>⚠ {unscheduled.length} reunión(es) sin asignar.</div>}
             {/* ── Toolbar ── */}
             <div className="flex" style={{marginBottom:12,flexWrap:"wrap",gap:6}}>
               {getDayIds(config).map((d,di)=><button key={d} className={`day-btn ${activeDay===d?(di%2===0?"d14on":"d15on"):"doff"}`} onClick={()=>setActiveDay(d)}>
@@ -2666,7 +2666,7 @@ Daily Summary — ${dayLabel}
         <div>
           <h2 className="pg-h">Exportar Schedules</h2>
           <p className="pg-s">Formato Latin Securities — listo para entregar.</p>
-          {!scheduled&&<div className="alert aw">Generá la agenda primero.</div>}
+          {!scheduled&&<div className="alert aw" aria-live="polite">Generá la agenda primero.</div>}
           {scheduled&&(<>
             <div className="card" style={{marginBottom:18}}>
               <div className="card-t">📊 Resumen</div>
@@ -2687,7 +2687,7 @@ Daily Summary — ${dayLabel}
             </div>
             <div className="sec-hdr" style={{marginBottom:8}}>📊 Excel con Colores LS</div>
             <div className="g2" style={{marginBottom:20}}>
-              <div className="ex-card" onClick={exportExcel} style={{border:"1px solid rgba(51,153,255,.3)",background:"rgba(51,153,255,.04)"}}>
+              <div className="ex-card" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportExcel();}} onClick={exportExcel} style={{border:"1px solid rgba(51,153,255,.3)",background:"rgba(51,153,255,.04)"}}>
                 <div className="ex-card-ico">🟦📊</div>
                 <div className="ex-card-t">Agenda Completa — Excel</div>
                 <div className="ex-card-s">4 solapas: agenda, por compañía, por inversor, lista. Colores Latin Securities.</div>
@@ -2695,13 +2695,13 @@ Daily Summary — ${dayLabel}
             </div>
             <div className="sec-hdr" style={{marginBottom:8}}>🏢 Por Compañía</div>
             <div className="g2" style={{marginBottom:20}}>
-              <div className="ex-card" onClick={()=>exportAll("companies","word")}><div className="ex-card-ico">📝🗜</div><div className="ex-card-t">Todas — Word ZIP</div><div className="ex-card-s">Un .doc por compañía en un ZIP.</div></div>
-              <div className="ex-card" onClick={()=>exportAll("companies","pdf_combined")}><div className="ex-card-ico">📄</div><div className="ex-card-t">Todas — PDF combinado</div><div className="ex-card-s">Un solo PDF con todas las compañías.</div></div>
+              <div className="ex-card" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")()=>exportAll("companies","word")}} onClick={()=>exportAll("companies","word")}><div className="ex-card-ico">📝🗜</div><div className="ex-card-t">Todas — Word ZIP</div><div className="ex-card-s">Un .doc por compañía en un ZIP.</div></div>
+              <div className="ex-card" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")()=>exportAll("companies","pdf_combined")}} onClick={()=>exportAll("companies","pdf_combined")}><div className="ex-card-ico">📄</div><div className="ex-card-t">Todas — PDF combinado</div><div className="ex-card-s">Un solo PDF con todas las compañías.</div></div>
             </div>
             <div className="sec-hdr" style={{marginBottom:8}}>💼 Por Inversor</div>
             <div className="g2" style={{marginBottom:20}}>
-              <div className="ex-card" onClick={()=>exportAll("investors","word")}><div className="ex-card-ico">📝🗜</div><div className="ex-card-t">Todos — Word ZIP</div><div className="ex-card-s">Un .doc por inversor en un ZIP.</div></div>
-              <div className="ex-card" onClick={()=>exportAll("investors","pdf_combined")}><div className="ex-card-ico">📄</div><div className="ex-card-t">Todos — PDF combinado</div><div className="ex-card-s">Un solo PDF con todos los inversores.</div></div>
+              <div className="ex-card" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")()=>exportAll("investors","word")}} onClick={()=>exportAll("investors","word")}><div className="ex-card-ico">📝🗜</div><div className="ex-card-t">Todos — Word ZIP</div><div className="ex-card-s">Un .doc por inversor en un ZIP.</div></div>
+              <div className="ex-card" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")()=>exportAll("investors","pdf_combined")}} onClick={()=>exportAll("investors","pdf_combined")}><div className="ex-card-ico">📄</div><div className="ex-card-t">Todos — PDF combinado</div><div className="ex-card-s">Un solo PDF con todos los inversores.</div></div>
             </div>
             <div className="sec-hdr" style={{marginBottom:8}}>🤖 Daily Summary — Prompt para Claude</div>
             <div className="card" style={{marginBottom:18,padding:"14px 18px"}}>
@@ -3356,7 +3356,7 @@ Daily Summary — ${dayLabel}
         );
       })()}
 
-    </div>
+    </main>
   </div>
   );
 }
