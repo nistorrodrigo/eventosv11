@@ -265,15 +265,15 @@ function runSchedule(investors, fundGrouping, cfg){
   investors.forEach(inv=>{
     (inv.companies||[]).forEach(coId=>{
       const key=`${inv.id}::${coId}`; if(processed.has(key)) return; processed.add(key);
-      const fundmates=(fundMap[inv.fund]||[]).filter(id=>id!==inv.id&&investors.find(i=>i.id===id)?.companies?.includes(coId));
+      const fundmates=(fundMap[inv.fund]||[]).filter(id=>id!==inv.id&&invById.get(id)?.companies?.includes(coId));
       const grouped=inv.fund&&fundmates.length>0&&(fundGrouping[inv.fund]!==false);
       if(grouped){fundmates.forEach(id=>processed.add(`${id}::${coId}`));reqs.push({invIds:[inv.id,...fundmates],coId});}
       else reqs.push({invIds:[inv.id],coId});
     });
   });
   reqs.sort((a,b)=>{
-    const sa=a.invIds.reduce((s,id)=>{const inv=investors.find(i=>i.id===id);return s.filter(sl=>effectiveSlots(inv,allSlots).includes(sl));},allSlots);
-    const sb=b.invIds.reduce((s,id)=>{const inv=investors.find(i=>i.id===id);return s.filter(sl=>effectiveSlots(inv,allSlots).includes(sl));},allSlots);
+    const sa=a.invIds.reduce((s,id)=>{const inv=invById.get(id);return s.filter(sl=>effectiveSlots(inv,allSlots).includes(sl));},allSlots);
+    const sb=b.invIds.reduce((s,id)=>{const inv=invById.get(id);return s.filter(sl=>effectiveSlots(inv,allSlots).includes(sl));},allSlots);
     return sa.length-sb.length;
   });
   const invBusy={};investors.forEach(i=>{invBusy[i.id]=new Set();});
@@ -283,21 +283,21 @@ function runSchedule(investors, fundGrouping, cfg){
   // coRoom[coId] = permanent room assignment for this company (set on first meeting, never changes unless forced)
   const coRoom={...fixedRoom};
 
-  // ── Helpers ──────────────────────────────────────────────────────
-  // Indices of slots already assigned to a company on a given day
-  const coIdxOnDay=(coId,dayId)=>meetings.filter(m=>m.coId===coId&&slotDay(m.slotId)===dayId).map(m=>allSlots.indexOf(m.slotId));
-
-  // Number of meetings a given room has on a given day (all companies)
-  const roomDayCount=(room,dayId)=>meetings.filter(m=>m.room===room&&slotDay(m.slotId)===dayId).length;
-
-  // Dominant company in a room on a given day, and their count
+  // ── Helpers (js-combine-iterations: single-pass day buckets) ────
+  // Instead of filtering meetings[] on every call, maintain live buckets
+  // meetByDay[dayId] = meetings[] for that day — O(1) access
+  const meetByDay={};
+  const coIdxOnDay=(coId,dayId)=>(meetByDay[dayId]||[]).filter(m=>m.coId===coId).map(m=>allSlots.indexOf(m.slotId));
+  const roomDayCount=(room,dayId)=>(meetByDay[dayId]||[]).filter(m=>m.room===room).length;
   const roomDayDominant=(room,dayId)=>{
-    const ms=meetings.filter(m=>m.room===room&&slotDay(m.slotId)===dayId);
+    const ms=(meetByDay[dayId]||[]).filter(m=>m.room===room);
     if(!ms.length) return{coId:null,count:0};
     const cnt={};ms.forEach(m=>{cnt[m.coId]=(cnt[m.coId]||0)+1;});
     const [coId,count]=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
     return{coId,count};
   };
+  // Keep meetByDay in sync when we push a meeting (called after each assignment)
+  const registerMeeting=(m)=>{const d=slotDay(m.slotId);if(!meetByDay[d])meetByDay[d]=[];meetByDay[d].push(m);};
 
   // ── Pre-compute expected meetings per company ─────────────────────
   // (used to determine which companies are "heavy" and should own a room)
@@ -307,7 +307,7 @@ function runSchedule(investors, fundGrouping, cfg){
 
   for(const req of reqs){
     let shared=allSlots;
-    for(const id of req.invIds){const inv=investors.find(i=>i.id===id);shared=shared.filter(s=>effectiveSlots(inv,allSlots).includes(s)&&!invBusy[id].has(s));}
+    for(const id of req.invIds){const inv=invById.get(id);shared=shared.filter(s=>effectiveSlots(inv,allSlots).includes(s)&&!invBusy[id].has(s));}
     shared=shared.filter(s=>!coBusy[req.coId].has(s));
     if(!shared.length){unscheduled.push(req);continue;}
 
@@ -315,7 +315,7 @@ function runSchedule(investors, fundGrouping, cfg){
     // Check if ALL investors in this req are fully unconstrained (no time restrictions)
     const allFreeSlots = makeSlots(hours,cfg);
     const isUnconstrained = req.invIds.every(id=>{
-      const inv=investors.find(i=>i.id===id);
+      const inv=invById.get(id);
       return effectiveSlots(inv,allFreeSlots).length>=allFreeSlots.length;
     });
 
@@ -342,7 +342,8 @@ function runSchedule(investors, fundGrouping, cfg){
     let placed=false;
     const tryPlace=(slotId,room)=>{
       const id=`m-${Date.now()}-${Math.random().toString(36).slice(2,5)}`;
-      meetings.push({id,invIds:req.invIds,coId:req.coId,slotId,room});
+      const nm={id,invIds:req.invIds,coId:req.coId,slotId,room};
+      meetings.push(nm);registerMeeting(nm);
       req.invIds.forEach(invId=>invBusy[invId].add(slotId));
       coBusy[req.coId].add(slotId);roomBusy[`${room}::${slotId}`]=true;
       if(!coRoom[req.coId]) coRoom[req.coId]=room; // lock room on first assignment
@@ -503,7 +504,7 @@ function companyToEntity(co,meetings,investors,cfg){
   return{name:`${co.name} (${co.ticker})`,sub:`${co.sector} · ${cms.length} meeting${cms.length!==1?"s":""}${dinners.length?" · "+dinners.length+" dinner event"+(dinners.length>1?"s":""):""}`,attendees:co.attendees||[],
     sections:allDays.map(day=>({dayLabel:_dayLong[day]||day,headerCols:["Time","Investor","Fund","Type","Room"],
       rows:[
-        ...(dg[day]||[]).map(m=>{const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+        ...(dg[day]||[]).map(m=>{const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
           const isGrp=invs.length>1;
           const mFunds=new Set(invs.map(i=>i.fund||i.id).filter(Boolean));const mType=mFunds.size<=1?'1x1 Meeting':'Group Meeting';
           const col1=isGrp
@@ -530,9 +531,9 @@ function investorToEntity(inv,meetings,companies,cfg,investors){
   return{name:inv.name,sub:[inv.position,inv.fund].filter(Boolean).join(" · "),
     sections:useDays.map(d=>({dayLabel:_dayLongI[d]||d,headerCols:["Time","Company","Meeting Type","Room"],
       rows:[
-        ...(dg[d]||[]).map(m=>{const co=companies.find(c=>c.id===m.coId);
+        ...(dg[d]||[]).map(m=>{const co=coById.get(m.coId);
           const mInvIds=m.invIds||[];
-          const mFunds2=new Set(mInvIds.map(id=>{const inv=investors.find(i=>i.id===id);return inv?.fund||id;}).filter(Boolean));const meetingType=mFunds2.size<=1?'1x1 Meeting':'Group Meeting';
+          const mFunds2=new Set(mInvIds.map(id=>{const inv=invById.get(id);return inv?.fund||id;}).filter(Boolean));const meetingType=mFunds2.size<=1?'1x1 Meeting':'Group Meeting';
           const reps=(co?.attendees||[]).map(a=>esc(a.name)+(a.title?'<br/><small style="color:#888">'+esc(a.title)+'</small>':'')).join('<div style="height:3px"/>');
           return{time:hourLabel(slotHour(m.slotId)),
             col1:co?.name||m.coId,col1b:co?.ticker,
@@ -826,7 +827,7 @@ function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,c
           {activeTab==="meetings"&&(
             invMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Compañía</th><th>Sala</th></tr></thead>
-              <tbody>{invMeetings.map(m=>{const co=companies.find(c=>c.id===m.coId);return(<tr key={m.id}>
+              <tbody>{invMeetings.map(m=>{const co=coById.get(m.coId);return(<tr key={m.id}>
                 <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:600,fontSize:11}}>{slotLabel(m.slotId)}</td>
                 <td style={{color:"var(--cream)",fontWeight:600}}>{co?.name}<span className="bdg bg-g" style={{marginLeft:6}}>{co?.ticker}</span></td>
@@ -898,7 +899,7 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
           {activeTab==="meetings"&&(
             coMeetings.length===0?<div className="alert ai">Sin reuniones asignadas.</div>
             :<table className="tbl"><thead><tr><th>Día</th><th>Hora</th><th>Inversor(es)</th><th>Sala</th></tr></thead>
-              <tbody>{coMeetings.map(m=>{const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);return(<tr key={m.id}>
+              <tbody>{coMeetings.map(m=>{const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);return(<tr key={m.id}>
                 <td><span className={`bdg ${getDayIds(cfg).indexOf(slotDay(m.slotId))%2===0?"bg-b":"bg-grn"}`}>{getDayShort(cfg)[slotDay(m.slotId)]||slotDay(m.slotId)}</span></td>
                 <td style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:600,fontSize:11}}>{slotLabel(m.slotId)}</td>
                 <td>{invs.map(inv=>(<div key={inv.id} style={{fontSize:12,color:"var(--cream)"}}>{inv.name}<span style={{color:"var(--dim)",fontSize:10}}> — {inv.fund}</span></div>))}</td>
@@ -926,13 +927,18 @@ function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,
   const [slotId,setSlotId]=useState(meeting?.slotId||"");
   const [room,setRoom]=useState(meeting?.room||rooms[0]);
   const hours=[...new Set(allSlots.map(s=>slotHour(s)))];
+  // Build lookup Sets once for O(1) conflict detection (js-set-map-lookups)
   const conflicts=useMemo(()=>{
     const c=[];if(!invIds.length||!coId||!slotId) return c;
-    for(const invId of invIds){if(meetings.find(m=>m.invIds?.includes(invId)&&m.slotId===slotId&&m.id!==meeting?.id)) c.push(`${investors.find(i=>i.id===invId)?.name} ya tiene reunión`);}
-    if(meetings.find(m=>m.coId===coId&&m.slotId===slotId&&m.id!==meeting?.id)) c.push(`${companies.find(c2=>c2.id===coId)?.name} ya tiene reunión`);
-    if(meetings.find(m=>m.room===room&&m.slotId===slotId&&m.id!==meeting?.id)) c.push(`${room} ocupada`);
+    const others=meetings.filter(m=>m.id!==meeting?.id&&m.slotId===slotId);
+    const busyInvs=new Set(others.flatMap(m=>m.invIds||[]));
+    const busyCos=new Set(others.map(m=>m.coId));
+    const busyRooms=new Set(others.map(m=>m.room).filter(Boolean));
+    for(const invId of invIds){if(busyInvs.has(invId)) c.push(`${invById.get(invId)?.name} ya tiene reunión`);}
+    if(busyCos.has(coId)) c.push(`${coById.get(coId)?.name} ya tiene reunión`);
+    if(room&&busyRooms.has(room)) c.push(`${room} ocupada`);
     return c;
-  },[invIds,coId,slotId,room,meetings,meeting]);
+  },[invIds,coId,slotId,room,meetings,meeting,invById,coById]);
   return(
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal" style={{maxWidth:500}}>
@@ -1456,8 +1462,8 @@ export default function App(){
         return (a.slot||"").localeCompare(b.slot||"");
       });
       sorted.forEach(m=>{
-        const co = companies.find(c=>c.id===m.coId);
-        const invs = (m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+        const co = coById.get(m.coId);
+        const invs = (m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
         const day = getDays().find(d=>d.id===m.day);
         const mFundsX=new Set(invs.map(i=>i.fund||i.id).filter(Boolean));const mType = mFundsX.size<=1?"1x1":"Group";
         if(invs.length===0){
@@ -1528,7 +1534,7 @@ export default function App(){
         rowIdx++;
 
         coMtgs.forEach((m,mi)=>{
-          const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+          const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
           const day=getDays().find(d=>d.id===m.day);
           const mFundsY=new Set(invs.map(i=>i.fund||i.id).filter(Boolean));const mType=mFundsY.size<=1?"1x1":"Group";
           if(invs.length===0){
@@ -1581,9 +1587,9 @@ export default function App(){
         rowIdx++;
 
         invMtgs.forEach((m,mi)=>{
-          const co=companies.find(c=>c.id===m.coId);
+          const co=coById.get(m.coId);
           const day=getDays().find(d=>d.id===m.day);
-          const mInvsZ=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);const mFundsZ=new Set(mInvsZ.map(i=>i.fund||i.id).filter(Boolean));const mType=mFundsZ.size<=1?"1x1":"Group";
+          const mInvsZ=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);const mFundsZ=new Set(mInvsZ.map(i=>i.fund||i.id).filter(Boolean));const mType=mFundsZ.size<=1?"1x1":"Group";
           aoa.push([day?.long||m.day,m.slot,co?.name||m.coId,mType,m.room||""]);
           for(let c=0;c<5;c++) styleMap[rowIdx+":"+c]=(c<2?boldCell(mi%2===0):rowStyle(mi%2===0));
           rowIdx++;
@@ -1609,7 +1615,7 @@ export default function App(){
       const header = ["Nombre","Fondo","Email","Teléfono","Cargo","AUM","Reuniones Asignadas","Compañías Solicitadas"];
       const rows = [header, ...investors.map(inv=>{
         const nMtgs = meetings.filter(m=>(m.invIds||[]).includes(inv.id)).length;
-        return [inv.name, inv.fund||"", inv.email||"", inv.phone||"", inv.position||"", inv.aum||"", nMtgs, (inv.companies||[]).map(cid=>{const co=companies.find(c=>c.id===cid);return co?.ticker||cid;}).join(", ")];
+        return [inv.name, inv.fund||"", inv.email||"", inv.phone||"", inv.position||"", inv.aum||"", nMtgs, (inv.companies||[]).map(cid=>{const co=coById.get(cid);return co?.ticker||cid;}).join(", ")];
       })];
       const ws = XLSX.utils.aoa_to_sheet(rows);
       setCols(ws,[24,22,28,16,18,10,10,34]);
@@ -1710,13 +1716,13 @@ Top Movers — [fecha]
     if(!dayMeetings.length){alert("No hay reuniones para ese día.");return;}
     const dayLabel=dayLong[dayId]||dayId;
     const lines=dayMeetings.map(m=>{
-      const co=companies.find(c=>c.id===m.coId);
-      const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+      const co=coById.get(m.coId);
+      const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
       const funds=[...new Set(invs.map(i=>i.fund).filter(Boolean))];
       const isGroup=new Set(invs.map(i=>i.fund||i.id)).size>1;
       return `  - ${hourLabel(slotHour(m.slotId))} | ${co?.name||m.coId} (${co?.ticker||""}) | ${invs.map(i=>i.name).join(", ")} — ${funds.join(", ")} | ${isGroup?"Group Meeting":"1x1"} | ${m.room}`;
     });
-    const coNames=[...new Set(dayMeetings.map(m=>companies.find(c=>c.id===m.coId)?.name).filter(Boolean))];
+    const coNames=[...new Set(dayMeetings.map(m=>coById.get(m.coId)?.name).filter(Boolean))];
     const prompt=`You are helping write the "Daily Summary Bar" for the ${config.eventTitle||"Argentina in New York"} investor conference.
 
 Below is the full agenda for ${dayLabel}:
@@ -1753,6 +1759,11 @@ Daily Summary — ${dayLabel}
   }
 
   // ── Derived ──────────────────────────────────────────────────
+  // ── Index Maps: O(1) lookups instead of O(n) .find() on every render ──
+  // Rule: vercel-react-best-practices/js-index-maps
+  const invById=useMemo(()=>new Map(investors.map(i=>[i.id,i])),[investors]);
+  const coById=useMemo(()=>new Map(companies.map(c=>[c.id,c])),[companies]);
+
   const byCompany=useMemo(()=>{
     const map={};companies.forEach(c=>{map[c.id]=[];});
     meetings.forEach(m=>map[m.coId]?.push(m));
@@ -1770,6 +1781,20 @@ Daily Summary — ${dayLabel}
   const activeCos=useMemo(()=>companies.filter(c=>investors.some(i=>(i.companies||[]).includes(c.id))),[companies,investors]);
   // Always show all active companies in grid — don't filter by meetings, that caused blank grid
   const dayCos=activeCos;
+
+  // ── Combine multiple meetings.filter passes into one (js-combine-iterations) ──
+  const meetingStats=useMemo(()=>{
+    const dayIds=getDayIds(config);
+    const counts={};dayIds.forEach(d=>{counts[d]=0;});
+    let groupCount=0;
+    for(const m of meetings){
+      const d=slotDay(m.slotId);
+      if(counts[d]!==undefined) counts[d]++;
+      const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
+      if(new Set(invs.map(i=>i.fund||i.id)).size>1) groupCount++;
+    }
+    return{counts,groupCount};
+  },[meetings,config,invById]);
 
   const gridMap=useMemo(()=>{
     const map={};
@@ -1806,7 +1831,7 @@ Daily Summary — ${dayLabel}
     const roomConflict = newRoom ? others.find(x=>x.room===newRoom&&x.slotId===newSlotId) : false;
     const invConflict = (m.invIds||[]).find(invId=>others.find(x=>(x.invIds||[]).includes(invId)&&x.slotId===newSlotId));
     if(coConflict||roomConflict||invConflict){
-      const msg = coConflict ? `${companies.find(c=>c.id===newCoId)?.name||newCoId} ya tiene reunión a ese horario`
+      const msg = coConflict ? `${coById.get(newCoId)?.name||newCoId} ya tiene reunión a ese horario`
                 : roomConflict ? `${newRoom} ya está ocupada a ese horario`
                 : `Un inversor ya tiene reunión a ese horario`;
       alert("⚠ Conflicto: "+msg);
@@ -2331,7 +2356,7 @@ Daily Summary — ${dayLabel}
                   </div>
                   <div style={{fontSize:11,color:"var(--dim)",marginTop:2}}>{inv.fund&&<strong style={{color:"var(--txt)"}}>{inv.fund}</strong>}{inv.position&&<> · {inv.position}</>}{inv.aum&&<span className="bdg bg-g" style={{marginLeft:6}}>{inv.aum}</span>}</div>
                   <div style={{marginTop:4,display:"flex",flexWrap:"wrap",gap:3}}>
-                    {(inv.companies||[]).map(cid=>{const c=companies.find(x=>x.id===cid);return<span key={cid} className="tag" style={{borderColor:`${SEC_CLR[c?.sector]||"var(--gold)"}44`,color:SEC_CLR[c?.sector]||"var(--gold2)"}}>{c?.ticker||cid}</span>;})}
+                    {(inv.companies||[]).map(cid=>{const c=coById.get(cid);return<span key={cid} className="tag" style={{borderColor:`${SEC_CLR[c?.sector]||"var(--gold)"}44`,color:SEC_CLR[c?.sector]||"var(--gold2)"}}>{c?.ticker||cid}</span>;})}
                   </div>
                 </div>
                 <div style={{fontSize:10,color:"var(--dim)",textAlign:"right",flexShrink:0}}>
@@ -2366,7 +2391,7 @@ Daily Summary — ${dayLabel}
               <button className="btn bg bs" style={{alignSelf:"flex-end"}} onClick={()=>{
                 if(!newCoForm.name.trim()||!newCoForm.ticker.trim()) return;
                 const id=newCoForm.ticker.trim().toUpperCase();
-                if(companies.find(c=>c.id===id)){alert("Ticker already exists");return;}
+                if(coById.get(id)){alert("Ticker already exists");return;}
                 setCompanies(prev=>[...prev,{id,name:newCoForm.name.trim(),ticker:id,sector:newCoForm.sector,attendees:[]}]);
                 setNewCoForm({name:"",ticker:"",sector:"Financials"});setShowAddCo(false);
               }}>Add</button>
@@ -2463,16 +2488,16 @@ Daily Summary — ${dayLabel}
             <div className="stats">
               <div className="stat"><div className="sv">{meetings.length}</div><div className="sl">Reuniones</div></div>
               <div className="stat"><div className="sv" style={{color:unscheduled.length?"var(--red)":undefined}}>{unscheduled.length}</div><div className="sl" style={{color:unscheduled.length?"var(--red)":undefined}}>Sin asignar</div></div>
-              <div className="stat"><div className="sv">{meetings.filter(m=>slotDay(m.slotId)===getDayIds(config)[0]).length}</div><div className="sl" style={{color:"var(--blu)"}}>{getDayShort(config)[getDayIds(config)[0]]||'Day 1'}</div></div>
-              <div className="stat"><div className="sv">{meetings.filter(m=>slotDay(m.slotId)===getDayIds(config)[1]).length}</div><div className="sl" style={{color:"var(--grn)"}}>{getDayShort(config)[getDayIds(config)[1]]||'Day 2'}</div></div>
-              <div className="stat"><div className="sv">{meetings.filter(m=>{const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);return new Set(invs.map(i=>i.fund||i.id)).size>1;}).length}</div><div className="sl">Grupales</div></div>
+              <div className="stat"><div className="sv">{meetingStats.counts[getDayIds(config)[0]]||0}</div><div className="sl" style={{color:"var(--blu)"}}>{getDayShort(config)[getDayIds(config)[0]]||'Day 1'}</div></div>
+              <div className="stat"><div className="sv">{meetingStats.counts[getDayIds(config)[1]]||0}</div><div className="sl" style={{color:"var(--grn)"}}>{getDayShort(config)[getDayIds(config)[1]]||'Day 2'}</div></div>
+              <div className="stat"><div className="sv">{meetingStats.groupCount}</div><div className="sl">Grupales</div></div>
             </div>
             {unscheduled.length>0&&<div className="alert aw" style={{marginBottom:12}}>⚠ {unscheduled.length} reunión(es) sin asignar.</div>}
             {/* ── Toolbar ── */}
             <div className="flex" style={{marginBottom:12,flexWrap:"wrap",gap:6}}>
               {getDayIds(config).map((d,di)=><button key={d} className={`day-btn ${activeDay===d?(di%2===0?"d14on":"d15on"):"doff"}`} onClick={()=>setActiveDay(d)}>
                 {getDayShort(config)[d]||d}
-                <span style={{opacity:.7,marginLeft:4}}>({meetings.filter(m=>slotDay(m.slotId)===d).length})</span>
+                <span style={{opacity:.7,marginLeft:4}}>({meetingStats.counts[d]||0})</span>
               </button>)}
               <div style={{display:"flex",gap:4,marginLeft:"auto",background:"var(--ink3)",borderRadius:6,padding:3}}>
                 <button className={`btn bs ${schedView==="company"?"bg":"bo"}`} style={{fontSize:10,padding:"4px 10px"}} onClick={()=>setSchedView("company")}>🏢 Compañía</button>
@@ -2484,7 +2509,7 @@ Daily Summary — ${dayLabel}
             </div>
 
             {moveSrc&&<div className="alert ai" style={{marginBottom:8,padding:"6px 12px",fontSize:11,display:"flex",alignItems:"center",gap:10}}>
-              <span>✋ <strong>{companies.find(c=>c.id===meetings.find(x=>x.id===moveSrc)?.coId)?.ticker||"Reunión"}</strong> seleccionada para mover — hacé clic en una celda vacía para colocarla.</span>
+              <span>✋ <strong>{coById.get(meetings.find(x=>x.id===moveSrc)?.coId)?.ticker||"Reunión"}</strong> seleccionada para mover — hacé clic en una celda vacía para colocarla.</span>
               <button className="btn bd bs" style={{fontSize:9}} onClick={()=>setMoveSrc(null)}>✕ Cancelar</button>
             </div>}
 
@@ -2519,7 +2544,7 @@ Daily Summary — ${dayLabel}
                           const isCoBlocked=(config.coBlocks[c.id]||[]).includes(`${activeDay}-${h}`);
                           const slotId=`${activeDay}-${h}`;
                           if(m){
-                            const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+                            const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
                             const sclr=SEC_CLR[c.sector]||"var(--gold)";
                             const isGroup=new Set(invs.map(i=>i.fund||i.id).filter(Boolean)).size>1;
                             const isSelected = moveSrc===m.id;
@@ -2583,8 +2608,8 @@ Daily Summary — ${dayLabel}
                           const m=roomMap[`${r}::${h}`];
                           const slotId=`${activeDay}-${h}`;
                           if(m){
-                            const co=companies.find(c=>c.id===m.coId);
-                            const invs=(m.invIds||[]).map(id=>investors.find(i=>i.id===id)).filter(Boolean);
+                            const co=coById.get(m.coId);
+                            const invs=(m.invIds||[]).map(id=>invById.get(id)).filter(Boolean);
                             const sclr=SEC_CLR[co?.sector]||"var(--gold)";
                             const isGroup=new Set(invs.map(i=>i.fund||i.id).filter(Boolean)).size>1;
                             const isSelectedR = moveSrc===m.id;
@@ -2625,8 +2650,8 @@ Daily Summary — ${dayLabel}
                 <div className="card-t" style={{color:"var(--red)"}}>⚠ Sin asignar</div>
                 <table className="tbl"><thead><tr><th>Inversor(es)</th><th>Compañía</th><th>Acción</th></tr></thead>
                   <tbody>{unscheduled.map((u,i)=>(<tr key={i}>
-                    <td>{(u.invIds||[]).map(id=>investors.find(x=>x.id===id)?.name).join(", ")}</td>
-                    <td>{companies.find(c=>c.id===u.coId)?.name}</td>
+                    <td>{(u.invIds||[]).map(id=>invById.get(id)?.name).join(", ")}</td>
+                    <td>{coById.get(u.coId)?.name}</td>
                     <td><button className="btn bo bs" onClick={()=>setModal({mode:"add",prefInvIds:u.invIds,prefCoId:u.coId})}>Asignar →</button></td>
                   </tr>))}</tbody>
                 </table>
