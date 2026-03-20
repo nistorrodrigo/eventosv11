@@ -739,6 +739,178 @@ function DayDateInput({day,di,onChange}){
   );
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   ROADSHOW SCHEDULER
+═══════════════════════════════════════════════════════════════════ */
+const ROADSHOW_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
+const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
+const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
+const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Tte. Gral. Juan D. Perón 345, 12° piso, CABA",meetingDuration:60};
+const RS_COS_DEF=[
+  {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_ggal",   name:"Grupo Financiero Galicia",      ticker:"GGAL",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_supv",   name:"Grupo Supervielle",             ticker:"SUPV",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_byma",   name:"BYMA",                          ticker:"BYMA",  sector:"Exchange",    location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_pampa",  name:"Pampa Energía",                 ticker:"PAMP",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_ypf",    name:"YPF",                           ticker:"YPFD",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_vista",  name:"Vista Energy",                  ticker:"VIST",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_cepu",   name:"Central Puerto",                ticker:"CEPU",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_tgsu",   name:"Transportadora de Gas del Sur", ticker:"TGSU2", sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_tgn",    name:"TGN",                           ticker:"TGNO4", sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_teco",   name:"Telecom Argentina",             ticker:"TECO2", sector:"TMT",         location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_cvh",    name:"Corporación América",           ticker:"CAAP",  sector:"Infra",       location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_irsa",   name:"IRSA · Cresud",                 ticker:"IRSA",  sector:"Real Estate", location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_loma",   name:"Loma Negra",                    ticker:"LOMA",  sector:"Industry",    location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_arcos",  name:"Arcos Dorados",                 ticker:"ARCO",  sector:"Consumer",    location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_adeco",  name:"Adecoagro",                     ticker:"AGRO",  sector:"Agro",        location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_a3",     name:"A3",                            ticker:"A3",    sector:"Media",       location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+];
+function genRSEmail(co,trip,meetings,lsContact,tripDays){
+  const busy=new Set((meetings||[]).map(m=>`${m.date}-${m.hour}`));
+  const workDays=(tripDays||[]).filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+  const free=[];
+  for(const day of workDays){for(const h of[9,10,11,12,14,15,16,17]){if(!busy.has(`${day}-${h}`))free.push({day,h});}}
+  const fmtD=iso=>{const s=new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});return s.charAt(0).toUpperCase()+s.slice(1);};
+  const arr=fmtD(trip.arrivalDate||"2026-04-18");
+  const dep=fmtD(trip.departureDate||"2026-04-24");
+  const cli=trip.fund?(trip.clientName?`${trip.fund} (${trip.clientName})`:`${trip.fund}`):(trip.clientName||"[cliente]");
+  const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Tte. Gral. Juan D. Perón 345, 12° piso, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
+  const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${h}:00 hs`).join("\n")||"• A coordinar según disponibilidad";
+  const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
+  const body=`Estimado/a ${co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
+  return{to:co.contact?.email||"",subject:subj,body};
+}
+function rsToEntity(rs,rsCos){
+  const{trip,meetings}=rs;
+  const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
+  const byDay={};(meetings||[]).forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
+  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+  const days=Object.keys(byDay).sort();
+  if(!days.length) return null;
+  const fmtH=h=>`${String(h).padStart(2,"0")}:00`;
+  const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  const sub=`Buenos Aires Roadshow · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")} · ${trip.hotel||"Buenos Aires"}`;
+  return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Type","Location","Status"],
+    rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
+      const locL=m.location==="ls_office"?"LS Offices":m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
+      return{time:fmtH(m.hour),col1:co?co.name:(m.lsType||m.title||"Meeting"),col1b:co?co.ticker:null,
+        col1c:m.notes?('<em>'+esc(m.notes.slice(0,80))+(m.notes.length>80?"...":"")+'</em>'):null,
+        col1html:false,col1chtml:false,col2:m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom"),col2html:false,col3:locL,col4:st};})
+  }))};
+}
+function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onClose}){
+  const [type,setType]=useState(meeting?.type||"company");
+  const [coId,setCoId]=useState(meeting?.companyId||"");
+  const [lsType,setLsType]=useState(meeting?.lsType||LS_INT_TYPES[0]);
+  const [title,setTitle]=useState(meeting?.title||"");
+  const [h,setH]=useState(String(meeting?.hour??hour??9));
+  const [dur,setDur]=useState(String(meeting?.duration||60));
+  const [loc,setLoc]=useState(meeting?.location||"ls_office");
+  const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
+  const [status,setStatus]=useState(meeting?.status||"tentative");
+  const [notes,setNotes]=useState(meeting?.notes||"");
+  const d=new Date((date||"2026-04-20")+"T12:00:00");
+  const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  function save(){
+    if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
+    const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseInt(h),duration:parseInt(dur),type,
+      companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
+      title:type==="custom"?title:type==="ls_internal"?lsType:"",
+      location:loc,locationCustom:locCustom,status,notes};
+    onSave(m);
+  }
+  const actCos=(companies||[]).filter(c=>c.active);
+  return(
+    <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:460}}>
+        <div className="modal-hdr"><div className="modal-title">{mode==="edit"?"Editar Reunión":"Nueva Reunión"}</div></div>
+        <div className="modal-body">
+          <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,fontFamily:"IBM Plex Mono,monospace"}}>{dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1)}</div>
+          <div style={{marginBottom:12}}><div className="lbl">Tipo</div>
+            <div style={{display:"flex",gap:5}}>
+              {[["company","🏢 Empresa"],["ls_internal","🔵 LS Interno"],["custom","✏️ Otro"]].map(([v,l])=>(
+                <button key={v} className={`btn bs ${type===v?"bg":"bo"}`} style={{fontSize:10,flex:1}} onClick={()=>setType(v)}>{l}</button>
+              ))}
+            </div></div>
+          {type==="company"&&<div style={{marginBottom:12}}><div className="lbl">Empresa</div>
+            <select className="sel" value={coId} onChange={e=>setCoId(e.target.value)}>
+              <option value="">— Seleccionar —</option>
+              {actCos.map(c=><option key={c.id} value={c.id}>{c.name} ({c.ticker})</option>)}
+            </select></div>}
+          {type==="ls_internal"&&<div style={{marginBottom:12}}><div className="lbl">Reunión interna</div>
+            <select className="sel" value={lsType} onChange={e=>setLsType(e.target.value)}>
+              {LS_INT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+            </select></div>}
+          {type==="custom"&&<div style={{marginBottom:12}}><div className="lbl">Descripción</div>
+            <input className="inp" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Ej: Reunión con analista político..."/></div>}
+          <div className="g2" style={{gap:10,marginBottom:12}}>
+            <div><div className="lbl">Hora</div>
+              <select className="sel" value={h} onChange={e=>setH(e.target.value)}>
+                {ROADSHOW_HOURS.map(x=><option key={x} value={x}>{x}:00</option>)}
+              </select></div>
+            <div><div className="lbl">Duración</div>
+              <select className="sel" value={dur} onChange={e=>setDur(e.target.value)}>
+                {[[30,"30 min"],[45,"45 min"],[60,"1 hora"],[90,"1h 30min"],[120,"2 horas"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select></div>
+          </div>
+          <div style={{marginBottom:12}}><div className="lbl">Lugar</div>
+            <select className="sel" value={loc} onChange={e=>setLoc(e.target.value)}>
+              <option value="ls_office">🏛 Nuestras oficinas (LS)</option>
+              <option value="hq">🏢 Sede de la empresa</option>
+              <option value="custom">📍 Otro lugar</option>
+            </select>
+            {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}</div>
+          <div style={{marginBottom:12}}><div className="lbl">Estado</div>
+            <div style={{display:"flex",gap:5}}>
+              {[["tentative","⏳ Tentativo"],["confirmed","✅ Confirmado"],["cancelled","❌ Cancelado"]].map(([v,l])=>(
+                <button key={v} className={`btn bs ${status===v?"bg":"bo"}`} style={{fontSize:10,flex:1}} onClick={()=>setStatus(v)}>{l}</button>
+              ))}
+            </div></div>
+          <div><div className="lbl">Notas / Agenda</div>
+            <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
+        </div>
+        <div className="modal-footer" style={{gap:7}}>
+          {mode==="edit"&&<button className="btn bd bs" onClick={onDelete}>🗑 Eliminar</button>}
+          <button className="btn bo bs" onClick={onClose}>Cancelar</button>
+          <button className="btn bg bs" onClick={save}>Guardar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function RoadshowEmailModal({company,emailData,onClose}){
+  const [copied,setCopied]=useState(false);
+  function copy(){const t=`Para: ${emailData.to}\nAsunto: ${emailData.subject}\n\n${emailData.body}`;navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=520");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+t.replace(/</g,"&lt;")+"</pre>");w.document.close();});}
+  function openMail(){window.location.href=`mailto:${encodeURIComponent(emailData.to)}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;}
+  return(
+    <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:610}}>
+        <div className="modal-hdr"><div className="modal-title">✉️ {company.name}</div></div>
+        <div className="modal-body">
+          <div style={{marginBottom:8}}><div className="lbl">Para</div>
+            <div style={{fontSize:12,color:emailData.to?"var(--txt)":"var(--red)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontFamily:"IBM Plex Mono,monospace"}}>
+              {emailData.to||"⚠ Completar email en la sección Empresas"}</div></div>
+          <div style={{marginBottom:10}}><div className="lbl">Asunto</div>
+            <div style={{fontSize:12,color:"var(--cream)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontWeight:600}}>{emailData.subject}</div></div>
+          <div><div className="lbl">Cuerpo del email (español)</div>
+            <pre style={{fontFamily:"Lora,Georgia,serif",fontSize:12,color:"var(--txt)",background:"var(--ink3)",padding:"12px 14px",borderRadius:6,whiteSpace:"pre-wrap",maxHeight:340,overflowY:"auto",lineHeight:1.75}}>{emailData.body}</pre></div>
+        </div>
+        <div className="modal-footer" style={{gap:7}}>
+          <button className="btn bo bs" onClick={onClose}>Cerrar</button>
+          <button className="btn bo bs" onClick={openMail}>📧 Abrir en Mail</button>
+          <button className={`btn bs ${copied?"bo":"bg"}`} onClick={copy}>{copied?"✅ ¡Copiado!":"📋 Copiar todo"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,config:invCfg,onUpdateInv,onToggleFundGroup,onExport,onClose}){
   const cfg=invCfg||DEFAULT_CONFIG;
   const [activeTab,setActiveTab]=useState("profile");
@@ -1035,6 +1207,10 @@ export default function App(){
   const [moverCCLLoading,setMoverCCLLoading] = useState(false);
   const [moverCCLErr,setMoverCCLErr]   = useState(null);
   const [moverCCLManual,setMoverCCLManual] = useState("");
+  const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
+  const [rsMtgModal,setRsMtgModal]=useState(null);
+  const [rsEmailModal,setRsEmailModal]=useState(null);
+  const [rsSubTab,setRsSubTab]=useState("schedule");
   const [prevYearData,setPrevYearData] = useState(null);
   const prevYearRef = useRef();
   const [historicalYears,setHistoricalYears] = useState([]);
@@ -1655,6 +1831,9 @@ export default function App(){
     if(format==="word") downloadBlob(`${co.ticker}_schedule.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
+  function saveRoadshow(rs){setRoadshow(rs);saveCurrentEvent({roadshow:rs});}
+  function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
+  function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
   function saveMoverStocks(arr){setMoverStocks(arr);localStorage.setItem("ls_movers",JSON.stringify(arr));}
   async function fetchCCL(){
     setMoverCCLLoading(true);setMoverCCLErr(null);
@@ -1800,6 +1979,10 @@ Daily Summary — ${dayLabel}
     return{counts,groupCount};
   },[meetings,config,invById]);
 
+  // ── Roadshow derived ─────────────────────────────────────────────
+  const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
+  const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
+  const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
   const gridMap=useMemo(()=>{
     const map={};
     meetings.filter(m=>slotDay(m.slotId)===activeDay).forEach(m=>{map[`${m.coId}::${slotHour(m.slotId)}`]=m;});
@@ -1856,6 +2039,7 @@ Daily Summary — ${dayLabel}
     return Object.entries(m).filter(([,ids])=>ids.length>1);
   },[investors]);
 
+  useEffect(()=>{const ev=events.find(e=>e.id===activeEv);setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});},[activeEv]); // eslint-disable-line
   const TABS=[
     {id:"config",label:"⚙ Config"},
     {id:"upload",label:"📥 Cargar"},
@@ -1864,6 +2048,7 @@ Daily Summary — ${dayLabel}
     {id:"schedule",label:"📅 Agenda"},
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
+    {id:"roadshow",label:"🗺️ Roadshow"},
     {id:"mercado",label:"📈 Mercado"},
   ];
 
@@ -3124,6 +3309,314 @@ Daily Summary — ${dayLabel}
           )}
         </div>
       )}
+
+      {tab==="roadshow"&&(()=>{
+        const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
+        function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
+        function saveMtg(m){const ex=roadshow.meetings.find(x=>x.id===m.id);const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);}
+        function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
+        const confirmed=roadshow.meetings.filter(m=>m.status==="confirmed").length;
+        const tentative=roadshow.meetings.filter(m=>m.status==="tentative").length;
+        return(
+        <div>
+          <h2 className="pg-h">🗺️ Buenos Aires Roadshow</h2>
+          <p className="pg-s">Organizá la agenda para inversores que visitan Argentina — reuniones corporativas, logística y más.</p>
+
+          {/* Trip Setup */}
+          <div className="card" style={{marginBottom:14}}>
+            <div className="card-t">🧳 Datos del Viaje</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div><div className="lbl">Cliente / Inversor</div><input className="inp" value={roadshow.trip.clientName} onChange={e=>upTrip("clientName",e.target.value)} placeholder="John Smith"/></div>
+              <div><div className="lbl">Fondo / Firma</div><input className="inp" value={roadshow.trip.fund} onChange={e=>upTrip("fund",e.target.value)} placeholder="Merrill Lynch AM"/></div>
+              <div><div className="lbl">Hotel</div><input className="inp" value={roadshow.trip.hotel} onChange={e=>upTrip("hotel",e.target.value)} placeholder="Holiday Inn"/></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div><div className="lbl">Llegada</div>
+                <DayDateInput day={{date:roadshow.trip.arrivalDate,short:roadshow.trip.arrivalDate,long:""}} di={0} onChange={nd=>upTrip("arrivalDate",nd.date)}/></div>
+              <div><div className="lbl">Salida</div>
+                <DayDateInput day={{date:roadshow.trip.departureDate,short:roadshow.trip.departureDate,long:""}} di={1} onChange={nd=>upTrip("departureDate",nd.date)}/></div>
+              <div><div className="lbl">Duración reunión</div>
+                <select className="sel" value={roadshow.trip.meetingDuration||60} onChange={e=>upTrip("meetingDuration",parseInt(e.target.value))}>
+                  {[[30,"30 min"],[45,"45 min"],[60,"1 hora"],[90,"1h 30min"],[120,"2 horas"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                </select></div>
+              <div><div className="lbl">Contacto LS</div>
+                <select className="sel" value={roadshow.trip.lsContactIdx||0} onChange={e=>upTrip("lsContactIdx",parseInt(e.target.value))}>
+                  {(config.contacts||[]).length?config.contacts.map((c,i)=><option key={i} value={i}>{c.name}</option>):<option value={0}>Configurar en ⚙ Config</option>}
+                </select></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10}}>
+              <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Tte. Gral. Juan D. Perón 345, 12° piso, CABA"/></div>
+              <div><div className="lbl">Notas sobre el cliente</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés, estilo..."/></div>
+            </div>
+          </div>
+
+          {/* Sub-tabs */}
+          <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
+            {[["schedule","📅 Agenda"],["companies","🏢 Empresas"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
+              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setRsSubTab(id)}>{lbl}</button>
+            ))}
+            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
+              <span style={{fontSize:10,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace"}}>{confirmed} ✓</span>
+              <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{tentative} ⏳</span>
+            </div>
+          </div>
+
+          {/* AGENDA */}
+          {rsSubTab==="schedule"&&(
+            <div>
+              {/* Legend + add button */}
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
+                {[...new Set([...roadshow.companies.filter(c=>c.active).map(c=>c.sector),"LS Internal"])].map(s=>(
+                  <div key={s} style={{display:"flex",alignItems:"center",gap:3,fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>
+                    <div style={{width:7,height:7,borderRadius:1,background:RS_CLR[s]||"#666"}}/>
+                    {s}
+                  </div>
+                ))}
+                <div style={{marginLeft:"auto"}}>
+                  <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
+                </div>
+              </div>
+
+              {/* Calendar grid */}
+              {tripDays.length===0?(
+                <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                  <div style={{fontSize:32,marginBottom:8}}>📅</div>
+                  <div style={{fontSize:14,color:"var(--cream)"}}>Configurá las fechas del viaje para ver el calendario</div>
+                </div>
+              ):(
+                <div style={{overflowX:"auto",borderRadius:8,border:"1px solid rgba(30,90,176,.1)",boxShadow:"0 1px 4px rgba(30,90,176,.05)",marginBottom:14}}>
+                  <table style={{borderCollapse:"collapse",width:"100%"}}>
+                    <colgroup>
+                      <col style={{width:46}}/>
+                      {tripDays.map(d=><col key={d} style={{minWidth:92}}/>)}
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th style={{background:"rgba(30,90,176,.04)",padding:"5px 3px",borderBottom:"2px solid rgba(30,90,176,.12)",fontSize:8,color:"var(--dim)"}}></th>
+                        {tripDays.map(date=>{
+                          const d=new Date(date+"T12:00:00");
+                          const isWE=d.getDay()===0||d.getDay()===6;
+                          const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+                          return(
+                            <th key={date} style={{background:isWE?"rgba(30,90,176,.02)":"#1e5ab0",color:isWE?"var(--dim)":"#fff",borderBottom:"2px solid rgba(30,90,176,.12)",padding:"4px 3px",textAlign:"center"}}>
+                              <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:7.5,letterSpacing:".08em",marginBottom:1}}>{DN[d.getDay()]}</div>
+                              <div style={{fontSize:14,fontWeight:700,lineHeight:1}}>{d.getDate()}</div>
+                              <div style={{fontSize:7,opacity:.75}}>Abr</div>
+                            </th>);
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ROADSHOW_HOURS.map(h=>(
+                        <tr key={h}>
+                          <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>{h}:00</td>
+                          {tripDays.map(date=>{
+                            const d=new Date(date+"T12:00:00");
+                            const isWE=d.getDay()===0||d.getDay()===6;
+                            const mtg=rsBySlot[`${date}-${h}`];
+                            const co=mtg?.type==="company"?rsCoById.get(mtg.companyId):null;
+                            const clr=mtg?(mtg.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e"):null;
+                            const lbl=mtg?(mtg.type==="company"?(co?.ticker||"?"):(mtg.lsType?.split(" – ").pop()?.slice(0,9)||mtg.title?.slice(0,9)||"Int")):"";
+                            return(
+                              <td key={date}
+                                onClick={()=>!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null})}
+                                style={{height:40,border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}1a`:"transparent",cursor:isWE?"default":"pointer",padding:2,verticalAlign:"top"}}>
+                                {mtg&&<div style={{background:clr,color:"#fff",borderRadius:3,padding:"2px 4px",fontSize:8.5,fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:1.5,display:"flex",alignItems:"center",gap:3}}>
+                                  <span>{lbl}</span>
+                                  {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
+                                  {mtg.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
+                                </div>}
+                                {!mtg&&!isWE&&<div style={{fontSize:14,color:"rgba(30,90,176,.1)",textAlign:"center",lineHeight:"36px",userSelect:"none"}}>+</div>}
+                              </td>);
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Meeting list */}
+              {roadshow.meetings.length>0&&(
+                <div>
+                  <div className="sec-hdr" style={{marginBottom:8}}>📋 Todas las reuniones</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    {[...roadshow.meetings].sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour).map(m=>{
+                      const co=m.type==="company"?rsCoById.get(m.companyId):null;
+                      const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
+                      const d=new Date(m.date+"T12:00:00");
+                      const dayStr=d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
+                      const locL=m.location==="ls_office"?"LS":m.location==="hq"?(co?co.ticker+" HQ":"HQ"):(m.locationCustom||"Otro");
+                      return(
+                        <div key={m.id} style={{border:`1px solid ${clr}44`,borderRadius:7,padding:"8px 11px",background:`${clr}08`,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}
+                          onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}>
+                          <div style={{width:34,height:34,borderRadius:6,background:clr,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:8.5,fontWeight:700,fontFamily:"IBM Plex Mono,monospace",textAlign:"center",flexShrink:0,lineHeight:1.2}}>{co?.ticker||"LS"}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"var(--cream)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co?co.name:(m.lsType||m.title||"Reunión")}</div>
+                            <div style={{fontSize:10,color:"var(--dim)",marginTop:1}}>{dayStr} · {m.hour}:00 · {locL}</div>
+                          </div>
+                          <div style={{fontSize:9,padding:"2px 6px",borderRadius:4,flexShrink:0,fontFamily:"IBM Plex Mono,monospace",background:m.status==="confirmed"?"rgba(58,140,92,.12)":m.status==="cancelled"?"rgba(214,68,68,.10)":"rgba(30,90,176,.08)",color:m.status==="confirmed"?"var(--grn)":m.status==="cancelled"?"var(--red)":"var(--dim)"}}>
+                            {m.status==="confirmed"?"✓":m.status==="cancelled"?"✗":"⏳"}
+                          </div>
+                        </div>);
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EMPRESAS */}
+          {rsSubTab==="companies"&&(
+            <div>
+              <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
+                <div style={{marginLeft:"auto",fontSize:11,color:"var(--dim)"}}>{roadshow.companies.filter(c=>c.active).length} activas de {roadshow.companies.length}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {roadshow.companies.map((co,ci)=>{
+                  function setCo(f,v){const nc=[...roadshow.companies];nc[ci]={...nc[ci],[f]:v};saveRoadshow({...roadshow,companies:nc});}
+                  function setContact(f,v){const nc=[...roadshow.companies];nc[ci]={...nc[ci],contact:{...nc[ci].contact,[f]:v}};saveRoadshow({...roadshow,companies:nc});}
+                  const clr=RS_CLR[co.sector]||"#666";
+                  const hasMtg=roadshow.meetings.some(m=>m.companyId===co.id);
+                  return(
+                    <div key={co.id} style={{border:`1px solid ${co.active?clr+"44":"rgba(30,90,176,.07)"}`,borderRadius:8,padding:"10px 12px",background:co.active?"#fff":"rgba(0,0,0,.01)",opacity:co.active?1:.6,transition:"all .15s"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:co.active?8:0}}>
+                        <div style={{width:34,height:34,borderRadius:6,background:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <input style={{background:"transparent",border:"none",color:"#fff",width:34,textAlign:"center",fontFamily:"IBM Plex Mono,monospace",fontSize:9,fontWeight:700,padding:0,outline:"none"}} value={co.ticker} placeholder="TKR" onChange={e=>setCo("ticker",e.target.value.toUpperCase())}/>
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <input className="inp" style={{fontSize:12,fontWeight:600,padding:"3px 6px",marginBottom:3}} value={co.name} placeholder="Nombre empresa" onChange={e=>setCo("name",e.target.value)}/>
+                          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                            <select className="sel" style={{fontSize:9,padding:"2px 4px",flex:1}} value={co.sector} onChange={e=>setCo("sector",e.target.value)}>
+                              {Object.keys(RS_CLR).filter(s=>s!=="LS Internal").map(s=><option key={s} value={s}>{s}</option>)}
+                            </select>
+                            {hasMtg&&<span style={{fontSize:9,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace",flexShrink:0}}>✓ reunión</span>}
+                          </div>
+                        </div>
+                        <button className={`btn bs ${co.active?"bg":"bo"}`} style={{fontSize:9,padding:"3px 7px",flexShrink:0}} onClick={()=>setCo("active",!co.active)}>{co.active?"Activa":"Off"}</button>
+                      </div>
+                      {co.active&&(
+                        <>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}>
+                            <div>
+                              <div className="lbl" style={{marginBottom:2}}>Contacto</div>
+                              <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.contact?.name||""} placeholder="Nombre" onChange={e=>setContact("name",e.target.value)}/>
+                              <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.contact?.email||""} placeholder="email@empresa.com" onChange={e=>setContact("email",e.target.value)}/>
+                              <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={co.contact?.phone||""} placeholder="+54 11..." onChange={e=>setContact("phone",e.target.value)}/>
+                            </div>
+                            <div>
+                              <div className="lbl" style={{marginBottom:2}}>Lugar de reunión</div>
+                              <select className="sel" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.location} onChange={e=>setCo("location",e.target.value)}>
+                                <option value="ls_office">🏛 Oficinas LS</option>
+                                <option value="hq">🏢 Sede empresa</option>
+                                <option value="custom">📍 Otro</option>
+                              </select>
+                              {co.location==="custom"&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder="Dirección..." onChange={e=>setCo("locationCustom",e.target.value)}/>}
+                              <textarea className="inp" style={{fontSize:10,padding:"3px 6px",minHeight:44,resize:"none"}} value={co.notes||""} placeholder="Notas..." onChange={e=>setCo("notes",e.target.value)}/>
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:5}}>
+                            <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>✉️ Ver email</button>
+                            <button className="btn bg bs" style={{fontSize:9,gap:3,flex:1}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null,preCoId:co.id});}}>+ Reunión</button>
+                            <button aria-label={`Eliminar ${co.name}`} className="btn bd bs" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>{if(confirm(`Eliminar ${co.name}?`))saveRoadshow({...roadshow,companies:roadshow.companies.filter((_,j)=>j!==ci)});}}> ✕</button>
+                          </div>
+                        </>
+                      )}
+                    </div>);
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* EMAILS */}
+          {rsSubTab==="emails"&&(
+            <div>
+              <div className="card" style={{marginBottom:12}}>
+                <div className="card-t">✉️ Solicitudes de reunión — español</div>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>Hacé clic en una empresa para ver el email personalizado con fechas, horarios libres y datos del cliente.</p>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {roadshow.companies.filter(c=>c.active).map(co=>{
+                    const hasMtg=roadshow.meetings.some(m=>m.companyId===co.id);
+                    const clr=RS_CLR[co.sector]||"#666";
+                    return(
+                      <button key={co.id} className="btn bo bs" style={{fontSize:11,gap:5,borderColor:`${clr}55`,background:hasMtg?`${clr}12`:"transparent"}}
+                        onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>
+                        <div style={{width:7,height:7,borderRadius:1,background:clr,flexShrink:0}}/>
+                        {co.name}
+                        {hasMtg&&<span style={{fontSize:9,color:"var(--grn)"}}>✓</span>}
+                      </button>);
+                  })}
+                </div>
+              </div>
+              <div className="card" style={{background:"rgba(30,90,176,.02)"}}>
+                <div className="card-t">💡 El email incluye automáticamente</div>
+                <div style={{fontSize:12,color:"var(--txt)",lineHeight:1.9}}>
+                  ✓ Los horarios disponibles (sin reunión asignada) &nbsp;·&nbsp; ✓ Nombre del cliente y fondo &nbsp;·&nbsp; ✓ Fechas y hotel &nbsp;·&nbsp; ✓ Lugar de la reunión (LS u otra) &nbsp;·&nbsp; ✓ Datos de contacto de {lsCont?.name||"el equipo LS"}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EXPORT */}
+          {rsSubTab==="export"&&(
+            <div>
+              <div className="sec-hdr" style={{marginBottom:8}}>📄 Agenda del Roadshow (English · formato LS)</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowPDF} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowPDF();}}>
+                  <div className="ex-card-ico">📄</div>
+                  <div className="ex-card-t">PDF — Agenda completa</div>
+                  <div className="ex-card-s">Formato LS, English. Para compartir con el cliente.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowWord} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowWord();}}>
+                  <div className="ex-card-ico">📝</div>
+                  <div className="ex-card-t">Word — Agenda completa</div>
+                  <div className="ex-card-s">Documento .doc editable, mismo formato.</div>
+                </div>
+              </div>
+              <div className="sec-hdr" style={{marginBottom:8}}>📋 Compartir disponibilidad (español)</div>
+              <div className="card">
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:10,lineHeight:1.6}}>Genera un resumen de los horarios libres para enviar a las empresas por WhatsApp o email.</p>
+                <button className="btn bo bs" style={{gap:5}} onClick={()=>{
+                  const busy=new Set(roadshow.meetings.map(m=>`${m.date}-${m.hour}`));
+                  const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+                  const lines=workDays.map(date=>{
+                    const d=new Date(date+"T12:00:00");
+                    const ds=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+                    const fh=[9,10,11,12,14,15,16,17].filter(h=>!busy.has(`${date}-${h}`));
+                    if(!fh.length) return null;
+                    return `${ds.charAt(0).toUpperCase()+ds.slice(1)}:\n${fh.map(h=>`  • ${h}:00 – ${h+1}:00 hs`).join("\n")}`;
+                  }).filter(Boolean);
+                  const d1=roadshow.trip.arrivalDate?new Date(roadshow.trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"";
+                  const d2=roadshow.trip.departureDate?new Date(roadshow.trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"}):"";
+                  const txt=`Horarios disponibles${roadshow.trip.clientName?" — "+roadshow.trip.clientName:""}\nBuenos Aires${d1?" · "+d1+" – "+d2:""}\n\n${lines.join("\n\n")||"Sin horarios disponibles"}\n\nLugar: ${roadshow.trip.officeAddress||"Tte. Gral. Juan D. Perón 345, 12° piso, CABA"} (o en la sede de la empresa, según preferencia).`;
+                  navigator.clipboard.writeText(txt).then(()=>alert("✅ Horarios copiados al portapapeles.")).catch(()=>{const w=window.open("","_blank","width=580,height=480");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+txt.replace(/</g,"&lt;")+"</pre>");w.document.close();});
+                }}>📋 Copiar horarios disponibles</button>
+              </div>
+            </div>
+          )}
+
+          {/* Modals */}
+          {rsMtgModal&&<RoadshowMeetingModal
+            mode={rsMtgModal.meeting?"edit":"add"}
+            date={rsMtgModal.date} hour={rsMtgModal.hour}
+            meeting={rsMtgModal.meeting}
+            companies={roadshow.companies}
+            trip={roadshow.trip}
+            onSave={saveMtg}
+            onDelete={()=>delMtg(rsMtgModal.meeting?.id)}
+            onClose={()=>setRsMtgModal(null)}
+          />}
+          {rsEmailModal&&<RoadshowEmailModal
+            company={rsEmailModal.company}
+            emailData={rsEmailModal.emailData}
+            onClose={()=>setRsEmailModal(null)}
+          />}
+        </div>
+        );
+      })()}
 
       {tab==="mercado"&&(()=>{
         const ccl=parseFloat(moverCCLManual)||moverCCL;
