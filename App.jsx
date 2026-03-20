@@ -924,6 +924,8 @@ function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClos
 ═══════════════════════════════════════════════════════════════════ */
 function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,config:modalConfig,onSave,onDelete,onClose}){
   const cfg = modalConfig||DEFAULT_CONFIG;
+  const invById=new Map((investors||[]).map(i=>[i.id,i]));
+  const coById=new Map((companies||[]).map(c=>[c.id,c]));
   const [invIds,setInvIds]=useState(meeting?.invIds||[]);
   const [coId,setCoId]=useState(meeting?.coId||"");
   const [slotId,setSlotId]=useState(meeting?.slotId||"");
