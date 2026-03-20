@@ -259,6 +259,8 @@ function runSchedule(investors, fundGrouping, cfg){
   const dayLong  = getDayLong(cfg);
   const dayShort = getDayShort(cfg);
   const fixedRoom= buildRoomMap(investors,numRooms,rooms);
+  // Local index map — runSchedule is outside App so can't access the useMemo invById
+  const invById  = new Map(investors.map(i=>[i.id,i]));
   const fundMap  = {};
   investors.forEach(inv=>{if(inv.fund){if(!fundMap[inv.fund])fundMap[inv.fund]=[];fundMap[inv.fund].push(inv.id);}});
   const processed=new Set(); const reqs=[];
