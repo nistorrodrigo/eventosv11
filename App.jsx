@@ -746,7 +746,7 @@ function DayDateInput({day,di,onChange}){
 const ROADSHOW_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
 const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
-const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Tte. Gral. Juan D. Perón 345, 12° piso, CABA",meetingDuration:60,visitors:[],lsTeam:[]};
+const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6th Floor, CABA",meetingDuration:60,visitors:[],lsTeam:[]};
 const RS_COS_DEF=[
   {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
   {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
@@ -781,7 +781,7 @@ function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const visNames=visitors.length>0?visitors.map(v=>v.name+(v.title?` (${v.title})`:"")):[(trip.clientName||"el cliente")];
   const cli=trip.fund?(trip.clientName?`${trip.fund} (${trip.clientName})`:`${trip.fund}`):(trip.clientName||"[cliente]");
   const visitorLine=visitors.length>1?`los siguientes representantes de ${cli}: ${visNames.join(", ")}`:`${visNames[0]} de ${cli}`;
-  const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Tte. Gral. Juan D. Perón 345, 12° piso, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
+  const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Arenales 707, 6th Floor, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
   const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${h}:00 hs`).join("\n")||"• A coordinar según disponibilidad";
   const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
   const body=`Estimado/a ${co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
@@ -887,7 +887,7 @@ function buildBookingPage(trip, companies, meetings, officeAddress){
 <div class="form-row"><label>Email *</label><input id="fEmail" type="email" placeholder="jperez@empresa.com"/></div>
 <div class="form-row"><label>Teléfono (opcional)</label><input id="fPhone" placeholder="+54 11..."/></div>
 <div class="form-row"><label>Lugar de preferencia</label>
-<select id="fLoc"><option value="ls_office">Oficinas Latin Securities (${officeAddress||"Tte. Gral. Juan D. Perón 345, 12° piso, CABA"})</option><option value="hq">Nuestra sede / headquarters</option><option value="other">Otro (aclarar en notas)</option></select></div>
+<select id="fLoc"><option value="ls_office">Oficinas Latin Securities (${officeAddress||"Arenales 707, 6th Floor, CABA"})</option><option value="hq">Nuestra sede / headquarters</option><option value="other">Otro (aclarar en notas)</option></select></div>
 <div class="form-row"><label>Notas adicionales (opcional)</label><textarea id="fNotes" rows="2" placeholder="Asistentes, requerimientos especiales..."></textarea></div>
 <button class="btn-submit" id="btnSubmit" onclick="submitBooking()">✓ Confirmar solicitud</button></div>
 <div class="success" id="successBox"><h3>✅ Solicitud enviada</h3><p>Copiá el código de confirmación y enviáselo a Latin Securities:</p><div class="copy-box" id="confirmCode"></div></div>
@@ -3579,7 +3579,7 @@ Daily Summary — ${dayLabel}
                 </select></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
-              <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Tte. Gral. Juan D. Perón 345, 12° piso, CABA"/></div>
+              <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6th Floor, CABA"/></div>
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
             </div>
             {/* Visitors */}
@@ -3882,7 +3882,7 @@ Daily Summary — ${dayLabel}
                   }).filter(Boolean);
                   const d1=roadshow.trip.arrivalDate?new Date(roadshow.trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"";
                   const d2=roadshow.trip.departureDate?new Date(roadshow.trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"}):"";
-                  const txt=`Horarios disponibles${roadshow.trip.clientName?" — "+roadshow.trip.clientName:""}\nBuenos Aires${d1?" · "+d1+" – "+d2:""}\n\n${lines.join("\n\n")||"Sin horarios disponibles"}\n\nLugar: ${roadshow.trip.officeAddress||"Tte. Gral. Juan D. Perón 345, 12° piso, CABA"} (o en la sede de la empresa, según preferencia).`;
+                  const txt=`Horarios disponibles${roadshow.trip.clientName?" — "+roadshow.trip.clientName:""}\nBuenos Aires${d1?" · "+d1+" – "+d2:""}\n\n${lines.join("\n\n")||"Sin horarios disponibles"}\n\nLugar: ${roadshow.trip.officeAddress||"Arenales 707, 6th Floor, CABA"} (o en la sede de la empresa, según preferencia).`;
                   navigator.clipboard.writeText(txt).then(()=>alert("✅ Horarios copiados al portapapeles.")).catch(()=>{const w=window.open("","_blank","width=580,height=480");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+txt.replace(/</g,"&lt;")+"</pre>");w.document.close();});
                 }}>📋 Copiar horarios disponibles</button>
               </div>
