@@ -748,26 +748,26 @@ const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
 const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6th Floor, CABA",meetingDuration:60,visitors:[],lsTeam:[]};
 const RS_COS_DEF=[
-  {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_ggal",   name:"Grupo Financiero Galicia",      ticker:"GGAL",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_supv",   name:"Grupo Supervielle",             ticker:"SUPV",  sector:"Financials",  location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_ggal",   name:"Grupo Financiero Galicia",      ticker:"GGAL",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_supv",   name:"Grupo Supervielle",             ticker:"SUPV",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
   {id:"rc_byma",   name:"BYMA",                          ticker:"BYMA",  sector:"Exchange",    location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_pampa",  name:"Pampa Energía",                 ticker:"PAMP",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_ypf",    name:"YPF",                           ticker:"YPFD",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_vista",  name:"Vista Energy",                  ticker:"VIST",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_cepu",   name:"Central Puerto",                ticker:"CEPU",  sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_tgsu",   name:"Transportadora de Gas del Sur", ticker:"TGSU2", sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_tgn",    name:"TGN",                           ticker:"TGNO4", sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_teco",   name:"Telecom Argentina",             ticker:"TECO2", sector:"TMT",         location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_cvh",    name:"Corporación América",           ticker:"CAAP",  sector:"Infra",       location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_pampa",  name:"Pampa Energía",                 ticker:"PAMP",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_ypf",    name:"YPF",                           ticker:"YPFD",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_vista",  name:"Vista Energy",                  ticker:"VIST",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_cepu",   name:"Central Puerto",                ticker:"CEPU",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_tgsu",   name:"Transportadora de Gas del Sur", ticker:"TGSU2", sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_tgn",    name:"TGN",                           ticker:"TGNO4", sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_teco",   name:"Telecom Argentina",             ticker:"TECO2", sector:"TMT",         location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_cvh",    name:"Corporación América",           ticker:"CAAP",  sector:"Infra",       location:"ls_office",contacts:[],notes:"",active:true},
   {id:"rc_irsa",   name:"IRSA · Cresud",                 ticker:"IRSA",  sector:"Real Estate", location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_loma",   name:"Loma Negra",                    ticker:"LOMA",  sector:"Industry",    location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_arcos",  name:"Arcos Dorados",                 ticker:"ARCO",  sector:"Consumer",    location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_adeco",  name:"Adecoagro",                     ticker:"AGRO",  sector:"Agro",        location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_a3",     name:"A3",                            ticker:"A3",    sector:"Media",       location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true},
+  {id:"rc_loma",   name:"Loma Negra",                    ticker:"LOMA",  sector:"Industry",    location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_arcos",  name:"Arcos Dorados",                 ticker:"ARCO",  sector:"Consumer",    location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_adeco",  name:"Adecoagro",                     ticker:"AGRO",  sector:"Agro",        location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_a3",     name:"A3",                            ticker:"A3",    sector:"Media",       location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contacts:[],notes:"",active:true},
 ];
 function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const busy=new Set((meetings||[]).map(m=>`${m.date}-${m.hour}`));
@@ -784,8 +784,9 @@ function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Arenales 707, 6th Floor, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
   const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${h}:00 hs`).join("\n")||"• A coordinar según disponibilidad";
   const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
-  const body=`Estimado/a ${co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
-  return{to:co.contact?.email||"",subject:subj,body};
+  const primaryContact=(co.contacts||[])[0];
+  const body=`Estimado/a ${primaryContact?.name||co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
+  return{to:primaryContact?.email||co.contact?.email||"",subject:subj,body};
 }
 function rsToEntity(rs,rsCos){
   const{trip,meetings}=rs;
@@ -804,7 +805,8 @@ function rsToEntity(rs,rsCos){
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
       return{time:fmtH(m.hour),col1:co?co.name:(m.lsType||m.title||"Meeting"),col1b:co?co.ticker:null,
         col1c:m.notes?('<em>'+esc(m.notes.slice(0,80))+(m.notes.length>80?"...":"")+'</em>'):null,
-        col1html:false,col1chtml:false,col2:m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom"),col2html:false,col3:locL,col4:st};})
+        col1html:false,col1chtml:false,col2:m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom"),col2html:false,col3:locL,col4:st,
+        col5reps:(()=>{if(m.type!=="company") return "";const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");})()};})
   }))};
 }
 
@@ -829,7 +831,12 @@ function buildICS(meetings, companies, trip){
     const endDT=endD.getUTCFullYear()+pad(endD.getUTCMonth()+1)+pad(endD.getUTCDate())+"T"+pad(endD.getUTCHours())+pad(endD.getUTCMinutes())+"00Z";
     const uid=`rs-${m.id}@latinsecurities.ar`;
     const attendees=(trip.visitors||[]).filter(v=>v.email).map(v=>`ATTENDEE;CN="${esc(v.name)}":mailto:${v.email}`).join("\r\n");
-    const coContact=co?.contact?.email?`ATTENDEE;CN="${esc(co.contact?.name||co.name)}":mailto:${co.contact.email}`:"";
+    // Use meeting-specific selected reps, fall back to all contacts
+    const allCoContacts=co?.contacts||[];
+    const selIds=m.attendeeIds||[];
+    const mtgReps=selIds.length>0?allCoContacts.filter(r=>selIds.includes(r.id)):allCoContacts;
+    const coContactLines=mtgReps.filter(r=>r.email).map(r=>`ATTENDEE;CN="${esc(r.name)}":mailto:${r.email}`).join("\r\n");
+    const coContact=coContactLines||( co?.contact?.email?`ATTENDEE;CN="${esc(co.contact?.name||co.name)}":mailto:${co.contact.email}`:"");
     return `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${fmtDT(new Date().toISOString().slice(0,10),new Date().getUTCHours())}\r\nDTSTART:${start}\r\nDTEND:${endDT}\r\nSUMMARY:${esc(title)}\r\nLOCATION:${esc(locL)}\r\nDESCRIPTION:${esc((co?.notes||"")+( m.notes?("\n"+m.notes):""))}\r\n${attendees?attendees+"\r\n":""}${coContact?coContact+"\r\n":""}END:VEVENT`;
   });
   return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Latin Securities//Roadshow//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\n${events.join("\r\n")}\r\nEND:VCALENDAR`;
@@ -952,12 +959,18 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [notes,setNotes]=useState(meeting?.notes||"");
   const d=new Date((date||"2026-04-20")+"T12:00:00");
   const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const [selReps,setSelReps]=useState(meeting?.attendeeIds||[]);
+  const selCo=(companies||[]).find(c=>c.id===coId);
+  const coContacts=selCo?.contacts||[];
+  // Sync selReps when company changes - default select all
+  React.useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
     const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseInt(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes};
+      location:loc,locationCustom:locCustom,status,notes,
+      attendeeIds:type==="company"?selReps:[]};
     onSave(m);
   }
   const actCos=(companies||[]).filter(c=>c.active);
@@ -1007,8 +1020,35 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
                 <button key={v} className={`btn bs ${status===v?"bg":"bo"}`} style={{fontSize:10,flex:1}} onClick={()=>setStatus(v)}>{l}</button>
               ))}
             </div></div>
-          <div><div className="lbl">Notas / Agenda</div>
+          <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
+          {type==="company"&&coContacts.length>0&&(
+            <div style={{marginBottom:4}}>
+              <div className="lbl" style={{marginBottom:5}}>👤 Asistentes de la empresa</div>
+              <div style={{display:"flex",flexDirection:"column",gap:4,background:"var(--ink3)",borderRadius:6,padding:"6px 8px"}}>
+                {coContacts.map(r=>(
+                  <label key={r.id} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:selReps.includes(r.id)?"rgba(30,90,176,.08)":"transparent"}}>
+                    <input type="checkbox" style={{accentColor:"var(--gold)"}} checked={selReps.includes(r.id)}
+                      onChange={()=>setSelReps(p=>p.includes(r.id)?p.filter(x=>x!==r.id):[...p,r.id])}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,color:"var(--cream)",fontWeight:600}}>{r.name}</span>
+                      {r.title&&<span style={{fontSize:10,color:"var(--dim)",marginLeft:5}}>{r.title}</span>}
+                    </div>
+                    {r.email&&<span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{r.email}</span>}
+                  </label>
+                ))}
+                <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginTop:4,paddingTop:4,borderTop:"1px solid rgba(30,90,176,.07)"}}>
+                  <button className="btn bo bs" style={{fontSize:9,padding:"2px 7px"}} onClick={()=>setSelReps(coContacts.map(r=>r.id))}>Todos</button>
+                  <button className="btn bo bs" style={{fontSize:9,padding:"2px 7px"}} onClick={()=>setSelReps([])}>Ninguno</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {type==="company"&&coContacts.length===0&&coId&&(
+            <div style={{fontSize:11,color:"var(--dim)",background:"var(--ink3)",borderRadius:5,padding:"6px 10px",marginBottom:4}}>
+              ℹ Sin representantes cargados para esta empresa. Agregalos en la tab Empresas.
+            </div>
+          )}
         </div>
         <div className="modal-footer" style={{gap:7}}>
           {mode==="edit"&&<button className="btn bd bs" onClick={onDelete}>🗑 Eliminar</button>}
@@ -2001,6 +2041,7 @@ export default function App(){
           sector:String(r[sc]||"Custom").trim(),
           location:String(r[lc]||"ls_office").trim().includes("hq")?"hq":"ls_office",
           locationCustom:String(r[ac]||"").trim(),
+          contacts:[{id:`rep_${Date.now()}_${i}`,name:String(r[cc]||"").trim(),email:String(r[ec]||"").trim(),phone:String(r[pc]||"").trim(),title:""}].filter(c=>c.name),
           contact:{name:String(r[cc]||"").trim(),email:String(r[ec]||"").trim(),phone:String(r[pc]||"").trim()},
           notes:String(r[oc]||"").trim(),
           active:true
@@ -2057,7 +2098,7 @@ export default function App(){
       if(lower.includes(co.name.toLowerCase())&&!seenIds.has(co.id)){
         seenIds.add(co.id);
         const existing=roadshow.companies.find(c=>c.id===co.id||c.name.toLowerCase()===co.name.toLowerCase());
-        if(!existing) matched.push({id:co.id+"_"+Date.now(),name:co.name,ticker:co.ticker,sector:co.sector,location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true});
+        if(!existing) matched.push({id:co.id+"_"+Date.now(),name:co.name,ticker:co.ticker,sector:co.sector,location:"ls_office",contacts:[],notes:"",active:true});
       }
     }
     // Any unknown company lines (lines with just company names)
@@ -3747,7 +3788,7 @@ Daily Summary — ${dayLabel}
           {rsSubTab==="companies"&&(
             <div>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contact:{name:"",email:"",phone:""},notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contacts:[],notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
                 <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>rsExcelRef.current?.click()}>📥 Importar Excel</button>
@@ -3756,7 +3797,7 @@ Daily Summary — ${dayLabel}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {roadshow.companies.map((co,ci)=>{
                   function setCo(f,v){const nc=[...roadshow.companies];nc[ci]={...nc[ci],[f]:v};saveRoadshow({...roadshow,companies:nc});}
-                  function setContact(f,v){const nc=[...roadshow.companies];nc[ci]={...nc[ci],contact:{...nc[ci].contact,[f]:v}};saveRoadshow({...roadshow,companies:nc});}
+
                   const clr=RS_CLR[co.sector]||"#666";
                   const hasMtg=roadshow.meetings.some(m=>m.companyId===co.id);
                   return(
@@ -3780,10 +3821,24 @@ Daily Summary — ${dayLabel}
                         <>
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}>
                             <div>
-                              <div className="lbl" style={{marginBottom:2}}>Contacto</div>
-                              <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.contact?.name||""} placeholder="Nombre" onChange={e=>setContact("name",e.target.value)}/>
-                              <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.contact?.email||""} placeholder="email@empresa.com" onChange={e=>setContact("email",e.target.value)}/>
-                              <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={co.contact?.phone||""} placeholder="+54 11..." onChange={e=>setContact("phone",e.target.value)}/>
+                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                                <div className="lbl" style={{margin:0}}>👤 Representantes</div>
+                                <button className="btn bo bs" style={{fontSize:8,padding:"1px 6px"}} onClick={()=>{const c=[...(co.contacts||[])];c.push({id:`rep_${Date.now()}`,name:"",title:"",email:"",phone:""});setCo("contacts",c);}}>+ Add</button>
+                              </div>
+                              {(co.contacts||[]).map((rep,ri)=>(
+                                <div key={rep.id||ri} style={{borderRadius:5,border:"1px solid rgba(30,90,176,.1)",padding:"5px 6px",marginBottom:4,background:"rgba(30,90,176,.02)"}}>
+                                  <div style={{display:"flex",gap:3,marginBottom:3}}>
+                                    <input className="inp" style={{flex:2,fontSize:10,padding:"2px 5px"}} value={rep.name||""} placeholder="Nombre *" onChange={e=>{const c=[...(co.contacts||[])];c[ri]={...c[ri],name:e.target.value};setCo("contacts",c);}}/>
+                                    <input className="inp" style={{flex:1.5,fontSize:10,padding:"2px 5px"}} value={rep.title||""} placeholder="Cargo" onChange={e=>{const c=[...(co.contacts||[])];c[ri]={...c[ri],title:e.target.value};setCo("contacts",c);}}/>
+                                    <button aria-label="Eliminar representante" style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:12,padding:"0 2px",flexShrink:0}} onClick={()=>{const c=(co.contacts||[]).filter((_,j)=>j!==ri);setCo("contacts",c);}}>✕</button>
+                                  </div>
+                                  <div style={{display:"flex",gap:3}}>
+                                    <input className="inp" style={{flex:2,fontSize:10,padding:"2px 5px"}} value={rep.email||""} placeholder="email@empresa.com" onChange={e=>{const c=[...(co.contacts||[])];c[ri]={...c[ri],email:e.target.value};setCo("contacts",c);}}/>
+                                    <input className="inp" style={{flex:1.5,fontSize:10,padding:"2px 5px"}} value={rep.phone||""} placeholder="+54 11..." onChange={e=>{const c=[...(co.contacts||[])];c[ri]={...c[ri],title:c[ri].title,phone:e.target.value};setCo("contacts",c);}}/>
+                                  </div>
+                                </div>
+                              ))}
+                              {!(co.contacts||[]).length&&<div style={{fontSize:10,color:"var(--dim)"}}>Sin representantes.</div>}
                             </div>
                             <div>
                               <div className="lbl" style={{marginBottom:2}}>Lugar de reunión</div>
