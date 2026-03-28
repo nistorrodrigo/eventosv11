@@ -1508,6 +1508,7 @@ export default function App(){
   const [events,setEvents]   = useState(()=>loadEvents());
   const [activeEv,setActiveEv] = useState(()=>{ const evs=loadEvents(); return evs.length?evs[0].id:null; });
   const [newEvName,setNewEvName] = useState("");
+  const [newEvKind,setNewEvKind] = useState("conference");
 
   const currentEvent = events.find(e=>e.id===activeEv);
 
@@ -1575,16 +1576,17 @@ export default function App(){
   const scheduled = meetings.length>0;
 
   // ── Create new event ─────────────────────────────────────────
-  function createEvent(name){
+  function createEvent(name, kind="conference"){
     if(events.some(e=>e.name.trim().toLowerCase()===name.trim().toLowerCase())){
       alert(`Ya existe un evento con el nombre "${name}". Usá un nombre diferente.`);
       return;
     }
     const id=`ev-${Date.now()}`;
-    const ev={id,name,createdAt:new Date().toISOString(),
+    const ev={id,name,kind,createdAt:new Date().toISOString(),
       investors:[],companies:COMPANIES_INIT.map(c=>({...c,attendees:[]})),
       meetings:[],unscheduled:[],fixedRoom:{},fundGrouping:{},config:DEFAULT_CONFIG};
-    const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName(""); setTab("upload");
+    const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName("");
+    setTab(kind==="roadshow"?"roadshow":"upload");
   }
 
   // ── File parse ───────────────────────────────────────────────
@@ -2543,8 +2545,16 @@ Daily Summary — ${dayLabel}
     return Object.entries(m).filter(([,ids])=>ids.length>1);
   },[investors]);
 
-  useEffect(()=>{const ev=events.find(e=>e.id===activeEv);setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});},[activeEv]); // eslint-disable-line
-  const TABS=[
+  const CONF_TAB_IDS=["upload","investors","companies","schedule","export","historical"];
+  useEffect(()=>{
+    const ev=events.find(e=>e.id===activeEv);
+    setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
+    // Jump to correct default tab for this event kind
+    if(ev?.kind==="roadshow") setTab(t=>CONF_TAB_IDS.includes(t)?"roadshow":t);
+    else setTab(t=>t==="roadshow"?"upload":t);
+  },[activeEv]); // eslint-disable-line
+  const evKind=currentEvent?.kind||"conference";
+  const CONF_TABS=[
     {id:"config",label:"⚙ Config"},
     {id:"upload",label:"📥 Cargar"},
     {id:"investors",label:`👥 (${investors.length})`},
@@ -2552,22 +2562,68 @@ Daily Summary — ${dayLabel}
     {id:"schedule",label:"📅 Agenda"},
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
+    {id:"mercado",label:"📈 Mercado"},
+  ];
+  const RS_TABS=[
+    {id:"config",label:"⚙ Config"},
     {id:"roadshow",label:"🗺️ Roadshow"},
     {id:"mercado",label:"📈 Mercado"},
   ];
+  const TABS=evKind==="roadshow"?RS_TABS:CONF_TABS;
 
   if(!currentEvent) return(
     <div className="app"><style>{CSS}</style>
-      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32}}>
-        <div style={{fontFamily:"Playfair Display,serif",fontSize:28,color:"var(--gold)",marginBottom:8}}>Argentina in New York 2026</div>
-        <div style={{color:"var(--dim)",fontSize:14,marginBottom:40}}>Latin Securities · Roadshow/Event Manager</div>
-        <div className="card" style={{maxWidth:420,width:"100%"}}>
-          <div className="card-t">🗓 Crear nuevo evento</div>
-          <div className="lbl">Nombre del evento</div>
-          <input className="inp" style={{marginBottom:12}} placeholder="Ej: Argentina in New York 2026" value={newEvName} onChange={e=>setNewEvName(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&createEvent(newEvName.trim())}/>
-          <button className="btn bg" style={{width:"100%"}} onClick={()=>newEvName.trim()&&createEvent(newEvName.trim())}>Crear evento</button>
-        </div>
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,background:"var(--ink)"}}>
+        <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"var(--cream)",marginBottom:4,letterSpacing:".01em"}}>Latin Securities</div>
+        <div style={{color:"var(--dim)",fontSize:12,marginBottom:48,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>Event Manager</div>
+
+        {/* Step 1: choose kind */}
+        {!newEvKind&&(
+          <div style={{maxWidth:640,width:"100%"}}>
+            <div style={{textAlign:"center",fontSize:15,color:"var(--txt)",marginBottom:24}}>¿Qué tipo de evento querés crear?</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              {[
+                {kind:"conference",icon:"🏛",title:"Conferencia",subtitle:"Agenda con múltiples inversores y compañías. Carga Excel, genera reuniones automáticamente, exportá schedules por inversor/compañía.",color:"#1e5ab0"},
+                {kind:"roadshow",icon:"🗺️",title:"Roadshow / Visita",subtitle:"Un grupo de inversores visita Argentina. Coordiná reuniones con compañías, calculá traslados, enviá agenda al inversor.",color:"#23a29e"},
+              ].map(opt=>(
+                <div key={opt.kind} role="button" tabIndex={0}
+                  onClick={()=>setNewEvKind(opt.kind)}
+                  onKeyDown={e=>{if(e.key==="Enter")setNewEvKind(opt.kind);}}
+                  style={{background:"#fff",border:`2px solid rgba(30,90,176,.12)`,borderRadius:14,padding:"28px 24px",cursor:"pointer",transition:"all .18s",textAlign:"center"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=opt.color;e.currentTarget.style.boxShadow=`0 6px 24px ${opt.color}22`;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(30,90,176,.12)";e.currentTarget.style.boxShadow="none";}}>
+                  <div style={{fontSize:40,marginBottom:12}}>{opt.icon}</div>
+                  <div style={{fontFamily:"Playfair Display,serif",fontSize:18,color:"var(--cream)",marginBottom:8}}>{opt.title}</div>
+                  <div style={{fontSize:12,color:"var(--dim)",lineHeight:1.65}}>{opt.subtitle}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: name */}
+        {newEvKind&&(
+          <div style={{maxWidth:440,width:"100%"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
+              <button onClick={()=>setNewEvKind("")} style={{background:"none",border:"none",cursor:"pointer",color:"var(--dim)",fontSize:13,padding:"4px 8px",borderRadius:6,display:"flex",alignItems:"center",gap:5}}>← Volver</button>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:20}}>{newEvKind==="conference"?"🏛":"🗺️"}</span>
+                <span style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)"}}>{newEvKind==="conference"?"Nueva Conferencia":"Nuevo Roadshow"}</span>
+              </div>
+            </div>
+            <div className="card">
+              <div className="lbl" style={{marginBottom:8}}>Nombre del evento</div>
+              <input className="inp" style={{marginBottom:14}} autoFocus
+                placeholder={newEvKind==="conference"?"Ej: Argentina in New York 2026":"Ej: Brasil Roadshow Abril 2026"}
+                value={newEvName} onChange={e=>setNewEvName(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}/>
+              <button className="btn bg" style={{width:"100%",fontSize:13,padding:"10px"}}
+                onClick={()=>newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}>
+                Crear {newEvKind==="conference"?"conferencia":"roadshow"} →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2600,7 +2656,7 @@ Daily Summary — ${dayLabel}
         <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
           onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
-          {events.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+          {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":"🏛"} {e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
       </div>
@@ -2616,11 +2672,17 @@ Daily Summary — ${dayLabel}
           <div className="modal-hdr"><div className="modal-title">Gestión de Eventos</div></div>
           <div className="modal-body">
             <div style={{marginBottom:16}}>
-              <div className="lbl">Nombre del nuevo evento</div>
-              <div className="flex" style={{marginTop:4}}>
-                <input className="inp" style={{flex:1}} placeholder="Brasil Roadshow 2026" value={newEvName} onChange={e=>setNewEvName(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim()),setShowEvMgr(false))}/>
-                <button className="btn bg bs" onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim());setShowEvMgr(false);}}}>Crear</button>
+              <div className="lbl" style={{marginBottom:6}}>Tipo de evento</div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                {[["conference","🏛 Conferencia"],["roadshow","🗺️ Roadshow"]].map(([k,l])=>(
+                  <button key={k} className={`btn bs ${newEvKind===k?"bg":"bo"}`} style={{flex:1,fontSize:11}} onClick={()=>setNewEvKind(k)}>{l}</button>
+                ))}
+              </div>
+              <div className="lbl" style={{marginBottom:4}}>Nombre del evento</div>
+              <div className="flex" style={{marginTop:0}}>
+                <input className="inp" style={{flex:1}} placeholder={newEvKind==="conference"?"Argentina in New York 2026":"Brasil Roadshow 2026"} value={newEvName} onChange={e=>setNewEvName(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim(),newEvKind),setShowEvMgr(false))}/>
+                <button className="btn bg bs" onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim(),newEvKind);setShowEvMgr(false);}}}>Crear</button>
               </div>
             </div>
             <div className="sec-hdr">Eventos existentes</div>
@@ -2628,7 +2690,10 @@ Daily Summary — ${dayLabel}
               {events.map(e=>(
                 <div key={e.id} className={`ev-card${e.id===activeEv?" active-ev":""}`}>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13.5,color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{e.name}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <div style={{fontSize:13.5,color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{e.name}</div>
+                      <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",background:e.kind==="roadshow"?"rgba(35,162,158,.15)":"rgba(30,90,176,.12)",color:e.kind==="roadshow"?"#23a29e":"var(--gold)",flexShrink:0}}>{e.kind==="roadshow"?"🗺️ Roadshow":"🏛 Conferencia"}</span>
+                    </div>
                     <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{(e.investors||[]).length} inversores · {(e.meetings||[]).length} reuniones</div>
                   </div>
                   <button className="btn bo bs" onClick={()=>{setActiveEv(e.id);setShowEvMgr(false);setTab("schedule");}}>Abrir</button>
