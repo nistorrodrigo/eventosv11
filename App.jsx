@@ -1551,6 +1551,8 @@ export default function App(){
   const [rsSubTab,setRsSubTab]=useState("schedule");
   const [rsEmailParser,setRsEmailParser]=useState("");
   const [rsAgendaEmailModal,setRsAgendaEmailModal]=useState(false);
+  const [travelCache,setTravelCache]=useState({});
+  const [travelLoading,setTravelLoading]=useState(false);
   const [rsShowParser,setRsShowParser]=useState(false);
   const [prevYearData,setPrevYearData] = useState(null);
   const prevYearRef = useRef();
@@ -3818,8 +3820,6 @@ Daily Summary — ${dayLabel}
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Helper to patch a company field inline (used in meeting modal)
         window.__rsCoPatch=(coId,field,val)=>{const nc=roadshow.companies.map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
-        const [travelCache,setTravelCache]=React.useState({});
-        const [travelLoading,setTravelLoading]=React.useState(false);
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){const ex=roadshow.meetings.find(x=>x.id===m.id);const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);}
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
