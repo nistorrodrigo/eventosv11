@@ -1546,6 +1546,10 @@ export default function App(){
   const [moverCCLLoading,setMoverCCLLoading] = useState(false);
   const [moverCCLErr,setMoverCCLErr]   = useState(null);
   const [moverCCLManual,setMoverCCLManual] = useState("");
+  const OB_DEF={team:[],destinations:[],notes:"",fund:"",subtitle:""};
+  const [outbound,setOutbound]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.outbound||OB_DEF;}catch{return OB_DEF;}});
+  function saveOutbound(ob){setOutbound(ob);saveCurrentEvent({outbound:ob});}
+  const [obSubTab,setObSubTab]=useState("schedule");
   const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
   const [rsMtgModal,setRsMtgModal]=useState(null);
   const [rsEmailModal,setRsEmailModal]=useState(null);
@@ -1586,7 +1590,7 @@ export default function App(){
       investors:[],companies:COMPANIES_INIT.map(c=>({...c,attendees:[]})),
       meetings:[],unscheduled:[],fixedRoom:{},fundGrouping:{},config:DEFAULT_CONFIG};
     const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName("");
-    setTab(kind==="roadshow"?"roadshow":"upload");
+    setTab(kind==="roadshow"?"roadshow":kind==="outbound"?"outbound":"upload");
   }
 
   // ── File parse ───────────────────────────────────────────────
@@ -2549,9 +2553,11 @@ Daily Summary — ${dayLabel}
   useEffect(()=>{
     const ev=events.find(e=>e.id===activeEv);
     setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
+    setOutbound(ev?.outbound||OB_DEF);
     // Jump to correct default tab for this event kind
     if(ev?.kind==="roadshow") setTab(t=>CONF_TAB_IDS.includes(t)?"roadshow":t);
-    else setTab(t=>t==="roadshow"?"upload":t);
+    else if(ev?.kind==="outbound") setTab(t=>CONF_TAB_IDS.includes(t)||t==="roadshow"?"outbound":t);
+    else setTab(t=>(t==="roadshow"||t==="outbound")?"upload":t);
   },[activeEv]); // eslint-disable-line
   const evKind=currentEvent?.kind||"conference";
   const CONF_TABS=[
@@ -2566,10 +2572,15 @@ Daily Summary — ${dayLabel}
   ];
   const RS_TABS=[
     {id:"config",label:"⚙ Config"},
-    {id:"roadshow",label:"🗺️ Roadshow"},
+    {id:"roadshow",label:"🗺️ Inbound"},
     {id:"mercado",label:"📈 Mercado"},
   ];
-  const TABS=evKind==="roadshow"?RS_TABS:CONF_TABS;
+  const OUT_TABS=[
+    {id:"config",label:"⚙ Config"},
+    {id:"outbound",label:"✈️ Outbound"},
+    {id:"mercado",label:"📈 Mercado"},
+  ];
+  const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
 
   if(!currentEvent) return(
     <div className="app"><style>{CSS}</style>
@@ -2581,10 +2592,11 @@ Daily Summary — ${dayLabel}
         {!newEvKind&&(
           <div style={{maxWidth:640,width:"100%"}}>
             <div style={{textAlign:"center",fontSize:15,color:"var(--txt)",marginBottom:24}}>¿Qué tipo de evento querés crear?</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,maxWidth:780}}>
               {[
                 {kind:"conference",icon:"🏛",title:"Conferencia",subtitle:"Agenda con múltiples inversores y compañías. Carga Excel, genera reuniones automáticamente, exportá schedules por inversor/compañía.",color:"#1e5ab0"},
-                {kind:"roadshow",icon:"🗺️",title:"Roadshow / Visita",subtitle:"Un grupo de inversores visita Argentina. Coordiná reuniones con compañías, calculá traslados, enviá agenda al inversor.",color:"#23a29e"},
+                {kind:"roadshow",icon:"🗺️",title:"Roadshow Inbound",subtitle:"Inversores visitan Argentina. Coordiná reuniones con compañías, calculá traslados y enviá agenda al cliente.",color:"#23a29e"},
+                {kind:"outbound",icon:"✈️",title:"Roadshow Outbound",subtitle:"LS viaja a ver fondos en EEUU, Brasil, Europa, etc. Agenda multi-ciudad y multi-país.",color:"#e8850a"},
               ].map(opt=>(
                 <div key={opt.kind} role="button" tabIndex={0}
                   onClick={()=>setNewEvKind(opt.kind)}
@@ -2619,7 +2631,7 @@ Daily Summary — ${dayLabel}
                 onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}/>
               <button className="btn bg" style={{width:"100%",fontSize:13,padding:"10px"}}
                 onClick={()=>newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}>
-                Crear {newEvKind==="conference"?"conferencia":"roadshow"} →
+                Crear {newEvKind==="conference"?"conferencia":newEvKind==="outbound"?"roadshow outbound":"roadshow inbound"} →
               </button>
             </div>
           </div>
@@ -2656,7 +2668,7 @@ Daily Summary — ${dayLabel}
         <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
           onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
-          {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":"🏛"} {e.name}</option>)}
+          {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":e.kind==="outbound"?"✈️":"🏛"} {e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
       </div>
@@ -2674,13 +2686,13 @@ Daily Summary — ${dayLabel}
             <div style={{marginBottom:16}}>
               <div className="lbl" style={{marginBottom:6}}>Tipo de evento</div>
               <div style={{display:"flex",gap:8,marginBottom:10}}>
-                {[["conference","🏛 Conferencia"],["roadshow","🗺️ Roadshow"]].map(([k,l])=>(
+                {[["conference","🏛 Conferencia"],["roadshow","🗺️ Inbound"],["outbound","✈️ Outbound"]].map(([k,l])=>(
                   <button key={k} className={`btn bs ${newEvKind===k?"bg":"bo"}`} style={{flex:1,fontSize:11}} onClick={()=>setNewEvKind(k)}>{l}</button>
                 ))}
               </div>
               <div className="lbl" style={{marginBottom:4}}>Nombre del evento</div>
               <div className="flex" style={{marginTop:0}}>
-                <input className="inp" style={{flex:1}} placeholder={newEvKind==="conference"?"Argentina in New York 2026":"Brasil Roadshow 2026"} value={newEvName} onChange={e=>setNewEvName(e.target.value)}
+                <input className="inp" style={{flex:1}} placeholder={newEvKind==="conference"?"Ej: Argentina in New York 2026":newEvKind==="outbound"?"Ej: US Roadshow Q2 2026":"Ej: Brasil Roadshow Abril 2026"} value={newEvName} onChange={e=>setNewEvName(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim(),newEvKind),setShowEvMgr(false))}/>
                 <button className="btn bg bs" onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim(),newEvKind);setShowEvMgr(false);}}}>Crear</button>
               </div>
@@ -2692,7 +2704,7 @@ Daily Summary — ${dayLabel}
                   <div style={{flex:1}}>
                     <div style={{display:"flex",alignItems:"center",gap:7}}>
                       <div style={{fontSize:13.5,color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{e.name}</div>
-                      <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",background:e.kind==="roadshow"?"rgba(35,162,158,.15)":"rgba(30,90,176,.12)",color:e.kind==="roadshow"?"#23a29e":"var(--gold)",flexShrink:0}}>{e.kind==="roadshow"?"🗺️ Roadshow":"🏛 Conferencia"}</span>
+                      <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",background:e.kind==="roadshow"?"rgba(35,162,158,.15)":"rgba(30,90,176,.12)",color:e.kind==="roadshow"?"#23a29e":"var(--gold)",flexShrink:0}}>{e.kind==="roadshow"?"🗺️ Inbound":e.kind==="outbound"?"✈️ Outbound":"🏛 Conferencia"}</span>
                     </div>
                     <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{(e.investors||[]).length} inversores · {(e.meetings||[]).length} reuniones</div>
                   </div>
@@ -4443,6 +4455,254 @@ Daily Summary — ${dayLabel}
         );
       })()}
 
+
+      {tab==="outbound"&&(()=>{
+        const RS_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
+        function addDest(){
+          const nd={id:`dest-${Date.now()}`,city:"",country:"",dateFrom:"",dateTo:"",hotel:"",meetings:[]};
+          saveOutbound({...outbound,destinations:[...outbound.destinations,nd]});
+        }
+        function upDest(id,field,val){saveOutbound({...outbound,destinations:outbound.destinations.map(d=>d.id===id?{...d,[field]:val}:d)});}
+        function delDest(id){saveOutbound({...outbound,destinations:outbound.destinations.filter(d=>d.id!==id)});}
+        function addMeeting(destId){
+          const dest=outbound.destinations.find(d=>d.id===destId);if(!dest)return;
+          const nm={id:`obm-${Date.now()}`,fund:"",contact:"",email:"",hour:9,duration:60,status:"tentative",location:"",notes:"",date:dest.dateFrom||""};
+          const nd=outbound.destinations.map(d=>d.id===destId?{...d,meetings:[...d.meetings,nm]}:d);
+          saveOutbound({...outbound,destinations:nd});
+        }
+        function upMeeting(destId,mtgId,field,val){
+          const nd=outbound.destinations.map(d=>d.id===destId?{...d,meetings:d.meetings.map(m=>m.id===mtgId?{...m,[field]:val}:m)}:d);
+          saveOutbound({...outbound,destinations:nd});
+        }
+        function delMeeting(destId,mtgId){
+          const nd=outbound.destinations.map(d=>d.id===destId?{...d,meetings:d.meetings.filter(m=>m.id!==mtgId)}:d);
+          saveOutbound({...outbound,destinations:nd});
+        }
+        const totalMtgs=outbound.destinations.reduce((s,d)=>s+d.meetings.length,0);
+        const confirmed=outbound.destinations.reduce((s,d)=>s+d.meetings.filter(m=>m.status==="confirmed").length,0);
+        const fmtShort=iso=>iso?new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+        const COUNTRY_FLAGS={US:"🇺🇸","United States":"🇺🇸",Brazil:"🇧🇷",Brasil:"🇧🇷",Chile:"🇨🇱",UK:"🇬🇧","United Kingdom":"🇬🇧",Germany:"🇩🇪",Alemania:"🇩🇪",France:"🇫🇷",Francia:"🇫🇷",Spain:"🇪🇸",España:"🇪🇸",Netherlands:"🇳🇱",Italy:"🇮🇹",Switzerland:"🇨🇭",Portugal:"🇵🇹",Japan:"🇯🇵",Canada:"🇨🇦",Mexico:"🇲🇽"};
+        const flag=c=>COUNTRY_FLAGS[c]||"🌎";
+
+        function exportOutboundAgenda(){
+          const lsCont=(config.contacts||[])[0]||{};
+          const teamNames=(outbound.team||[]).map(t=>t.name).filter(Boolean);
+          const lines=outbound.destinations.map(dest=>{
+            if(!dest.meetings.length) return null;
+            const sortedMtgs=[...dest.meetings].sort((a,b)=>(a.date+a.hour).localeCompare(b.date+b.hour));
+            const header=`${flag(dest.country)} ${dest.city.toUpperCase()}${dest.country?", "+dest.country:""} ${fmtShort(dest.dateFrom)?("("+fmtShort(dest.dateFrom)+(dest.dateTo&&dest.dateTo!==dest.dateFrom?"–"+fmtShort(dest.dateTo):"")+")"):""}
+${"─".repeat(40)}`;
+            const rows=sortedMtgs.map(m=>{
+              const d=m.date?new Date(m.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"";
+              return `  ${String(m.hour).padStart(2,"0")}:00${d?" · "+d:""} | ${m.fund||"[Fund]"} | ${m.contact||""} | ${m.status==="confirmed"?"✓":"⏳"} | ${m.location||""}${m.notes?" — "+m.notes:""}`;
+            }).join("\n");
+            return header+"\n"+rows;
+          }).filter(Boolean).join("\n\n");
+          const NL="\n";const txt="LATIN SECURITIES — OUTBOUND ROADSHOW"+NL+(outbound.fund?outbound.fund+NL:"")+(teamNames.length?"Team: "+teamNames.join(", ")+NL:"")+NL+(lines||"No meetings yet.")+NL+NL+"Contact: "+(lsCont.name||"[LS]")+" · "+(lsCont.email||"")+" · "+(lsCont.phone||"")
+          navigator.clipboard.writeText(txt).then(()=>alert("✅ Agenda copiada al portapapeles.")).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+txt+"</pre>");w.document.close();});
+        }
+
+        function exportOutboundICS(){
+          const pad=n=>String(n).padStart(2,"0");
+          const esc=s=>(s||"").replace(/[\\,;]/g,"\\$&").replace(/\n/g,"\\n");
+          const dur=60;
+          const events=outbound.destinations.flatMap(dest=>
+            dest.meetings.filter(m=>m.status!=="cancelled"&&m.date&&m.hour).map(m=>{
+              const d=new Date(m.date+"T"+pad(m.hour)+":00:00");
+              const de=new Date(d.getTime()+(m.duration||dur)*60000);
+              const fmt=dd=>dd.getUTCFullYear()+pad(dd.getUTCMonth()+1)+pad(dd.getUTCDate())+"T"+pad(dd.getUTCHours())+pad(dd.getUTCMinutes())+"00Z";
+              const teamAttendees=(outbound.team||[]).filter(t=>t.email).map(t=>`ATTENDEE;CN="${esc(t.name)}":mailto:${t.email}`).join("\r\n");
+              return `BEGIN:VEVENT\r\nUID:ob-${m.id}@latinsecurities.ar\r\nDTSTAMP:${fmt(new Date())}\r\nDTSTART:${fmt(d)}\r\nDTEND:${fmt(de)}\r\nSUMMARY:${esc((m.fund||"Meeting")+" – "+dest.city)}\r\nLOCATION:${esc(m.location||(dest.city+", "+dest.country))}\r\nDESCRIPTION:${esc(m.notes||"")}\r\n${teamAttendees?teamAttendees+"\r\n":""}END:VEVENT`;
+            })
+          );
+          const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Latin Securities//Outbound//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n${events.join("\r\n")}\r\nEND:VCALENDAR`;
+          const fn=`Outbound_${(outbound.fund||currentEvent?.name||"Roadshow").replace(/[^a-zA-Z0-9]/g,"_")}.ics`;
+          downloadBlob(fn,ics,"text/calendar;charset=utf-8");
+        }
+
+        return(
+        <div>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div>
+              <h2 className="pg-h" style={{marginBottom:2}}>✈️ Roadshow Outbound</h2>
+              <p className="pg-s" style={{marginBottom:0}}>Latin Securities viaja a ver fondos. Organizá la agenda por ciudad.</p>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"var(--grn)",padding:"4px 10px",borderRadius:5,background:"rgba(58,140,92,.1)"}}>{confirmed}/{totalMtgs} ✓ confirmadas</div>
+              <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={exportOutboundAgenda}>📋 Copiar agenda</button>
+              <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={exportOutboundICS}>📅 ICS</button>
+            </div>
+          </div>
+
+          {/* Sub-tabs */}
+          <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
+            {[["schedule","📅 Itinerario"],["team","👥 Equipo LS"],["export","📄 Exportar"]].map(([id,lbl])=>(
+              <button key={id} className={`ntab${obSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setObSubTab(id)}>{lbl}</button>
+            ))}
+          </div>
+
+          {/* ITINERARY */}
+          {obSubTab==="schedule"&&(
+            <div>
+              {/* Trip info card */}
+              <div className="card" style={{marginBottom:14}}>
+                <div className="card-t">🧳 Info del Roadshow</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  <div><div className="lbl">Fondo / Cliente</div><input className="inp" value={outbound.fund||""} placeholder="Ej: Merrill Lynch 2026" onChange={e=>saveOutbound({...outbound,fund:e.target.value})}/></div>
+                  <div><div className="lbl">Subtítulo / descripción</div><input className="inp" value={outbound.subtitle||""} placeholder="Ej: Marketing roadshow Q2" onChange={e=>saveOutbound({...outbound,subtitle:e.target.value})}/></div>
+                  <div><div className="lbl">Notas generales</div><input className="inp" value={outbound.notes||""} placeholder="Logística, visa, etc." onChange={e=>saveOutbound({...outbound,notes:e.target.value})}/></div>
+                </div>
+              </div>
+
+              {/* Destinations */}
+              {outbound.destinations.map((dest,di)=>{
+                const sortedMtgs=[...dest.meetings].sort((a,b)=>(a.date+String(a.hour)).localeCompare(b.date+String(b.hour)));
+                return(
+                  <div key={dest.id} className="card" style={{marginBottom:14,borderLeft:`3px solid ${["#1e5ab0","#23a29e","#e8850a","#7b35b0","#3a8c5c"][di%5]}`}}>
+                    {/* Destination header */}
+                    <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12,flexWrap:"wrap"}}>
+                      <div style={{fontSize:28}}>{flag(dest.country)}</div>
+                      <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
+                        <div><div className="lbl">Ciudad</div><input className="inp" style={{fontSize:12}} value={dest.city} placeholder="New York" onChange={e=>upDest(dest.id,"city",e.target.value)}/></div>
+                        <div><div className="lbl">País</div>
+                          <select className="sel" style={{fontSize:12}} value={dest.country} onChange={e=>upDest(dest.id,"country",e.target.value)}>
+                            <option value="">— País —</option>
+                            {["United States","Brazil","Chile","United Kingdom","Germany","France","Netherlands","Spain","Switzerland","Italy","Portugal","Canada","Mexico","Japan"].map(c=><option key={c} value={c}>{flag(c)} {c}</option>)}
+                          </select></div>
+                        <div><div className="lbl">Llegada</div><DayDateInput day={{date:dest.dateFrom,short:dest.dateFrom,long:""}} di={di*2} onChange={nd=>upDest(dest.id,"dateFrom",nd.date)}/></div>
+                        <div><div className="lbl">Salida</div><DayDateInput day={{date:dest.dateTo,short:dest.dateTo,long:""}} di={di*2+1} onChange={nd=>upDest(dest.id,"dateTo",nd.date)}/></div>
+                      </div>
+                      <div style={{display:"flex",gap:5,flexShrink:0}}>
+                        <button className="btn bg bs" style={{fontSize:9}} onClick={()=>addMeeting(dest.id)}>+ Reunión</button>
+                        <button aria-label="Eliminar destino" className="btn bd bs" style={{fontSize:9}} onClick={()=>{if(confirm(`Eliminar ${dest.city||"destino"}?`))delDest(dest.id);}}>✕</button>
+                      </div>
+                    </div>
+                    <div style={{marginBottom:8}}><div className="lbl">Hotel</div><input className="inp" style={{fontSize:11}} value={dest.hotel||""} placeholder="Four Seasons, Hilton, etc." onChange={e=>upDest(dest.id,"hotel",e.target.value)}/></div>
+
+                    {/* Meetings table */}
+                    {sortedMtgs.length>0&&(
+                      <div style={{overflowX:"auto"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                          <thead><tr style={{background:"rgba(30,90,176,.05)"}}>
+                            {["Fecha","Hora","Fondo / Contacto","Email","Lugar","Estado","Notas",""].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",borderBottom:"1px solid rgba(30,90,176,.08)",whiteSpace:"nowrap"}}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                          {sortedMtgs.map((m,mi)=>(
+                            <tr key={m.id} style={{borderBottom:"1px solid rgba(30,90,176,.04)",background:mi%2===0?"rgba(30,90,176,.01)":"transparent"}}>
+                              <td style={{padding:"5px 6px",minWidth:100}}>
+                                <DayDateInput day={{date:m.date,short:m.date,long:""}} di={di*100+mi} onChange={nd=>upMeeting(dest.id,m.id,"date",nd.date)}/>
+                              </td>
+                              <td style={{padding:"5px 6px"}}>
+                                <select className="sel" style={{fontSize:10,padding:"3px 5px",width:70}} value={m.hour} onChange={e=>upMeeting(dest.id,m.id,"hour",parseInt(e.target.value))}>
+                                  {RS_HOURS.map(h=><option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>)}
+                                </select>
+                              </td>
+                              <td style={{padding:"5px 6px",minWidth:140}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.fund||""} placeholder="Fondo / Nombre" onChange={e=>upMeeting(dest.id,m.id,"fund",e.target.value)}/></td>
+                              <td style={{padding:"5px 6px",minWidth:130}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.email||""} placeholder="email@fondo.com" onChange={e=>upMeeting(dest.id,m.id,"email",e.target.value)}/></td>
+                              <td style={{padding:"5px 6px",minWidth:140}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.location||""} placeholder={`Dirección en ${dest.city||"destino"}...`} onChange={e=>upMeeting(dest.id,m.id,"location",e.target.value)}/></td>
+                              <td style={{padding:"5px 6px"}}>
+                                <select className="sel" style={{fontSize:10,padding:"3px 5px",width:96}} value={m.status} onChange={e=>upMeeting(dest.id,m.id,"status",e.target.value)}>
+                                  <option value="tentative">⏳ Tentativo</option>
+                                  <option value="confirmed">✅ Confirmado</option>
+                                  <option value="cancelled">❌ Cancelado</option>
+                                </select>
+                              </td>
+                              <td style={{padding:"5px 6px",minWidth:160}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.notes||""} placeholder="Agenda, contexto..." onChange={e=>upMeeting(dest.id,m.id,"notes",e.target.value)}/></td>
+                              <td style={{padding:"5px 6px"}}><button aria-label="Eliminar reunión" className="btn bd bs" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>delMeeting(dest.id,m.id)}>✕</button></td>
+                            </tr>
+                          ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {!sortedMtgs.length&&<div style={{fontSize:11,color:"var(--dim)",padding:"8px 0"}}>Sin reuniones — clic en + Reunión para agregar.</div>}
+                  </div>
+                );
+              })}
+
+              <button className="btn bg bs" style={{gap:6,marginTop:4}} onClick={addDest}>
+                🌎 Agregar destino / ciudad
+              </button>
+              {!outbound.destinations.length&&(
+                <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)",marginTop:14}}>
+                  <div style={{fontSize:36,marginBottom:8}}>✈️</div>
+                  <div style={{fontSize:14,color:"var(--cream)",marginBottom:6}}>Agregá los destinos del roadshow</div>
+                  <div style={{fontSize:12}}>Cada destino tiene su ciudad, fechas y lista de fondos a visitar.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TEAM */}
+          {obSubTab==="team"&&(
+            <div>
+              <div className="card" style={{marginBottom:14}}>
+                <div className="card-t">👥 Equipo Latin Securities que viaja</div>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:12,lineHeight:1.6}}>Miembros del equipo LS en este roadshow. Se incluyen como attendees en el ICS.</p>
+                {(outbound.team||[]).map((t,ti)=>(
+                  <div key={ti} style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
+                    <input className="inp" style={{flex:2,fontSize:11,padding:"3px 7px"}} value={t.name||""} placeholder="Nombre" onChange={e=>{const tm=[...(outbound.team||[])];tm[ti]={...tm[ti],name:e.target.value};saveOutbound({...outbound,team:tm});}}/>
+                    <input className="inp" style={{flex:1.5,fontSize:11,padding:"3px 7px"}} value={t.title||""} placeholder="Cargo" onChange={e=>{const tm=[...(outbound.team||[])];tm[ti]={...tm[ti],title:e.target.value};saveOutbound({...outbound,team:tm});}}/>
+                    <input className="inp" style={{flex:2,fontSize:11,padding:"3px 7px"}} value={t.email||""} placeholder="email@latinsecurities.ar" onChange={e=>{const tm=[...(outbound.team||[])];tm[ti]={...tm[ti],email:e.target.value};saveOutbound({...outbound,team:tm});}}/>
+                    <button aria-label="Eliminar" className="btn bd bs" style={{fontSize:9,padding:"2px 6px",flexShrink:0}} onClick={()=>{const tm=(outbound.team||[]).filter((_,j)=>j!==ti);saveOutbound({...outbound,team:tm});}}>✕</button>
+                  </div>
+                ))}
+                <button className="btn bo bs" style={{fontSize:10,marginTop:6}} onClick={()=>saveOutbound({...outbound,team:[...(outbound.team||[]),{name:"",title:"",email:""}]})}>+ Agregar miembro</button>
+              </div>
+              {/* Preset LS contacts */}
+              {(config.contacts||[]).length>0&&(
+                <div className="card">
+                  <div className="card-t">⚡ Agregar desde contactos LS</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {(config.contacts||[]).map((c,ci)=>{
+                      const already=(outbound.team||[]).some(t=>t.email===c.email||t.name===c.name);
+                      return(<button key={ci} className="btn bo bs" style={{fontSize:10,opacity:already?.5:1}} onClick={()=>{if(!already)saveOutbound({...outbound,team:[...(outbound.team||[]),{name:c.name,title:c.role||"",email:c.email||""}]});}}>
+                        {already?"✓ ":""}{c.name}
+                      </button>);
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EXPORT */}
+          {obSubTab==="export"&&(
+            <div>
+              <div className="sec-hdr" style={{marginBottom:8}}>📄 Agenda del Roadshow</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportOutboundAgenda} onKeyDown={e=>{if(e.key==="Enter")exportOutboundAgenda();}}>
+                  <div className="ex-card-ico">📋</div>
+                  <div className="ex-card-t">Copiar agenda (texto)</div>
+                  <div className="ex-card-s">Agenda completa por ciudad, lista para pegar en email o WhatsApp.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportOutboundICS} onKeyDown={e=>{if(e.key==="Enter")exportOutboundICS();}}>
+                  <div className="ex-card-ico">📅</div>
+                  <div className="ex-card-t">Exportar .ICS (Outlook)</div>
+                  <div className="ex-card-s">Todas las reuniones del equipo LS como invitaciones de calendario.</div>
+                </div>
+              </div>
+              <div className="card" style={{marginBottom:14}}>
+                <div className="card-t">🔗 Resumen del itinerario</div>
+                <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"var(--txt)",lineHeight:1.9}}>
+                  {outbound.destinations.map(d=>(
+                    <div key={d.id} style={{marginBottom:4}}>
+                      <span style={{fontSize:14}}>{flag(d.country)}</span>
+                      <strong style={{color:"var(--cream)",marginLeft:6}}>{d.city}{d.country?", "+d.country:""}</strong>
+                      {(d.dateFrom||d.dateTo)&&<span style={{color:"var(--dim)",marginLeft:8}}>{fmtShort(d.dateFrom)}{d.dateTo&&d.dateTo!==d.dateFrom?"–"+fmtShort(d.dateTo):""}</span>}
+                      <span style={{color:"var(--gold)",marginLeft:8}}>{d.meetings.length} reunión{d.meetings.length!==1?"es":""}</span>
+                      {d.hotel&&<span style={{color:"var(--dim)",marginLeft:8}}>· {d.hotel}</span>}
+                    </div>
+                  ))}
+                  {!outbound.destinations.length&&<span style={{color:"var(--dim)"}}>Sin destinos cargados.</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
       {tab==="mercado"&&(()=>{
         const ccl=parseFloat(moverCCLManual)||moverCCL;
         const PRESETS=[
