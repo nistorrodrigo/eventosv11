@@ -746,28 +746,28 @@ function DayDateInput({day,di,onChange}){
 const ROADSHOW_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
 const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
-const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6th Floor, CABA",meetingDuration:60,visitors:[],lsTeam:[]};
+const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6th Floor, CABA",meetingDuration:60,visitors:[],lsTeam:[],mapsApiKey:""};
 const RS_COS_DEF=[
-  {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_ggal",   name:"Grupo Financiero Galicia",      ticker:"GGAL",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_supv",   name:"Grupo Supervielle",             ticker:"SUPV",  sector:"Financials",  location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_ggal",   name:"Grupo Financiero Galicia",      ticker:"GGAL",  sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_supv",   name:"Grupo Supervielle",             ticker:"SUPV",  sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
   {id:"rc_byma",   name:"BYMA",                          ticker:"BYMA",  sector:"Exchange",    location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_pampa",  name:"Pampa Energía",                 ticker:"PAMP",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_ypf",    name:"YPF",                           ticker:"YPFD",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_vista",  name:"Vista Energy",                  ticker:"VIST",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_cepu",   name:"Central Puerto",                ticker:"CEPU",  sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_tgsu",   name:"Transportadora de Gas del Sur", ticker:"TGSU2", sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_tgn",    name:"TGN",                           ticker:"TGNO4", sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_teco",   name:"Telecom Argentina",             ticker:"TECO2", sector:"TMT",         location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_cvh",    name:"Corporación América",           ticker:"CAAP",  sector:"Infra",       location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_pampa",  name:"Pampa Energía",                 ticker:"PAMP",  sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_ypf",    name:"YPF",                           ticker:"YPFD",  sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_vista",  name:"Vista Energy",                  ticker:"VIST",  sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_cepu",   name:"Central Puerto",                ticker:"CEPU",  sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_tgsu",   name:"Transportadora de Gas del Sur", ticker:"TGSU2", sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_tgn",    name:"TGN",                           ticker:"TGNO4", sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_teco",   name:"Telecom Argentina",             ticker:"TECO2", sector:"TMT",         location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_cvh",    name:"Corporación América",           ticker:"CAAP",  sector:"Infra",       location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
   {id:"rc_irsa",   name:"IRSA · Cresud",                 ticker:"IRSA",  sector:"Real Estate", location:"hq",       contact:{name:"",email:"",phone:""},notes:"",active:true},
-  {id:"rc_loma",   name:"Loma Negra",                    ticker:"LOMA",  sector:"Industry",    location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_arcos",  name:"Arcos Dorados",                 ticker:"ARCO",  sector:"Consumer",    location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_adeco",  name:"Adecoagro",                     ticker:"AGRO",  sector:"Agro",        location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_a3",     name:"A3",                            ticker:"A3",    sector:"Media",       location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contacts:[],notes:"",active:true},
-  {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contacts:[],notes:"",active:true},
+  {id:"rc_loma",   name:"Loma Negra",                    ticker:"LOMA",  sector:"Industry",    location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_arcos",  name:"Arcos Dorados",                 ticker:"ARCO",  sector:"Consumer",    location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_adeco",  name:"Adecoagro",                     ticker:"AGRO",  sector:"Agro",        location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_a3",     name:"A3",                            ticker:"A3",    sector:"Media",       location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
+  {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
 ];
 function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const busy=new Set((meetings||[]).map(m=>`${m.date}-${m.hour}`));
@@ -1054,6 +1054,49 @@ render();
 </script></body></html>`;
 }
 
+
+/* ─── Travel Time & Maps Helpers ────────────────────────────────── */
+function getMeetingAddress(m, co, officeAddress){
+  if(m.fullAddress) return m.fullAddress;
+  if(m.location==="ls_office") return officeAddress||"Arenales 707, CABA, Argentina";
+  if(m.location==="hq") return co?.hqAddress||co?.locationCustom||co?.name+", Buenos Aires, Argentina";
+  return m.locationCustom||"Buenos Aires, Argentina";
+}
+
+async function fetchTravelTime(origin, destination, apiKey){
+  if(!apiKey) return null;
+  const url=`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${apiKey}`;
+  try{
+    const r=await fetch(url);
+    const d=await r.json();
+    const el=d.rows?.[0]?.elements?.[0];
+    if(el?.status==="OK") return{durationText:el.duration.text,durationSec:el.duration.value,distanceText:el.distance.text};
+    return null;
+  }catch{ return null; }
+}
+
+function openGoogleMapsRoute(stops){
+  if(!stops.length) return;
+  const origin=encodeURIComponent(stops[0]);
+  const dest=encodeURIComponent(stops[stops.length-1]);
+  const waypoints=stops.slice(1,-1).map(s=>encodeURIComponent(s)).join("|");
+  const url=`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints?`&waypoints=${waypoints}`:""}&travelmode=driving`;
+  window.open(url,"_blank");
+}
+
+function openGoogleMapsDirections(from, to){
+  const url=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
+  window.open(url,"_blank");
+}
+
+// Check if two consecutive meetings have a potential conflict (not enough travel time)
+function checkTravelConflict(m1, m2, travelSec, durationMin){
+  const gap=(m2.hour-m1.hour)*60-(durationMin||60);
+  if(travelSec==null) return gap<15?{warning:true,gapMin:gap}:null;
+  const travelMin=Math.ceil(travelSec/60);
+  return gap<travelMin?{conflict:true,gapMin:gap,travelMin}:gap<travelMin+10?{warning:true,gapMin:gap,travelMin}:null;
+}
+
 function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onClose}){
   const [type,setType]=useState(meeting?.type||"company");
   const [coId,setCoId]=useState(meeting?.companyId||"");
@@ -1065,6 +1108,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
+  const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
   const d=new Date((date||"2026-04-20")+"T12:00:00");
   const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   const [selReps,setSelReps]=useState(meeting?.attendeeIds||[]);
@@ -1077,7 +1121,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
     const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseInt(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,
+      location:loc,locationCustom:locCustom,status,notes,fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[]};
     onSave(m);
   }
@@ -1121,7 +1165,18 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
               <option value="hq">🏢 Sede de la empresa</option>
               <option value="custom">📍 Otro lugar</option>
             </select>
-            {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}</div>
+            {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}
+            {loc==="hq"&&selCo&&(
+              <input className="inp" style={{marginTop:5,fontSize:11}} value={selCo.hqAddress||""} placeholder={`Dirección HQ de ${selCo.name}...`}
+                onChange={e=>{/* update company hqAddress inline */const patch=e.target.value;if(typeof window.__rsCoPatch==="function")window.__rsCoPatch(selCo.id,"hqAddress",patch);}}
+              />
+            )}
+            <div style={{marginTop:5}}>
+              <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa (para Google Maps)</div>
+              <input className="inp" style={{fontSize:11}} value={fullAddr} onChange={e=>setFullAddr(e.target.value)}
+                placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6th Floor, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
+            </div>
+          </div>
           <div style={{marginBottom:12}}><div className="lbl">Estado</div>
             <div style={{display:"flex",gap:5}}>
               {[["tentative","⏳ Tentativo"],["confirmed","✅ Confirmado"],["cancelled","❌ Cancelado"]].map(([v,l])=>(
@@ -2208,7 +2263,7 @@ export default function App(){
       if(lower.includes(co.name.toLowerCase())&&!seenIds.has(co.id)){
         seenIds.add(co.id);
         const existing=roadshow.companies.find(c=>c.id===co.id||c.name.toLowerCase()===co.name.toLowerCase());
-        if(!existing) matched.push({id:co.id+"_"+Date.now(),name:co.name,ticker:co.ticker,sector:co.sector,location:"ls_office",contacts:[],notes:"",active:true});
+        if(!existing) matched.push({id:co.id+"_"+Date.now(),name:co.name,ticker:co.ticker,sector:co.sector,location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true});
       }
     }
     // Any unknown company lines (lines with just company names)
@@ -3761,6 +3816,10 @@ Daily Summary — ${dayLabel}
 
       {tab==="roadshow"&&(()=>{
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
+        // Helper to patch a company field inline (used in meeting modal)
+        window.__rsCoPatch=(coId,field,val)=>{const nc=roadshow.companies.map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
+        const [travelCache,setTravelCache]=React.useState({});
+        const [travelLoading,setTravelLoading]=React.useState(false);
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){const ex=roadshow.meetings.find(x=>x.id===m.id);const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);}
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
@@ -3796,6 +3855,19 @@ Daily Summary — ${dayLabel}
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
               <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6th Floor, CABA"/></div>
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
+              <div>
+                <div className="lbl" style={{marginBottom:3}}>🗺️ Google Maps API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(opcional — para calcular tiempos automáticamente)</span></div>
+                <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
+                  value={roadshow.trip.mapsApiKey||""} onChange={e=>upTrip("mapsApiKey",e.target.value)}
+                  placeholder="AIza..."/>
+              </div>
+              <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:200}}>
+                Sin key: abre Google Maps en el navegador.<br/>
+                Con key: calcula tiempos automáticamente.<br/>
+                <a href="https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com" target="_blank" style={{color:"var(--gold)"}}>Activar API →</a>
+              </div>
             </div>
             {/* Visitors */}
             <div style={{marginBottom:10}}>
@@ -3844,7 +3916,7 @@ Daily Summary — ${dayLabel}
 
           {/* Sub-tabs */}
           <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
-            {[["schedule","📅 Agenda"],["companies","🏢 Empresas"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
+            {[["schedule","📅 Agenda"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
               <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setRsSubTab(id)}>{lbl}</button>
             ))}
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
@@ -3970,7 +4042,7 @@ Daily Summary — ${dayLabel}
           {rsSubTab==="companies"&&(
             <div>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contacts:[],notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
                 <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>rsExcelRef.current?.click()}>📥 Importar Excel</button>
@@ -4029,7 +4101,10 @@ Daily Summary — ${dayLabel}
                                 <option value="hq">🏢 Sede empresa</option>
                                 <option value="custom">📍 Otro</option>
                               </select>
-                              {(co.location==="custom"||co.location==="hq")&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder={co.location==="hq"?"Dirección HQ...":"Otra dirección..."} onChange={e=>setCo("locationCustom",e.target.value)}/>}
+                              {(co.location==="hq")&&(
+                                <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.hqAddress||""} placeholder="Dirección HQ (para Google Maps)..." onChange={e=>setCo("hqAddress",e.target.value)}/>
+                              )}
+                              {(co.location==="custom")&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder="Otra dirección..." onChange={e=>setCo("locationCustom",e.target.value)}/>}}
                               <textarea className="inp" style={{fontSize:10,padding:"3px 6px",minHeight:44,resize:"none"}} value={co.notes||""} placeholder="Notas..." onChange={e=>setCo("notes",e.target.value)}/>
                             </div>
                           </div>
@@ -4047,6 +4122,146 @@ Daily Summary — ${dayLabel}
           )}
 
           {/* EMAILS */}
+          {rsSubTab==="travel"&&(()=>{
+            const apiKey=roadshow.trip.mapsApiKey||"";
+            const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+            const dur=roadshow.trip.meetingDuration||60;
+
+            async function calcDayTravel(date){
+              const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+              if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
+              const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
+              const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
+              if(!apiKey){
+                // Open route in maps
+                openGoogleMapsRoute(addrs);
+                return;
+              }
+              setTravelLoading(true);
+              const results={};
+              for(let i=0;i<dayMtgs.length-1;i++){
+                const key=`${date}-${i}`;
+                const t=await fetchTravelTime(addrs[i],addrs[i+1],apiKey);
+                results[key]=t;
+              }
+              setTravelCache(prev=>({...prev,[date]:results}));
+              setTravelLoading(false);
+            }
+
+            return(
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                <div>
+                  <h3 style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2}}>🗺️ Tiempos de traslado</h3>
+                  <p style={{fontSize:12,color:"var(--dim)"}}>Verificá que haya tiempo suficiente entre reuniones considerando el traslado.</p>
+                </div>
+                {!apiKey&&<div style={{fontSize:11,background:"rgba(30,90,176,.07)",border:"1px solid rgba(30,90,176,.15)",borderRadius:6,padding:"6px 10px",color:"var(--dim)"}}>
+                  Sin API Key → abre Google Maps. <span style={{color:"var(--gold)"}}>Configurá la key en 🧳 Datos del Viaje.</span>
+                </div>}
+              </div>
+
+              {workDays.map(date=>{
+                const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                if(!dayMtgs.length) return null;
+                const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
+                const d=new Date(date+"T12:00:00");
+                const dayLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+                const dayTravel=travelCache[date]||{};
+
+                return(
+                  <div key={date} className="card" style={{marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:12,fontWeight:700,color:"var(--cream)",textTransform:"capitalize"}}>{dayLabel}</div>
+                      <div style={{display:"flex",gap:6}}>
+                        {dayMtgs.length>=2&&<button className="btn bo bs" style={{fontSize:9,gap:4}} disabled={travelLoading}
+                          onClick={()=>calcDayTravel(date)}>
+                          {apiKey?"🔄 Calcular tiempos":"🗺️ Ver ruta en Maps"}
+                        </button>}
+                        {dayMtgs.length>=2&&<button className="btn bo bs" style={{fontSize:9,gap:4}}
+                          onClick={()=>{const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});openGoogleMapsRoute(addrs);}}>
+                          🗺️ Abrir ruta
+                        </button>}
+                      </div>
+                    </div>
+
+                    {/* Timeline */}
+                    <div style={{position:"relative",paddingLeft:24}}>
+                      {/* Vertical line */}
+                      <div style={{position:"absolute",left:9,top:8,bottom:8,width:2,background:"rgba(30,90,176,.15)",borderRadius:1}}/>
+
+                      {dayMtgs.map((m,mi)=>{
+                        const co=m.type==="company"?rmMap.get(m.companyId):null;
+                        const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
+                        const addr=getMeetingAddress(m,co,roadshow.trip.officeAddress);
+                        const endHour=m.hour+Math.floor(dur/60);
+                        const travelData=mi<dayMtgs.length-1?dayTravel[`${date}-${mi}`]:null;
+                        const nextM=mi<dayMtgs.length-1?dayMtgs[mi+1]:null;
+                        const conflict=nextM?checkTravelConflict(m,nextM,travelData?.durationSec??null,dur):null;
+                        return(
+                          <div key={m.id}>
+                            {/* Meeting block */}
+                            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:4}}>
+                              <div style={{width:18,height:18,borderRadius:"50%",background:clr,flexShrink:0,marginTop:2,zIndex:1,boxShadow:"0 0 0 3px var(--ink)"}}/>
+                              <div style={{flex:1,background:conflict?.conflict?"rgba(214,68,68,.06)":conflict?.warning?"rgba(232,133,10,.06)":"rgba(30,90,176,.03)",borderRadius:7,padding:"8px 11px",border:`1px solid ${conflict?.conflict?"rgba(214,68,68,.2)":conflict?.warning?"rgba(232,133,10,.2)":"rgba(30,90,176,.08)"}`}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                                  <div>
+                                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:700,fontSize:11,color:clr}}>{String(m.hour).padStart(2,"0")}:00</span>
+                                    <span style={{fontSize:11,color:"var(--dim)",marginLeft:4}}>({dur} min)</span>
+                                    <span style={{fontWeight:700,fontSize:13,color:"var(--cream)",marginLeft:8}}>{co?co.name:(m.lsType||m.title||"Meeting")}</span>
+                                    {co&&<span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"#fff",background:clr,padding:"1px 5px",borderRadius:3,marginLeft:5}}>{co.ticker}</span>}
+                                  </div>
+                                  <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"0 0 0 8px",whiteSpace:"nowrap",flexShrink:0}}
+                                    aria-label="Ver en Maps"
+                                    onClick={()=>{const prev=mi>0?getMeetingAddress(dayMtgs[mi-1],mi>0&&dayMtgs[mi-1].type==="company"?rmMap.get(dayMtgs[mi-1].companyId):null,roadshow.trip.officeAddress):null;if(prev)openGoogleMapsDirections(prev,addr);else window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`,"_blank");}}>
+                                    🗺️
+                                  </button>
+                                </div>
+                                <div style={{fontSize:10,color:"var(--dim)",marginTop:3,display:"flex",alignItems:"center",gap:5}}>
+                                  <span>📍</span>
+                                  <span style={{fontStyle:addr.includes("TBD")?"italic":"normal",color:addr.includes("TBD")?"var(--red)":"var(--dim)"}}>{addr||"Sin dirección"}</span>
+                                  {!addr&&<span style={{color:"var(--red)",fontSize:9}}>⚠ Falta dirección</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Travel gap indicator */}
+                            {nextM&&(
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,paddingLeft:2}}>
+                                <div style={{width:16,display:"flex",justifyContent:"center"}}><div style={{width:1,height:20,background:conflict?.conflict?"var(--red)":conflict?.warning?"#e8850a":"rgba(30,90,176,.15)"}}/></div>
+                                <div style={{flex:1,display:"flex",alignItems:"center",gap:6,fontSize:10}}>
+                                  {travelData?(
+                                    <>
+                                      <span style={{fontFamily:"IBM Plex Mono,monospace",color:conflict?.conflict?"var(--red)":conflict?.warning?"#e8850a":"var(--grn)",fontWeight:700}}>🚗 {travelData.durationText}</span>
+                                      <span style={{color:"var(--dim)"}}>· {travelData.distanceText}</span>
+                                      {conflict?.conflict&&<span style={{color:"var(--red)",fontWeight:700}}>⚠ CONFLICTO — solo {conflict.gapMin} min entre reuniones</span>}
+                                      {conflict?.warning&&!conflict.conflict&&<span style={{color:"#e8850a"}}>⚡ Justo — {conflict.gapMin} min de margen</span>}
+                                      {!conflict&&<span style={{color:"var(--grn)"}}>✓ OK ({(nextM.hour*60)-(m.hour*60+dur)-travelData.durationSec/60|0} min de margen)</span>}
+                                    </>
+                                  ):(
+                                    <span style={{color:"var(--dim)",fontStyle:"italic"}}>
+                                      {(nextM.hour-m.hour)*60-dur} min entre reuniones — {apiKey?"clic en Calcular":"clic en Ver ruta"} para estimar traslado
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {workDays.every(d=>!(roadshow.meetings||[]).some(m=>m.date===d&&m.status!=="cancelled"))&&(
+                <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                  <div style={{fontSize:32,marginBottom:8}}>🗺️</div>
+                  <div style={{fontSize:14,color:"var(--cream)"}}>Agregá reuniones en 📅 Agenda para ver el análisis de traslados</div>
+                </div>
+              )}
+            </div>
+            );
+          })()}
           {rsSubTab==="emails"&&(
             <div>
               <div className="card" style={{marginBottom:12}}>
