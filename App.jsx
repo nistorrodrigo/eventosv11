@@ -817,8 +817,11 @@ function rsToEntity(rs,rsCos){
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
       const locL=m.location==="ls_office"?"LS Offices":m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
-      // Company attendees from meeting
-      const coReps=(()=>{if(m.type!=="company") return "";const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");})();
+      // Company attendees from meeting (company type) or free-text participants (internal/custom)
+      const coReps=(()=>{
+        if(m.type==="company"){const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");}
+        return m.participants||"";
+      })();
       // Fund visitors (from trip)
       const visitorsLine=(trip.visitors||[]).filter(v=>v.name).map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(", ");
       // meetingFormat: Meeting / Lunch / Dinner etc. — shown in Type col, not repeated visitors
@@ -1160,6 +1163,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
   const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
+  const [participants,setParticipants]=useState(meeting?.participants||"");
   const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
   const d=new Date((date||"2026-04-20")+"T12:00:00");
   const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1173,7 +1177,9 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
     const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,meetingFormat,fullAddress:fullAddr,
+      location:loc,locationCustom:locCustom,status,notes,meetingFormat,
+      participants:type!=="company"?participants:"",
+      fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[]};
     onSave(m);
   }
@@ -1244,6 +1250,13 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
           </div>
           <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
+          {type!=="company"&&(
+            <div style={{marginBottom:12}}><div className="lbl">👥 Participantes</div>
+              <input className="inp" value={participants} onChange={e=>setParticipants(e.target.value)}
+                placeholder="Ej: Rodrigo Nistor, Martin Tapia, Daniela Ramos"/>
+              <div style={{fontSize:9,color:"var(--dim)",marginTop:3}}>Nombres separados por coma</div>
+            </div>
+          )}
           {type==="company"&&coContacts.length>0&&(
             <div style={{marginBottom:4}}>
               <div className="lbl" style={{marginBottom:5}}>👤 Asistentes de la empresa</div>
