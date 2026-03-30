@@ -2398,9 +2398,35 @@ export default function App(){
           });
         });
         if(!newMtgs.length){alert("No se pudieron importar reuniones. Revisá el formato."+(skipped?" ("+skipped+" filas sin fecha)":""));return;}
-        const merged=[...roadshow.meetings,...newMtgs.filter(nm=>!roadshow.meetings.some(ex=>ex.date===nm.date&&ex.hour===nm.hour))];
-        saveRoadshow({...roadshow,meetings:merged});
-        alert(`✅ ${newMtgs.length} reunión(es) importada(s).${skipped?" "+skipped+" filas sin fecha ignoradas.":""}${merged.length-roadshow.meetings.length!==newMtgs.length?" Algunas omitidas por conflicto de horario.":""}`);
+        // Find companies that already have meetings
+        const existingCos=new Set(roadshow.meetings.filter(m=>m.companyId).map(m=>m.companyId));
+        const newCosInFile=new Set(newMtgs.filter(m=>m.companyId).map(m=>m.companyId));
+        const overlap=[...newCosInFile].filter(id=>existingCos.has(id));
+        let finalMeetings=[...roadshow.meetings];
+        let replaced=0, added=0, skippedConflict=0;
+        if(overlap.length>0){
+          const coNames=overlap.map(id=>{const c=roadshow.companies.find(x=>x.id===id);return c?c.name:id;});
+          const doReplace=confirm(`Las siguientes compañías ya tienen reuniones:\n\n${coNames.join("\n")}\n\n¿Reemplazar con las reuniones del Excel? (las existentes se borrarán)\n\nCancelar = solo agregar las nuevas sin borrar nada.`);
+          if(doReplace){
+            // Remove existing meetings for those companies
+            finalMeetings=finalMeetings.filter(m=>!overlap.includes(m.companyId));
+            replaced=overlap.length;
+          }
+        }
+        // Add new meetings — skip time conflicts only for non-replaced slots
+        newMtgs.forEach(nm=>{
+          const conflict=finalMeetings.some(ex=>ex.date===nm.date&&ex.hour===nm.hour);
+          if(conflict) skippedConflict++;
+          else { finalMeetings.push(nm); added++; }
+        });
+        saveRoadshow({...roadshow,meetings:finalMeetings});
+        const msg=[
+          `✅ ${added} reunión(es) importada(s).`,
+          replaced?`${replaced} compañía(s) reemplazadas.`:"",
+          skipped?`${skipped} filas sin fecha ignoradas.`:"",
+          skippedConflict?`${skippedConflict} omitidas por conflicto de horario.`:"",
+        ].filter(Boolean).join(" ");
+        alert(msg);
       }catch(err){alert("Error leyendo el archivo: "+err.message);}
     };
     reader.readAsArrayBuffer(file);
@@ -4193,6 +4219,7 @@ Daily Summary — ${dayLabel}
                 <div style={{marginLeft:"auto"}}>
                   <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
                   <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>rsMtgsExcelRef.current?.click()}>📥 Importar Excel</button>
+                  {roadshow.meetings.length>0&&<button className="btn bd bs" style={{fontSize:9,gap:4}} onClick={()=>{if(confirm(`¿Borrar las ${roadshow.meetings.length} reunión(es) del roadshow? Esta acción no se puede deshacer.`))saveRoadshow({...roadshow,meetings:[]});}}>🗑 Borrar todo</button>}
                   <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Fecha | Día | Hora | Compañía | Tipo | Dirección/Lugar | Estado | Notas" onClick={()=>{
                     const header=["Fecha","Día","Hora","Compañía","Tipo","Dirección / Lugar","Estado","Notas"];
                     const rows=[
