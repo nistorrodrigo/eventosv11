@@ -815,7 +815,8 @@ function rsToEntity(rs,rsCos){
   const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")}${visLine?" · "+visLine:""}`;
   return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
-      const locL=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const locL=stripNeighborhood(rawLoc);
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
       // Reps: company contacts (selected) or free-text participants — sorted by last name
       const reps=(()=>{
@@ -870,7 +871,7 @@ function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose
     textLines.push(`── ${fmtDay(date).toUpperCase()} ──`,"");
     byDay[date].forEach(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
-      const locL=m.location==="ls_office"?`LS Offices (${trip.officeAddress||"Arenales 707, 6° Piso, CABA"})`:m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const locL=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
       textLines.push(`  ${fmtH(m.hour)}   ${co?co.name:(m.lsType||m.title||"Meeting")}${co?" ("+co.ticker+")":""}`);
       textLines.push(`         📍 ${locL}`);
       if(m.notes) textLines.push(`         📝 ${m.notes}`);
@@ -1100,6 +1101,19 @@ function getMeetingAddress(m, co, officeAddress){
 
 // Free travel time: Nominatim geocoding + OSRM routing — no API key needed
 // ── Free routing: Nominatim geocoding + OSRM ──────────────────────────────
+// Strip BA neighborhood names from addresses for clean export display
+// "Maipú 1, Puerto Madero, CABA" → "Maipú 1, CABA"
+function stripNeighborhood(addr){
+  if(!addr) return addr;
+  const HOODS=["Puerto Madero","Catalinas","Núñez","Retiro","San Nicolás","Microcentro","Palermo","Recoleta","Belgrano","Almagro","Caballito","Villa Crespo","Colegiales","Saavedra","Villa Urquiza","Villa del Parque","Flores","San Telmo","La Boca","Constitución","Barracas","Villa Lugano","Liniers","Monserrat","San Cristóbal","Parque Patricios","Boedo","Chacarita","Devoto","Mataderos","Villa Pueyrredón","Versalles"];
+  let cleaned=addr;
+  for(const h of HOODS){
+    // Remove ", Neighborhood" or ", Neighborhood," patterns
+    cleaned=cleaned.replace(new RegExp(",\\s*"+h.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s*(?=,|$)","gi"),",").replace(/,\s*,/g,",").trim();
+  }
+  // Clean trailing/leading commas
+  return cleaned.replace(/^,\s*|,\s*$/g,"").replace(/,\s*,/g,",").trim();
+}
 function cleanAddr(addr){
   // Strip floor/piso/level info that confuses Nominatim ("Piso 26", "Planta 3", "Piso 6°")
   // Remove floor info: 'Piso 26', '6° Piso', 'Planta 3', 'Floor 2', 'PB', 'Oficina'
