@@ -458,8 +458,8 @@ ${sections.map((sec,_si)=>`${_si>0?'<p style="page-break-before:always;margin:0;
 <tr><td colspan="${sec.headerCols.length}" class="dh">${esc(sec.dayLabel)}</td></tr>
 <tr>${sec.headerCols.map(h=>`<th class="th">${esc(h)}</th>`).join("")}</tr>
 ${sec.rows.map((r,i)=>`<tr class="${i%2===0?"even":""}"><td class="tt">${esc(r.time)||""}</td>
-<td>${r.col1html?('<div style="line-height:1.8">'+r.col1+'</div>'):('<strong>'+esc(r.col1)+'</strong>')}${r.col1b?('<br/><small style="color:#666">'+esc(r.col1b)+'</small>'):""}${r.col1c?('<br/>'+(r.col1chtml?r.col1c:('<em style="color:#555">'+esc(r.col1c)+'</em>'))):""}</td>
-${r.col5!==undefined?('<td style="font-size:9pt;color:#444">'+(r.col5||'')+'</td>'):''}<td>${r.col2html?r.col2:esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
+<td><strong>${esc(r.col1)}</strong></td>
+<td style="font-size:9pt;color:#555">${esc(r.col2||"")}</td><td>${esc(r.col3||"")}</td><td>${esc(r.col4||"")}</td><td class="tr">${esc(r.col5||"")}</td></tr>`).join("")}
 </table>`).join("")}
 ${(meta.contacts||[]).length?('<div style="margin-top:24px;padding-top:10px;border-top:2px solid #3399ff;font-size:9pt;color:#444"><strong style="color:#1e5ab0">Latin Securities \u2014 Event Contact</strong><br/>'+(meta.contacts||[]).map(c=>'<span>'+esc(c.name)+(c.role?' \u00b7 '+esc(c.role):'')+(c.email?' \u00b7 <a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+(c.phone?' \u00b7 '+esc(c.phone):'')+' </span>').join('&nbsp;|&nbsp;')+'</div>'):''}
 </body></html>`;
@@ -493,8 +493,8 @@ ${entities.flatMap(e=>e.sections.map((sec,_si)=>`<div class="page">
 <tr><td colspan="${sec.headerCols.length}" class="dh">${esc(sec.dayLabel)}</td></tr>
 <tr class="th">${sec.headerCols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
 ${sec.rows.map((r,i)=>`<tr class="${i%2===0?"even":""}"><td class="tt">${esc(r.time)||""}</td>
-<td>${r.col1html?('<div style="line-height:1.9;font-size:10.5pt">'+r.col1+'</div>'):('<strong>'+esc(r.col1)+'</strong>')}${r.col1b?('<br/><small>'+esc(r.col1b)+'</small>'):""}${r.col1c?('<br/>'+(r.col1chtml?r.col1c:('<em>'+esc(r.col1c)+'</em>'))):""}</td>
-${r.col5!==undefined?('<td style="font-size:9.5pt;color:#444">'+(r.col5||'')+'</td>'):''}<td>${esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
+<td><strong>${esc(r.col1)}</strong></td>
+<td style="font-size:9.5pt;color:#444">${esc(r.col2||"")}</td><td>${esc(r.col3||"")}</td><td>${esc(r.col4||"")}</td><td class="tr">${esc(r.col5||"")}</td></tr>`).join("")}
 </table>${_si===e.sections.length-1&&e.attendees?.length?('<div class="atts"><strong>Company Representatives:</strong> '+e.attendees.map(a=>esc(a.name)+(a.title?' ('+esc(a.title)+')':'')).join(' &bull; ')+'</div>'):""}
 ${_si===e.sections.length-1&&(meta.contacts||[]).length?('<div style="margin-top:20px;padding:10px 12px;border-top:2px solid #3399ff;font-size:9pt;color:#444"><strong style="color:#1e5ab0">Latin Securities — Event Contact:&nbsp;</strong>'+(meta.contacts||[]).map(c=>esc(c.name)+(c.role?' &middot; '+esc(c.role):'')+(c.email?' &middot; '+esc(c.email):'')+(c.phone?' &middot; '+esc(c.phone):'')).join('&nbsp;&nbsp;|&nbsp;&nbsp;')+'</div>'):""}
 </div>`)).join("")}
@@ -813,22 +813,19 @@ function rsToEntity(rs,rsCos){
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
   const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")}${visLine?" · "+visLine:""}`;
-  return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Type","Location","Status"],
+  return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
       const locL=m.location==="ls_office"?"LS Offices":m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
-      // Company attendees from meeting (company type) or free-text participants (internal/custom)
-      const coReps=(()=>{
-        if(m.type==="company"){const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");}
+      // Reps: company contacts (selected) or free-text participants for internal/custom
+      const reps=(()=>{
+        if(m.type==="company"){const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");}
         return m.participants||"";
       })();
-      // Fund visitors (from trip)
-      const visitorsLine=(trip.visitors||[]).filter(v=>v.name).map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(", ");
-      // meetingFormat: Meeting / Lunch / Dinner etc. — shown in Type col, not repeated visitors
       const fmt=m.meetingFormat||"Meeting";
-      return{time:fmtH(m.hour),col1:co?co.name:(m.lsType||m.title||"Meeting"),col1b:co?co.ticker:null,
-        col1c:coReps?('<strong>'+esc(coReps)+'</strong>'):null,
-        col1html:true,col1chtml:true,col2:fmt,col2html:false,col3:locL,col4:st};})
+        const col1Name=co?(co.name+(co.ticker?" ("+co.ticker+")":"")):(m.lsType||m.title||"Meeting");
+      return{time:fmtH(m.hour),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
+        col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col5:st};})
   }))};
 }
 
