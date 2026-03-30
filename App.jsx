@@ -2448,7 +2448,7 @@ export default function App(){
     let ws,name;
     if(type==="companies"){
       ws=XLSX.utils.aoa_to_sheet([
-        ["Name","Ticker","Sector","Website","HQ Address","Contact 1","Title 1","Email 1","Phone 1","Contact 2","Title 2","Email 2","Phone 2","Contact 3","Title 3","Email 3","Phone 3"],
+        ["Name","Ticker","Sector","HQ Address","Contact 1","Title 1","Email 1","Phone 1 (opcional)","Contact 2","Title 2","Email 2","Phone 2 (opcional)","Contact 3","Title 3","Email 3","Phone 3 (opcional)"],
         ["Banco Macro","BMA","Financials","www.macro.com.ar","Av. Eduardo Madero 1182, CABA","Juan Pérez","IR Manager","jperez@macro.com.ar","+54 11 5222 6500","María López","CFO","mlopez@macro.com.ar","","","","",""],
         ["YPF","YPFD","Energy","www.ypf.com","Macacha Güemes 515, CABA","Carlos Rodríguez","Head of IR","crodriguez@ypf.com","+54 11 5441 2000","","","","","","","",""],
       ]);
@@ -4839,7 +4839,7 @@ ${"─".repeat(40)}`;
         const filteredInvs=dbInvs.filter(i=>!invSearch||i.name.toLowerCase().includes(invSearch.toLowerCase())||(i.fund||"").toLowerCase().includes(invSearch.toLowerCase())||(i.email||"").toLowerCase().includes(invSearch.toLowerCase()));
 
         function saveCo(co){const db={...globalDB,companies:globalDB.companies.map(c=>c.id===co.id?co:c)};saveGlobalDB(db);setEditCo(null);}
-        function addCo(){const nc={id:`dbc_${Date.now()}`,name:"",ticker:"",sector:"Other",website:"",hqAddress:"",contacts:[]};saveGlobalDB({...globalDB,companies:[...globalDB.companies,nc]});setEditCo(nc.id);}
+        function addCo(){const nc={id:`dbc_${Date.now()}`,name:"",ticker:"",sector:"Other",hqAddress:"",contacts:[]};saveGlobalDB({...globalDB,companies:[...globalDB.companies,nc]});setEditCo(nc.id);}
         function delCo(id){if(confirm("¿Eliminar esta compañía de la librería?"))saveGlobalDB({...globalDB,companies:globalDB.companies.filter(c=>c.id!==id)});}
         function saveInv(inv){const db={...globalDB,investors:globalDB.investors.map(i=>i.id===inv.id?inv:i)};saveGlobalDB(db);setEditInv(null);}
         function addInv(){const ni={id:`dbi_${Date.now()}`,name:"",fund:"",position:"",email:"",phone:"",aum:"",companies:[],linkedin:"",notes:""};saveGlobalDB({...globalDB,investors:[...globalDB.investors,ni]});setEditInv(ni.id);}
@@ -4873,7 +4873,7 @@ ${"─".repeat(40)}`;
               {/* Format hint */}
               <div style={{background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.12)",borderRadius:7,padding:"10px 14px",marginBottom:12,fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
                 <strong style={{color:"var(--cream)"}}>📋 Formato Excel para importar compañías:</strong><br/>
-                Columnas: <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Name</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Ticker</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Sector</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Website</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>HQ Address</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Contact 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Title 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Email 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Phone 1</code> · Contact 2, Email 2... hasta 3 contactos por empresa.
+                Columnas: <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Name</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Ticker</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Sector</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>HQ Address</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Contact 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Title 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Email 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3,opacity:.7}}>Phone 1 (opt.)</code> · Contact 2, Email 2... hasta 3 contactos por empresa.
                 {" "}<button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginLeft:6}} onClick={()=>downloadDBTemplate("companies")}>Descargar plantilla →</button>
               </div>
 
@@ -4895,7 +4895,7 @@ ${"─".repeat(40)}`;
                             </div>
                             <div style={{fontSize:10,color:"var(--dim)",marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
                               {co.hqAddress&&<span>📍 {co.hqAddress}</span>}
-                              {co.website&&<span>🌐 {co.website}</span>}
+                              
                               <span style={{color:"var(--gold)"}}>{co.contacts?.length||0} contacto(s)</span>
                             </div>
                             {(co.contacts||[]).length>0&&(
@@ -4923,7 +4923,6 @@ ${"─".repeat(40)}`;
                                 {SECTORS.map(s=><option key={s} value={s}>{s}</option>)}
                               </select>
                             </div>
-                            <div><div className="lbl" style={{marginBottom:2}}>Website</div><input className="inp" style={{fontSize:11}} value={co.website||""} placeholder="www.macro.com.ar" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,website:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
                           </div>
                           <div style={{marginBottom:10}}><div className="lbl" style={{marginBottom:2}}>Dirección HQ</div><input className="inp" style={{fontSize:11}} value={co.hqAddress||""} placeholder="Av. Eduardo Madero 1182, CABA" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,hqAddress:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
                           {/* Contacts */}
