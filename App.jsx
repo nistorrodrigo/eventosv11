@@ -1083,42 +1083,30 @@ function getMeetingAddress(m, co, officeAddress){
   return m.locationCustom||"Buenos Aires, Argentina";
 }
 
-// Load Google Maps JS API dynamically (browser-compatible, avoids CORS)
-function loadMapsApi(apiKey){
-  return new Promise((resolve,reject)=>{
-    if(window.google?.maps?.DistanceMatrixService){resolve();return;}
-    if(document.getElementById("gmap-script")){
-      // Already loading — wait for it
-      const check=setInterval(()=>{if(window.google?.maps?.DistanceMatrixService){clearInterval(check);resolve();}},100);
-      setTimeout(()=>{clearInterval(check);reject(new Error("Maps API timeout"));},10000);
-      return;
-    }
-    const s=document.createElement("script");
-    s.id="gmap-script";
-    s.src=`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
-    s.async=true;
-    s.onload=resolve;
-    s.onerror=()=>reject(new Error("Maps API failed to load"));
-    document.head.appendChild(s);
-  });
+// Free travel time estimation using Nominatim (geocoding) + OSRM (routing)
+// No API key required. Uses OpenStreetMap data.
+async function geocodeAddress(address){
+  const q=encodeURIComponent(address+", Buenos Aires, Argentina");
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+    {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0"}});
+  const d=await r.json();
+  if(!d.length) return null;
+  return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
 }
-async function fetchTravelTime(origin, destination, apiKey){
-  if(!apiKey) return null;
+async function fetchTravelTime(origin, destination, _apiKey){
   try{
-    await loadMapsApi(apiKey);
-    return await new Promise((resolve)=>{
-      new window.google.maps.DistanceMatrixService().getDistanceMatrix(
-        {origins:[origin],destinations:[destination],travelMode:"DRIVING",unitSystem:window.google.maps.UnitSystem.METRIC},
-        (res,status)=>{
-          if(status==="OK"){
-            const el=res.rows?.[0]?.elements?.[0];
-            if(el?.status==="OK") resolve({durationText:el.duration.text,durationSec:el.duration.value,distanceText:el.distance.text});
-            else resolve(null);
-          } else resolve(null);
-        }
-      );
-    });
-  }catch(e){ console.warn("Travel time fetch failed:",e.message); return null; }
+    const [o,d]=await Promise.all([geocodeAddress(origin),geocodeAddress(destination)]);
+    if(!o||!d) return null;
+    const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`;
+    const r=await fetch(url);
+    const j=await r.json();
+    if(j.code!=="Ok"||!j.routes?.length) return null;
+    const sec=Math.round(j.routes[0].duration);
+    const m=Math.round(j.routes[0].distance/1000*10)/10;
+    const min=Math.round(sec/60);
+    const txt=min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`;
+    return{durationText:txt,durationSec:sec,distanceText:`${m} km`};
+  }catch(e){ console.warn("Travel time error:",e.message); return null; }
 }
 
 function openGoogleMapsRoute(stops){
@@ -4464,11 +4452,6 @@ Daily Summary — ${dayLabel}
               if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
               const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
               const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
-              if(!apiKey){
-                // Open route in maps
-                openGoogleMapsRoute(addrs);
-                return;
-              }
               setTravelLoading(true);
               const results={};
               for(let i=0;i<dayMtgs.length-1;i++){
@@ -4487,9 +4470,9 @@ Daily Summary — ${dayLabel}
                   <h3 style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2}}>🗺️ Tiempos de traslado</h3>
                   <p style={{fontSize:12,color:"var(--dim)"}}>Verificá que haya tiempo suficiente entre reuniones considerando el traslado.</p>
                 </div>
-                {!apiKey&&<div style={{fontSize:11,background:"rgba(30,90,176,.07)",border:"1px solid rgba(30,90,176,.15)",borderRadius:6,padding:"6px 10px",color:"var(--dim)"}}>
-                  Sin API Key → abre Google Maps. <span style={{color:"var(--gold)"}}>Configurá la key en 🧳 Datos del Viaje.</span>
-                </div>}
+                              <div style={{fontSize:11,background:"rgba(58,140,92,.07)",border:"1px solid rgba(58,140,92,.2)",borderRadius:6,padding:"6px 10px",color:"var(--dim)"}}>
+                  🆓 Tiempos estimados con OpenStreetMap (OSRM) — sin API key. Clic en <strong style={{color:"var(--grn)"}}>Calcular tiempos</strong> en cada día.
+                </div>
               </div>
 
               {workDays.map(date=>{
@@ -4507,7 +4490,7 @@ Daily Summary — ${dayLabel}
                       <div style={{display:"flex",gap:6}}>
                         {dayMtgs.length>=2&&<button className="btn bo bs" style={{fontSize:9,gap:4}} disabled={travelLoading}
                           onClick={()=>calcDayTravel(date)}>
-                          {apiKey?"🔄 Calcular tiempos":"🗺️ Ver ruta en Maps"}
+                          "🔄 Calcular tiempos"
                         </button>}
                         {dayMtgs.length>=2&&<button className="btn bo bs" style={{fontSize:9,gap:4}}
                           onClick={()=>{const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});openGoogleMapsRoute(addrs);}}>
