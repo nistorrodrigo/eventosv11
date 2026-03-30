@@ -1085,38 +1085,31 @@ function getMeetingAddress(m, co, officeAddress){
 }
 
 // Free travel time: Nominatim geocoding + OSRM routing — no API key needed
-const _geoCache={};
-let _lastNominatimCall=0;
-async function geocodeAddress(address){
-  if(_geoCache[address]) return _geoCache[address];
-  // Respect Nominatim 1 req/sec rate limit only for fresh requests
-  const now=Date.now();
-  const wait=Math.max(0,1100-(now-_lastNominatimCall));
-  if(wait>0) await new Promise(res=>setTimeout(res,wait));
-  _lastNominatimCall=Date.now();
-  try{
-    const q=encodeURIComponent(address+", Buenos Aires, Argentina");
-    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-      {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0"}});
-    if(!r.ok) return null;
-    const d=await r.json();
-    if(!d.length) return null;
-    const result={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
-    _geoCache[address]=result;
-    return result;
-  }catch(e){return null;}
+// ── Free routing: Nominatim geocoding + OSRM ──────────────────────────────
+// geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim
+async function geocodeAll(addresses){
+  const unique=[...new Set(addresses)];
+  const coords={};
+  for(const addr of unique){
+    try{
+      const q=encodeURIComponent(addr+", Buenos Aires, Argentina");
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+        {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0 latinse"}});
+      if(r.ok){
+        const d=await r.json();
+        if(d.length) coords[addr]={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+      }
+    }catch(e){/* skip */}
+    await new Promise(res=>setTimeout(res,1100)); // 1 req/sec Nominatim limit
+  }
+  return coords;
 }
-async function fetchTravelTime(origin, destination){
+async function osrmRoute(o,d){
   try{
-    // Geocode sequentially (Nominatim rate limit handled inside geocodeAddress)
-    const o=await geocodeAddress(origin);
-    const d=await geocodeAddress(destination);
-    if(!o||!d) return null;
     const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`;
     const ctrl=new AbortController();
-    const timer=setTimeout(()=>ctrl.abort(),8000); // 8s timeout
+    setTimeout(()=>ctrl.abort(),8000);
     const r=await fetch(url,{signal:ctrl.signal});
-    clearTimeout(timer);
     if(!r.ok) return null;
     const j=await r.json();
     if(j.code!=="Ok"||!j.routes?.length) return null;
@@ -1124,7 +1117,7 @@ async function fetchTravelTime(origin, destination){
     const km=Math.round(j.routes[0].distance/1000*10)/10;
     const min=Math.round(sec/60);
     return{durationText:min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`,durationSec:sec,distanceText:`${km} km`};
-  }catch(e){console.warn("Travel:",e.message);return null;}
+  }catch(e){return null;}
 }
 
 function openGoogleMapsRoute(stops){
@@ -2736,38 +2729,48 @@ Daily Summary — ${dayLabel}
 
   // ── Roadshow derived ─────────────────────────────────────────────
   const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
-  // ─── Travel time (OSRM + Nominatim, free) ─────────────────────────────────
-  // Must live at App level — async setState inside IIFE doesn't trigger re-render
+  // ─── Travel time (OSRM + Nominatim, free, App-level so async setState works) ──
   const rsCoMapForTravel=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);
+
+  async function calcAllTravel(){
+    const offAddr=roadshow.trip.officeAddress;
+    const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+    // Build day→meetings map and collect ALL unique addresses up front
+    const dayData=workDays.map(date=>{
+      const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+      const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
+      return{date,dayMtgs,addrs};
+    }).filter(({dayMtgs})=>dayMtgs.length>=2);
+    if(!dayData.length){alert("No hay días con 2+ reuniones.");return;}
+    // Collect unique addresses across ALL days — geocode each only once
+    const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs))];
+    setTravelLoading(true);
+    const coords=await geocodeAll(allAddrs); // rate-limited, sequential, no duplicates
+    // Now run OSRM for each pair (no rate limit — OSRM is fine with parallel-ish)
+    for(const {date,dayMtgs,addrs} of dayData){
+      const results={};
+      for(let i=0;i<dayMtgs.length-1;i++){
+        const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+        results[`${date}-${i}`]=(o&&d)?await osrmRoute(o,d):null;
+      }
+      setTravelCache(prev=>({...prev,[date]:results}));
+    }
+    setTravelLoading(false);
+  }
+
   async function calcDayTravel(date){
     const offAddr=roadshow.trip.officeAddress;
     const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
     if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
     const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
     setTravelLoading(true);
+    const coords=await geocodeAll([...new Set(addrs)]);
     const results={};
     for(let i=0;i<dayMtgs.length-1;i++){
-      results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
+      const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+      results[`${date}-${i}`]=(o&&d)?await osrmRoute(o,d):null;
     }
     setTravelCache(prev=>({...prev,[date]:results}));
-    setTravelLoading(false);
-  }
-  async function calcAllTravel(){
-    const offAddr=roadshow.trip.officeAddress;
-    const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
-    const hasMtgs=workDays.some(d=>(roadshow.meetings||[]).some(m=>m.date===d&&m.status!=="cancelled"));
-    if(!hasMtgs){alert("No hay reuniones cargadas.");return;}
-    setTravelLoading(true);
-    for(const date of workDays){
-      const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-      if(dayMtgs.length<2) continue;
-      const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
-      const results={};
-      for(let i=0;i<dayMtgs.length-1;i++){
-        results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
-      }
-      setTravelCache(prev=>({...prev,[date]:results}));
-    }
     setTravelLoading(false);
   }
   const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
