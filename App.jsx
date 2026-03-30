@@ -2772,6 +2772,12 @@ Daily Summary — ${dayLabel}
   return(
     <div className="app"><style>{CSS}</style>
 
+    {/* ALWAYS-PRESENT HIDDEN FILE INPUTS — must be at root level so refs work on any tab */}
+    <input ref={dbCoExcelRef}   type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBCompaniesExcel}/>
+    <input ref={dbInvExcelRef}  type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBInvestorsExcel}/>
+    <input ref={rsExcelRef}     type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsExcel}/>
+    <input ref={rsMtgsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsMeetingsExcel}/>
+
     {/* MODALS */}
     {invProfile&&<InvestorModal inv={invProfile} investors={investors} meetings={meetings} companies={companies} config={config}
       fundGrouping={fundGrouping} allSlots={allSlots}
@@ -3685,10 +3691,7 @@ Daily Summary — ${dayLabel}
               })}
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-              <input ref={dbCoExcelRef}  type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBCompaniesExcel}/>
-      <input ref={dbInvExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBInvestorsExcel}/>
-      <input ref={rsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsExcel}/>
-      <input ref={rsMtgsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsMeetingsExcel}/>
+
               <input ref={histFileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}}
                 onChange={e=>{const f=e.target.files?.[0]; if(f)parseHistoricalFile(f,histFileRef.current.dataset.yr||"?"); e.target.value="";}}/>
               <button className="btn bo bs" onClick={()=>{
