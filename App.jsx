@@ -1513,6 +1513,10 @@ export default function App(){
   function saveGlobalDB(db){setGlobalDB(db);saveDB(db);}
   const [dbTab,setDbTab]       = useState("companies");  // companies | investors
   const [dbSubTab,setDbSubTab] = useState("list");
+  const [coSearch,setCoSearch] = useState("");
+  const [invSearch,setInvSearch]= useState("");
+  const [editCo,setEditCo]     = useState(null);
+  const [editInv,setEditInv]   = useState(null);
   const [events,setEvents]   = useState(()=>loadEvents());
   const [activeEv,setActiveEv] = useState(()=>{ const evs=loadEvents(); return evs.length?evs[0].id:null; });
   const [newEvName,setNewEvName] = useState("");
@@ -4829,10 +4833,7 @@ ${"─".repeat(40)}`;
       {tab==="db"&&(()=>{
         const dbCos=globalDB.companies||[];
         const dbInvs=globalDB.investors||[];
-        const [coSearch,setCoSearch]=useState("");
-        const [invSearch,setInvSearch]=useState("");
-        const [editCo,setEditCo]=useState(null);  // company being edited inline
-        const [editInv,setEditInv]=useState(null);
+
 
         const filteredCos=dbCos.filter(c=>!coSearch||c.name.toLowerCase().includes(coSearch.toLowerCase())||c.ticker.toLowerCase().includes(coSearch.toLowerCase())||c.sector.toLowerCase().includes(coSearch.toLowerCase()));
         const filteredInvs=dbInvs.filter(i=>!invSearch||i.name.toLowerCase().includes(invSearch.toLowerCase())||(i.fund||"").toLowerCase().includes(invSearch.toLowerCase())||(i.email||"").toLowerCase().includes(invSearch.toLowerCase()));
