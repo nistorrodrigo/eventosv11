@@ -1085,35 +1085,45 @@ function getMeetingAddress(m, co, officeAddress){
 
 // Free travel time: Nominatim geocoding + OSRM routing — no API key needed
 const _geoCache={};
+let _lastNominatimCall=0;
 async function geocodeAddress(address){
   if(_geoCache[address]) return _geoCache[address];
-  const q=encodeURIComponent(address+", Buenos Aires, Argentina");
-  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-    {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0 contact@latinsecurities.ar"}});
-  if(!r.ok) return null;
-  const d=await r.json();
-  if(!d.length) return null;
-  const result={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
-  _geoCache[address]=result;
-  return result;
+  // Respect Nominatim 1 req/sec rate limit only for fresh requests
+  const now=Date.now();
+  const wait=Math.max(0,1100-(now-_lastNominatimCall));
+  if(wait>0) await new Promise(res=>setTimeout(res,wait));
+  _lastNominatimCall=Date.now();
+  try{
+    const q=encodeURIComponent(address+", Buenos Aires, Argentina");
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+      {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0"}});
+    if(!r.ok) return null;
+    const d=await r.json();
+    if(!d.length) return null;
+    const result={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+    _geoCache[address]=result;
+    return result;
+  }catch(e){return null;}
 }
-function sleep(ms){return new Promise(res=>setTimeout(res,ms));}
 async function fetchTravelTime(origin, destination){
   try{
+    // Geocode sequentially (Nominatim rate limit handled inside geocodeAddress)
     const o=await geocodeAddress(origin);
-    await sleep(1100); // Nominatim: max 1 req/sec
     const d=await geocodeAddress(destination);
     if(!o||!d) return null;
     const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`;
-    const r=await fetch(url);
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),8000); // 8s timeout
+    const r=await fetch(url,{signal:ctrl.signal});
+    clearTimeout(timer);
     if(!r.ok) return null;
     const j=await r.json();
     if(j.code!=="Ok"||!j.routes?.length) return null;
     const sec=Math.round(j.routes[0].duration);
-    const m=Math.round(j.routes[0].distance/1000*10)/10;
+    const km=Math.round(j.routes[0].distance/1000*10)/10;
     const min=Math.round(sec/60);
-    return{durationText:min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`,durationSec:sec,distanceText:`${m} km`};
-  }catch(e){ console.warn("Travel:",e.message); return null; }
+    return{durationText:min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`,durationSec:sec,distanceText:`${km} km`};
+  }catch(e){console.warn("Travel:",e.message);return null;}
 }
 
 function openGoogleMapsRoute(stops){
@@ -4385,7 +4395,36 @@ Daily Summary — ${dayLabel}
                                     </div>
                                     {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
                                   </div>}
-                                  {!mtg&&!isWE&&<div style={{fontSize:11,color:"rgba(30,90,176,.08)",textAlign:"center",lineHeight:"24px",userSelect:"none"}}>+</div>}
+                                  {!mtg&&!isWE&&(()=>{
+                                  // Check if this is a gap slot between two meetings — show travel info
+                                  const dayMtgsSorted=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                                  const prevMtgIdx=dayMtgsSorted.findIndex(m=>{
+                                    const mEnd=m.hour+(m.duration||60)/60;
+                                    return mEnd<=h && (m.hour+(m.duration||60)/60)===h;
+                                  });
+                                  // Find which pair index this gap belongs to
+                                  let travelInfo=null;
+                                  for(let pi=0;pi<dayMtgsSorted.length-1;pi++){
+                                    const mA=dayMtgsSorted[pi];
+                                    const mB=dayMtgsSorted[pi+1];
+                                    const aEnd=mA.hour+(mA.duration||60)/60;
+                                    // This slot is in the gap between mA and mB
+                                    if(h>=aEnd&&h<mB.hour){
+                                      const dayT=travelCache[date]||{};
+                                      travelInfo=dayT[`${date}-${pi}`]||null;
+                                      // Only show on first gap slot
+                                      if(h===aEnd) break;
+                                      else {travelInfo=null;break;}
+                                    }
+                                  }
+                                  return travelInfo?(
+                                    <div style={{fontSize:7.5,color:"#23a29e",fontFamily:"IBM Plex Mono,monospace",padding:"1px 3px",lineHeight:1.3,overflow:"hidden",whiteSpace:"nowrap"}}>
+                                      🚗 {travelInfo.durationText}
+                                    </div>
+                                  ):(
+                                    <div style={{fontSize:11,color:"rgba(30,90,176,.08)",textAlign:"center",lineHeight:"24px",userSelect:"none"}}>+</div>
+                                  );
+                                })()}
                                 </td>);
                             })}
                           </tr>
@@ -4513,35 +4552,6 @@ Daily Summary — ${dayLabel}
           {rsSubTab==="travel"&&(()=>{
             const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
             const dur=roadshow.trip.meetingDuration||60;
-
-            const rmMapT=new Map(roadshow.companies.map(c=>[c.id,c]));
-            async function calcDayTravel(date){
-              const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-              if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
-              const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
-              setTravelLoading(true);
-              const results={};
-              for(let i=0;i<dayMtgs.length-1;i++){
-                const key=`${date}-${i}`;
-                results[key]=await fetchTravelTime(addrs[i],addrs[i+1]);
-              }
-              setTravelCache(prev=>({...prev,[date]:results}));
-              setTravelLoading(false);
-            }
-            async function calcAllTravel(){
-              setTravelLoading(true);
-              for(const date of workDays){
-                const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-                if(dayMtgs.length<2) continue;
-                const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
-                const results={};
-                for(let i=0;i<dayMtgs.length-1;i++){
-                  results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
-                }
-                setTravelCache(prev=>({...prev,[date]:results}));
-              }
-              setTravelLoading(false);
-            }
 
             return(
             <div>
