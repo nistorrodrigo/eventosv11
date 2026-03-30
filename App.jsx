@@ -4875,43 +4875,114 @@ ${"─".repeat(40)}`;
                     </div>
                     <div style={{marginBottom:8}}><div className="lbl">Hotel</div><input className="inp" style={{fontSize:11}} value={dest.hotel||""} placeholder="Four Seasons, Hilton, etc." onChange={e=>upDest(dest.id,"hotel",e.target.value)}/></div>
 
-                    {/* Meetings table */}
-                    {sortedMtgs.length>0&&(
-                      <div style={{overflowX:"auto"}}>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                          <thead><tr style={{background:"rgba(30,90,176,.05)"}}>
-                            {["Fecha","Hora","Fondo / Contacto","Email","Lugar","Estado","Notas",""].map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",borderBottom:"1px solid rgba(30,90,176,.08)",whiteSpace:"nowrap"}}>{h}</th>)}
-                          </tr></thead>
-                          <tbody>
-                          {sortedMtgs.map((m,mi)=>(
-                            <tr key={m.id} style={{borderBottom:"1px solid rgba(30,90,176,.04)",background:mi%2===0?"rgba(30,90,176,.01)":"transparent"}}>
-                              <td style={{padding:"5px 6px",minWidth:100}}>
-                                <DayDateInput day={{date:m.date,short:m.date,long:""}} di={di*100+mi} onChange={nd=>upMeeting(dest.id,m.id,"date",nd.date)}/>
-                              </td>
-                              <td style={{padding:"5px 6px"}}>
-                                <select className="sel" style={{fontSize:10,padding:"3px 5px",width:70}} value={m.hour} onChange={e=>upMeeting(dest.id,m.id,"hour",parseInt(e.target.value))}>
-                                  {RS_HOURS.map(h=><option key={h} value={h}>{fmtHour(h)}</option>)}
-                                </select>
-                              </td>
-                              <td style={{padding:"5px 6px",minWidth:140}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.fund||""} placeholder="Fondo / Nombre" onChange={e=>upMeeting(dest.id,m.id,"fund",e.target.value)}/></td>
-                              <td style={{padding:"5px 6px",minWidth:130}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.email||""} placeholder="email@fondo.com" onChange={e=>upMeeting(dest.id,m.id,"email",e.target.value)}/></td>
-                              <td style={{padding:"5px 6px",minWidth:140}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.location||""} placeholder={`Dirección en ${dest.city||"destino"}...`} onChange={e=>upMeeting(dest.id,m.id,"location",e.target.value)}/></td>
-                              <td style={{padding:"5px 6px"}}>
-                                <select className="sel" style={{fontSize:10,padding:"3px 5px",width:96}} value={m.status} onChange={e=>upMeeting(dest.id,m.id,"status",e.target.value)}>
-                                  <option value="tentative">⏳ Tentativo</option>
-                                  <option value="confirmed">✅ Confirmado</option>
-                                  <option value="cancelled">❌ Cancelado</option>
-                                </select>
-                              </td>
-                              <td style={{padding:"5px 6px",minWidth:160}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.notes||""} placeholder="Agenda, contexto..." onChange={e=>upMeeting(dest.id,m.id,"notes",e.target.value)}/></td>
-                              <td style={{padding:"5px 6px"}}><button aria-label="Eliminar reunión" className="btn bd bs" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>delMeeting(dest.id,m.id)}>✕</button></td>
-                            </tr>
-                          ))}
-                          </tbody>
-                        </table>
+                    {/* Visual time grid — 30-min slots, one col per day */}
+                    {(()=>{
+                      // Snap :15/:45 → nearest :00/:30 for display only
+                      const snapH=h=>Math.round(h*2)/2;
+                      // Collect unique days in this destination
+                      const destDays=[...new Set(dest.meetings.map(m=>m.date))].sort();
+                      // 30-min slot rows 8:00–20:00
+                      const OB_SLOTS=Array.from({length:25},(_,i)=>8+i*0.5); // 8.0,8.5,...20.0
+                      // Build slot→meeting map per day
+                      const slotMap={};
+                      dest.meetings.forEach(m=>{
+                        const key=`${m.date}-${snapH(m.hour)}`;
+                        slotMap[key]=m;
+                      });
+                      const clrByStatus={confirmed:"#23a29e",tentative:"#e8850a",cancelled:"#b03030"};
+                      return(
+                      <div>
+                        {/* Grid */}
+                        {destDays.length>0&&(
+                        <div style={{overflowX:"auto",marginBottom:10}}>
+                          <table style={{borderCollapse:"collapse",fontSize:10,tableLayout:"fixed"}}>
+                            <colgroup>
+                              <col style={{width:42}}/>
+                              {destDays.map(d=><col key={d} style={{width:Math.max(90,Math.floor(600/destDays.length))}}/>)}
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th style={{padding:"3px 4px",fontSize:8,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}></th>
+                                {destDays.map(d=>{
+                                  const dt=new Date(d+"T12:00:00");
+                                  return <th key={d} style={{padding:"4px 6px",textAlign:"center",fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"var(--cream)",fontWeight:700,borderBottom:"2px solid rgba(30,90,176,.15)",background:"rgba(30,90,176,.04)"}}>
+                                    <div>{dt.toLocaleDateString("es-AR",{weekday:"short"}).replace(".","")}</div>
+                                    <div style={{fontSize:11,fontWeight:900}}>{dt.getDate()}</div>
+                                  </th>;
+                                })}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {OB_SLOTS.map(slot=>{
+                                const isHour=slot%1===0;
+                                return(
+                                <tr key={slot} style={{height:isHour?22:18}}>
+                                  <td style={{
+                                    textAlign:"right",padding:"0 5px 0 0",fontSize:8,
+                                    fontFamily:"IBM Plex Mono,monospace",color:isHour?"var(--dim)":"rgba(120,140,170,.35)",
+                                    verticalAlign:"top",paddingTop:2,borderRight:"2px solid rgba(30,90,176,.07)",
+                                    whiteSpace:"nowrap"
+                                  }}>
+                                    {isHour?fmtHour(slot):"·"}
+                                  </td>
+                                  {destDays.map(day=>{
+                                    const m=slotMap[`${day}-${slot}`];
+                                    const clr=m?clrByStatus[m.status]||"#666":null;
+                                    return(
+                                      <td key={day} style={{
+                                        border:"1px solid rgba(30,90,176,.04)",
+                                        background:isHour?"rgba(30,90,176,.01)":"transparent",
+                                        padding:1,verticalAlign:"top",cursor:m?"pointer":"default"
+                                      }}
+                                        onClick={()=>{if(!m)return;const idx=dest.meetings.findIndex(x=>x.id===m.id);if(idx>=0)document.getElementById(`ob-mtg-${m.id}`)?.scrollIntoView({behavior:"smooth",block:"center"});}}
+                                      >
+                                        {m&&<div style={{
+                                          background:`${clr}22`,border:`1px solid ${clr}55`,
+                                          borderLeft:`3px solid ${clr}`,borderRadius:3,
+                                          padding:"2px 4px",fontSize:8.5,lineHeight:1.3,
+                                          overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",
+                                          color:"var(--cream)",fontWeight:600
+                                        }} title={`${fmtHour(m.hour)} ${m.fund||"?"} — ${m.location||""}`}>
+                                          {fmtHour(m.hour)} {m.fund||"?"}
+                                        </div>}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );})}
+                            </tbody>
+                          </table>
+                        </div>
+                        )}
+
+                        {/* Editable list below grid */}
+                        {sortedMtgs.map((m,mi)=>(
+                          <div key={m.id} id={`ob-mtg-${m.id}`} style={{
+                            display:"grid",gridTemplateColumns:"100px 70px 1fr 1fr 1fr 100px 1fr 28px",
+                            gap:4,alignItems:"center",marginBottom:4,padding:"5px 6px",
+                            background:mi%2===0?"rgba(30,90,176,.02)":"transparent",
+                            borderRadius:5,border:"1px solid rgba(30,90,176,.04)"
+                          }}>
+                            <DayDateInput day={{date:m.date,short:m.date,long:""}} di={di*100+mi} onChange={nd=>upMeeting(dest.id,m.id,"date",nd.date)}/>
+                            <select className="sel" style={{fontSize:10,padding:"3px 5px"}} value={m.hour} onChange={e=>upMeeting(dest.id,m.id,"hour",parseFloat(e.target.value))}>
+                              {RS_HOURS.map(h=><option key={h} value={h}>{fmtHour(h)}</option>)}
+                            </select>
+                            <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.fund||""} placeholder="Fondo / Nombre" onChange={e=>upMeeting(dest.id,m.id,"fund",e.target.value)}/>
+                            <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.email||""} placeholder="email@fondo.com" onChange={e=>upMeeting(dest.id,m.id,"email",e.target.value)}/>
+                            <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.location||""} placeholder={`Dirección en ${dest.city||"destino"}...`} onChange={e=>upMeeting(dest.id,m.id,"location",e.target.value)}/>
+                            <select className="sel" style={{fontSize:10,padding:"3px 5px"}} value={m.status} onChange={e=>upMeeting(dest.id,m.id,"status",e.target.value)}>
+                              <option value="tentative">⏳ Tentativo</option>
+                              <option value="confirmed">✅ Confirmado</option>
+                              <option value="cancelled">❌ Cancelado</option>
+                            </select>
+                            <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.notes||""} placeholder="Agenda, contexto..." onChange={e=>upMeeting(dest.id,m.id,"notes",e.target.value)}/>
+                            <button aria-label="Eliminar" className="btn bd bs" style={{fontSize:9,padding:"2px 4px"}} onClick={()=>delMeeting(dest.id,m.id)}>✕</button>
+                          </div>
+                        ))}
+                        {!sortedMtgs.length&&<div style={{fontSize:11,color:"var(--dim)",padding:"8px 0"}}>Sin reuniones — clic en + Reunión para agregar.</div>}
                       </div>
-                    )}
-                    {!sortedMtgs.length&&<div style={{fontSize:11,color:"var(--dim)",padding:"8px 0"}}>Sin reuniones — clic en + Reunión para agregar.</div>}
+                      );
+                    })()}
                   </div>
                 );
               })}
