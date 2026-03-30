@@ -4492,20 +4492,39 @@ Daily Summary — ${dayLabel}
                   const dbCos=(globalDB.companies||[]);
                   if(!dbCos.length){alert("La Librería no tiene empresas. Agregá empresas en la tab 📚 Librería primero.");return;}
                   // Import all from library, skip duplicates by name
-                  const existing=new Set(roadshow.companies.map(c=>c.name.toLowerCase()));
-                  const toAdd=dbCos.filter(c=>!existing.has(c.name.toLowerCase())).map(c=>({
-                    id:c.id||`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    name:c.name,ticker:c.ticker||"",sector:c.sector||"Custom",
-                    location:"ls_office",contacts:(c.contacts||[]).map(ct=>({
-                      id:ct.id||`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                      name:ct.name||"",title:ct.title||ct.role||"",
-                      email:ct.email||"",phone:ct.phone||""
-                    })),
-                    hqAddress:c.hqAddress||"",notes:c.notes||"",active:true
-                  }));
-                  if(!toAdd.length){alert("Todas las empresas de la Librería ya están en este roadshow.");return;}
-                  saveRoadshow({...roadshow,companies:[...roadshow.companies,...toAdd]});
-                  alert(`✅ ${toAdd.length} empresa(s) importada(s) desde la Librería.`);
+                  // Map library contact to roadshow contact format
+                  const mapContact=ct=>({
+                    id:ct.id||`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    name:ct.name||"",title:ct.title||ct.role||"",
+                    email:ct.email||"",phone:ct.phone||""
+                  });
+                  let added=0,updated=0;
+                  const updatedCos=roadshow.companies.map(rc=>{
+                    // Find matching library company by name (case-insensitive)
+                    const lib=dbCos.find(c=>c.name.toLowerCase()===rc.name.toLowerCase());
+                    if(!lib) return rc;
+                    // Update hqAddress and contacts from library (only if library has data)
+                    const newHq=lib.hqAddress||rc.hqAddress||"";
+                    const newContacts=(lib.contacts||[]).length?(lib.contacts||[]).map(mapContact):(rc.contacts||[]);
+                    if(newHq!==rc.hqAddress||(lib.contacts||[]).length>0) updated++;
+                    return{...rc,hqAddress:newHq,contacts:newContacts,
+                      ticker:lib.ticker||rc.ticker,sector:lib.sector||rc.sector};
+                  });
+                  // Add companies from library that don't exist in roadshow yet
+                  const existingNames=new Set(roadshow.companies.map(c=>c.name.toLowerCase()));
+                  const toAdd=dbCos.filter(c=>!existingNames.has(c.name.toLowerCase())).map(c=>{
+                    added++;
+                    return{id:c.id||`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                      name:c.name,ticker:c.ticker||"",sector:c.sector||"Custom",
+                      location:"ls_office",contacts:(c.contacts||[]).map(mapContact),
+                      hqAddress:c.hqAddress||"",notes:c.notes||"",active:true};
+                  });
+                  if(!updated&&!toAdd.length){alert("No hay datos nuevos en la Librería para importar.");return;}
+                  saveRoadshow({...roadshow,companies:[...updatedCos,...toAdd]});
+                  const parts=[];
+                  if(updated) parts.push(`${updated} empresa(s) actualizadas con datos de la Librería`);
+                  if(added) parts.push(`${added} empresa(s) nuevas agregadas`);
+                  alert("✅ "+parts.join(" · "));
                 }}>📚 Importar desde Librería</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
