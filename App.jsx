@@ -1124,7 +1124,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const selCo=(companies||[]).find(c=>c.id===coId);
   const coContacts=selCo?.contacts||[];
   // Sync selReps when company changes - default select all
-  React.useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
+  useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
     const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseInt(h),duration:parseInt(dur),type,
