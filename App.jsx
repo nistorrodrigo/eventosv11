@@ -752,8 +752,8 @@ function DayDateInput({day,di,onChange}){
 /* ═══════════════════════════════════════════════════════════════════
    ROADSHOW SCHEDULER
 ═══════════════════════════════════════════════════════════════════ */
-// Hours in 15-min increments: 8, 8.25, 8.5, 8.75, 9, ... 19.75
-const ROADSHOW_HOURS=Array.from({length:48},(_,i)=>8+i*0.25).filter(h=>h<=19.75);
+// Hours in 30-min increments: 8.0, 8.5, 9.0, ... 20.0
+const ROADSHOW_HOURS=Array.from({length:25},(_,i)=>8+i*0.5);
 function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
 const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
@@ -4340,30 +4340,57 @@ Daily Summary — ${dayLabel}
                       </tr>
                     </thead>
                     <tbody>
-                      {ROADSHOW_HOURS.map(h=>(
-                        <tr key={h}>
-                          <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>{fmtHour(h)}</td>
-                          {tripDays.map(date=>{
-                            const d=new Date(date+"T12:00:00");
-                            const isWE=d.getDay()===0||d.getDay()===6;
+                      {(()=>{
+                        // Build skip map: cells occupied by a rowspan from a meeting above
+                        // skip[date][slotIndex] = true if covered by a prior rowspan
+                        const skip={};
+                        tripDays.forEach(date=>{skip[date]={};});
+                        ROADSHOW_HOURS.forEach((h,hi)=>{
+                          tripDays.forEach(date=>{
+                            if(skip[date][hi]) return;
                             const mtg=rsBySlot[`${date}-${h}`];
-                            const co=mtg?.type==="company"?rsCoById.get(mtg.companyId):null;
-                            const clr=mtg?(mtg.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e"):null;
-                            const lbl=mtg?(mtg.type==="company"?(co?.ticker||"?"):(mtg.lsType?.split(" – ").pop()?.slice(0,9)||mtg.title?.slice(0,9)||"Int")):"";
-                            return(
-                              <td key={date}
-                                onClick={()=>!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null})}
-                                style={{height:20,border:"1px solid rgba(30,90,176,.03)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}1a`:"transparent",cursor:isWE?"default":"pointer",padding:2,verticalAlign:"top"}}>
-                                {mtg&&<div style={{background:clr,color:"#fff",borderRadius:3,padding:"2px 4px",fontSize:8.5,fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:1.5,display:"flex",alignItems:"center",gap:3}}>
-                                  <span>{lbl}</span>
-                                  {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
-                                  {mtg.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
-                                </div>}
-                                {!mtg&&!isWE&&<div style={{fontSize:14,color:"rgba(30,90,176,.1)",textAlign:"center",lineHeight:"36px",userSelect:"none"}}>+</div>}
-                              </td>);
-                          })}
-                        </tr>
-                      ))}
+                            if(mtg){
+                              const rows=Math.max(1,Math.round((mtg.duration||60)/30));
+                              for(let r=1;r<rows;r++){
+                                if(hi+r<ROADSHOW_HOURS.length) skip[date][hi+r]=true;
+                              }
+                            }
+                          });
+                        });
+                        return ROADSHOW_HOURS.map((h,hi)=>(
+                          <tr key={h} style={{height:28}}>
+                            <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:h%1===0?"var(--dim)":"rgba(120,140,170,.4)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>
+                              {h%1===0?fmtHour(h):"·"}
+                            </td>
+                            {tripDays.map(date=>{
+                              if(skip[date][hi]) return null;
+                              const d=new Date(date+"T12:00:00");
+                              const isWE=d.getDay()===0||d.getDay()===6;
+                              const mtg=rsBySlot[`${date}-${h}`];
+                              const co=mtg?.type==="company"?rsCoById.get(mtg.companyId):null;
+                              const clr=mtg?(mtg.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e"):null;
+                              const lbl=mtg?(mtg.type==="company"?(co?.ticker||"?"):(mtg.lsType?.split(" – ").pop()?.slice(0,9)||mtg.title?.slice(0,9)||"Int")):"";
+                              const rows=mtg?Math.max(1,Math.round((mtg.duration||60)/30)):1;
+                              const rowH=rows*28;
+                              return(
+                                <td key={date}
+                                  rowSpan={rows}
+                                  onClick={()=>!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null})}
+                                  style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
+                                  {mtg&&<div style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                                      <span>{lbl}</span>
+                                      {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
+                                      {mtg.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
+                                    </div>
+                                    {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
+                                  </div>}
+                                  {!mtg&&!isWE&&<div style={{fontSize:11,color:"rgba(30,90,176,.08)",textAlign:"center",lineHeight:"24px",userSelect:"none"}}>+</div>}
+                                </td>);
+                            })}
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
