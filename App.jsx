@@ -4488,6 +4488,25 @@ Daily Summary — ${dayLabel}
             <div>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
+                <button className="btn bg bs" style={{fontSize:10,gap:4}} onClick={()=>{
+                  const dbCos=(globalDB.companies||[]);
+                  if(!dbCos.length){alert("La Librería no tiene empresas. Agregá empresas en la tab 📚 Librería primero.");return;}
+                  // Import all from library, skip duplicates by name
+                  const existing=new Set(roadshow.companies.map(c=>c.name.toLowerCase()));
+                  const toAdd=dbCos.filter(c=>!existing.has(c.name.toLowerCase())).map(c=>({
+                    id:c.id||`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    name:c.name,ticker:c.ticker||"",sector:c.sector||"Custom",
+                    location:"ls_office",contacts:(c.contacts||[]).map(ct=>({
+                      id:ct.id||`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                      name:ct.name||"",title:ct.title||ct.role||"",
+                      email:ct.email||"",phone:ct.phone||""
+                    })),
+                    hqAddress:c.hqAddress||"",notes:c.notes||"",active:true
+                  }));
+                  if(!toAdd.length){alert("Todas las empresas de la Librería ya están en este roadshow.");return;}
+                  saveRoadshow({...roadshow,companies:[...roadshow.companies,...toAdd]});
+                  alert(`✅ ${toAdd.length} empresa(s) importada(s) desde la Librería.`);
+                }}>📚 Importar desde Librería</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
                 <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>rsExcelRef.current?.click()}>📥 Importar Excel</button>
