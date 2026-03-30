@@ -396,9 +396,12 @@ function runSchedule(investors, fundGrouping, cfg){
 /* ═══════════════════════════════════════════════════════════════════
    PERSISTENCE — localStorage (works in real browser / Vercel)
 ═══════════════════════════════════════════════════════════════════ */
-const LS_KEY = "arginny_events_v1";
+const LS_KEY    = "arginny_events_v1";
+const LS_DB_KEY = "ls_global_db_v1";
 function loadEvents(){try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]");}catch{return[];}}
 function saveEvents(events){try{localStorage.setItem(LS_KEY,JSON.stringify(events));}catch{}}
+function loadDB(){try{return JSON.parse(localStorage.getItem(LS_DB_KEY)||'{"companies":[],"investors":[]}');}catch{return{companies:[],investors:[]};}}
+function saveDB(db){try{localStorage.setItem(LS_DB_KEY,JSON.stringify(db));}catch{}}
 
 /* ═══════════════════════════════════════════════════════════════════
    ZIP
@@ -1506,6 +1509,10 @@ function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,
 ═══════════════════════════════════════════════════════════════════ */
 export default function App(){
   // ── Events (persistence) ──────────────────────────────────────
+  const [globalDB,setGlobalDB] = useState(()=>loadDB());
+  function saveGlobalDB(db){setGlobalDB(db);saveDB(db);}
+  const [dbTab,setDbTab]       = useState("companies");  // companies | investors
+  const [dbSubTab,setDbSubTab] = useState("list");
   const [events,setEvents]   = useState(()=>loadEvents());
   const [activeEv,setActiveEv] = useState(()=>{ const evs=loadEvents(); return evs.length?evs[0].id:null; });
   const [newEvName,setNewEvName] = useState("");
@@ -1565,6 +1572,8 @@ export default function App(){
   const [historicalYears,setHistoricalYears] = useState([]);
   const histFileRef = useRef();
   const rsExcelRef = useRef();
+  const dbCoExcelRef  = useRef();
+  const dbInvExcelRef = useRef();
   const rsMtgsExcelRef = useRef();
   const [activeDay,setActiveDay] = useState("apr14");
   const [schedView,setSchedView] = useState("company"); // "company" | "room"
@@ -2345,6 +2354,112 @@ export default function App(){
     reader.readAsArrayBuffer(file);
     e.target.value="";
   }
+  // ─── Global DB: Excel import ──────────────────────────────────────
+  function handleDBCompaniesExcel(e){
+    const file=e.target.files?.[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(rows.length<2){alert("Archivo vacío.");return;}
+        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
+        const ci=k=>hdr.findIndex(h=>h.includes(k));
+        const nc=ci("name"),tc=ci("ticker"),sc=ci("sector"),wc=ci("website"),ac=ci("address"),hc=ci("hq"),
+          r1c=ci("contact 1"),e1c=ci("email 1"),p1c=ci("phone 1"),t1c=ci("title 1"),
+          r2c=ci("contact 2"),e2c=ci("email 2"),p2c=ci("phone 2"),t2c=ci("title 2"),
+          r3c=ci("contact 3"),e3c=ci("email 3"),p3c=ci("phone 3"),t3c=ci("title 3");
+        const imported=[];
+        rows.slice(1).filter(r=>r[nc]).forEach(r=>{
+          const name=String(r[nc]).trim();
+          const contacts=[];
+          [[r1c,e1c,p1c,t1c],[r2c,e2c,p2c,t2c],[r3c,e3c,p3c,t3c]].forEach(([rc,ec,pc,tc])=>{
+            if(rc>=0&&r[rc]) contacts.push({id:`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:String(r[rc]||"").trim(),email:String(r[ec>=0?ec:""]||"").trim(),phone:String(r[pc>=0?pc:""]||"").trim(),title:String(r[tc>=0?tc:""]||"").trim()});
+          });
+          imported.push({id:`dbc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name,ticker:String(r[tc>=0?tc:""]||"").trim().toUpperCase(),sector:String(r[sc>=0?sc:""]||"Other").trim(),website:String(r[wc>=0?wc:""]||"").trim(),hqAddress:String(r[ac>=0?ac:hc>=0?hc:""]||"").trim(),contacts});
+        });
+        if(!imported.length){alert("No se encontraron compañías. Verificá que la primera columna sea 'Name'.");return;}
+        const db={...globalDB};
+        let added=0,updated=0;
+        imported.forEach(ic=>{
+          const idx=db.companies.findIndex(x=>x.name.toLowerCase()===ic.name.toLowerCase()||x.ticker===ic.ticker);
+          if(idx>=0){
+            // Merge contacts
+            const existing=db.companies[idx];
+            const newContacts=[...existing.contacts];
+            ic.contacts.forEach(nc2=>{if(!newContacts.some(x=>x.email&&x.email===nc2.email))newContacts.push(nc2);});
+            db.companies[idx]={...existing,...ic,contacts:newContacts};
+            updated++;
+          } else {db.companies.push(ic);added++;}
+        });
+        saveGlobalDB(db);
+        alert(`✅ ${added} compañía(s) agregada(s), ${updated} actualizada(s).`);
+      }catch(err){alert("Error: "+err.message);}
+    };
+    reader.readAsArrayBuffer(file);e.target.value="";
+  }
+
+  function handleDBInvestorsExcel(e){
+    const file=e.target.files?.[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(rows.length<2){alert("Archivo vacío.");return;}
+        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
+        const ci=k=>hdr.findIndex(h=>h.includes(k));
+        const nc=ci("name"),fc=ci("fund"),pc=ci("position"),ec=ci("email"),phc=ci("phone"),
+              ac=ci("aum"),cc=ci("companies"),lc=ci("linkedin"),slc=ci("slots"),notc=ci("notes");
+        const imported=rows.slice(1).filter(r=>r[nc]).map(r=>({
+          id:`dbi_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          name:String(r[nc]||"").trim(),
+          fund:String(r[fc>=0?fc:""]||"").trim(),
+          position:String(r[pc>=0?pc:""]||"").trim(),
+          email:String(r[ec>=0?ec:""]||"").trim().toLowerCase(),
+          phone:String(r[phc>=0?phc:""]||"").trim(),
+          aum:String(r[ac>=0?ac:""]||"").trim(),
+          companies:String(r[cc>=0?cc:""]||"").split(";").map(s=>s.trim()).filter(Boolean),
+          linkedin:String(r[lc>=0?lc:""]||"").trim(),
+          notes:String(r[notc>=0?notc:""]||"").trim(),
+        }));
+        if(!imported.length){alert("No se encontraron inversores.");return;}
+        const db={...globalDB};
+        let added=0,updated=0;
+        imported.forEach(ii=>{
+          const idx=db.investors.findIndex(x=>(x.email&&x.email===ii.email)||(x.name.toLowerCase()===ii.name.toLowerCase()&&x.fund.toLowerCase()===ii.fund.toLowerCase()));
+          if(idx>=0){db.investors[idx]={...db.investors[idx],...ii};updated++;}
+          else{db.investors.push(ii);added++;}
+        });
+        saveGlobalDB(db);
+        alert(`✅ ${added} inversor(es) agregado(s), ${updated} actualizado(s).`);
+      }catch(err){alert("Error: "+err.message);}
+    };
+    reader.readAsArrayBuffer(file);e.target.value="";
+  }
+
+  function downloadDBTemplate(type){
+    let ws,name;
+    if(type==="companies"){
+      ws=XLSX.utils.aoa_to_sheet([
+        ["Name","Ticker","Sector","Website","HQ Address","Contact 1","Title 1","Email 1","Phone 1","Contact 2","Title 2","Email 2","Phone 2","Contact 3","Title 3","Email 3","Phone 3"],
+        ["Banco Macro","BMA","Financials","www.macro.com.ar","Av. Eduardo Madero 1182, CABA","Juan Pérez","IR Manager","jperez@macro.com.ar","+54 11 5222 6500","María López","CFO","mlopez@macro.com.ar","","","","",""],
+        ["YPF","YPFD","Energy","www.ypf.com","Macacha Güemes 515, CABA","Carlos Rodríguez","Head of IR","crodriguez@ypf.com","+54 11 5441 2000","","","","","","","",""],
+      ]);
+      name="Plantilla_Compañías.xlsx";
+    } else {
+      ws=XLSX.utils.aoa_to_sheet([
+        ["Name","Fund","Position","Email","Phone","AUM","Companies (separadas por ;)","LinkedIn","Notes"],
+        ["John Smith","BlackRock","Portfolio Manager","john.smith@blackrock.com","+1 212 810 5000","$5B","YPF;Pampa;Galicia","linkedin.com/in/johnsmith","Focused on energy and financials"],
+        ["María García","Templeton","Analyst","mgarcia@templeton.com","+1 650 312 2000","","Banco Macro;BBVA","",""],
+      ]);
+      name="Plantilla_Inversores.xlsx";
+    }
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,type==="companies"?"Compañías":"Inversores");
+    XLSX.writeFile(wb,name);
+  }
   function saveMoverStocks(arr){setMoverStocks(arr);localStorage.setItem("ls_movers",JSON.stringify(arr));}
   async function fetchCCL(){
     setMoverCCLLoading(true);setMoverCCLErr(null);
@@ -2561,6 +2676,7 @@ Daily Summary — ${dayLabel}
     else setTab(t=>(t==="roadshow"||t==="outbound")?"upload":t);
   },[activeEv]); // eslint-disable-line
   const evKind=currentEvent?.kind||"conference";
+  const DB_TAB={id:"db",label:"📚 Librería"};
   const CONF_TABS=[
     {id:"config",label:"⚙ Config"},
     {id:"upload",label:"📥 Cargar"},
@@ -2570,16 +2686,19 @@ Daily Summary — ${dayLabel}
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
     {id:"mercado",label:"📈 Mercado"},
+    DB_TAB,
   ];
   const RS_TABS=[
     {id:"config",label:"⚙ Config"},
     {id:"roadshow",label:"🗺️ Inbound"},
     {id:"mercado",label:"📈 Mercado"},
+    DB_TAB,
   ];
   const OUT_TABS=[
     {id:"config",label:"⚙ Config"},
     {id:"outbound",label:"✈️ Outbound"},
     {id:"mercado",label:"📈 Mercado"},
+    DB_TAB,
   ];
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
 
@@ -3557,7 +3676,9 @@ Daily Summary — ${dayLabel}
               })}
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-              <input ref={rsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsExcel}/>
+              <input ref={dbCoExcelRef}  type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBCompaniesExcel}/>
+      <input ref={dbInvExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleDBInvestorsExcel}/>
+      <input ref={rsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsExcel}/>
       <input ref={rsMtgsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsMeetingsExcel}/>
               <input ref={histFileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}}
                 onChange={e=>{const f=e.target.files?.[0]; if(f)parseHistoricalFile(f,histFileRef.current.dataset.yr||"?"); e.target.value="";}}/>
@@ -4698,6 +4819,231 @@ ${"─".repeat(40)}`;
                   ))}
                   {!outbound.destinations.length&&<span style={{color:"var(--dim)"}}>Sin destinos cargados.</span>}
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
+
+      {tab==="db"&&(()=>{
+        const dbCos=globalDB.companies||[];
+        const dbInvs=globalDB.investors||[];
+        const [coSearch,setCoSearch]=useState("");
+        const [invSearch,setInvSearch]=useState("");
+        const [editCo,setEditCo]=useState(null);  // company being edited inline
+        const [editInv,setEditInv]=useState(null);
+
+        const filteredCos=dbCos.filter(c=>!coSearch||c.name.toLowerCase().includes(coSearch.toLowerCase())||c.ticker.toLowerCase().includes(coSearch.toLowerCase())||c.sector.toLowerCase().includes(coSearch.toLowerCase()));
+        const filteredInvs=dbInvs.filter(i=>!invSearch||i.name.toLowerCase().includes(invSearch.toLowerCase())||(i.fund||"").toLowerCase().includes(invSearch.toLowerCase())||(i.email||"").toLowerCase().includes(invSearch.toLowerCase()));
+
+        function saveCo(co){const db={...globalDB,companies:globalDB.companies.map(c=>c.id===co.id?co:c)};saveGlobalDB(db);setEditCo(null);}
+        function addCo(){const nc={id:`dbc_${Date.now()}`,name:"",ticker:"",sector:"Other",website:"",hqAddress:"",contacts:[]};saveGlobalDB({...globalDB,companies:[...globalDB.companies,nc]});setEditCo(nc.id);}
+        function delCo(id){if(confirm("¿Eliminar esta compañía de la librería?"))saveGlobalDB({...globalDB,companies:globalDB.companies.filter(c=>c.id!==id)});}
+        function saveInv(inv){const db={...globalDB,investors:globalDB.investors.map(i=>i.id===inv.id?inv:i)};saveGlobalDB(db);setEditInv(null);}
+        function addInv(){const ni={id:`dbi_${Date.now()}`,name:"",fund:"",position:"",email:"",phone:"",aum:"",companies:[],linkedin:"",notes:""};saveGlobalDB({...globalDB,investors:[...globalDB.investors,ni]});setEditInv(ni.id);}
+        function delInv(id){if(confirm("¿Eliminar este inversor de la librería?"))saveGlobalDB({...globalDB,investors:globalDB.investors.filter(i=>i.id!==id)});}
+
+        const SECTORS=["Financials","Energy","Infra","Real Estate","TMT","LS","Other"];
+
+        return(
+        <div>
+          <h2 className="pg-h">📚 Librería Global</h2>
+          <p className="pg-s">Base de datos centralizada de compañías, representantes e inversores. Compartida entre todos los eventos.</p>
+
+          {/* Sub-tabs */}
+          <div style={{display:"flex",gap:0,marginBottom:16,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
+            {[["companies",`🏢 Compañías (${dbCos.length})`],["investors",`👥 Inversores (${dbInvs.length})`]].map(([id,lbl])=>(
+              <button key={id} className={`ntab${dbTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setDbTab(id)}>{lbl}</button>
+            ))}
+          </div>
+
+          {/* ── COMPANIES ── */}
+          {dbTab==="companies"&&(
+            <div>
+              {/* Toolbar */}
+              <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+                <input className="inp" style={{flex:1,minWidth:200,fontSize:12}} value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="🔍 Buscar por nombre, ticker o sector..."/>
+                <button className="btn bg bs" style={{gap:5,fontSize:11}} onClick={addCo}>+ Agregar</button>
+                <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>dbCoExcelRef.current?.click()}>📥 Importar Excel</button>
+                <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>downloadDBTemplate("companies")}>📋 Plantilla</button>
+              </div>
+
+              {/* Format hint */}
+              <div style={{background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.12)",borderRadius:7,padding:"10px 14px",marginBottom:12,fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
+                <strong style={{color:"var(--cream)"}}>📋 Formato Excel para importar compañías:</strong><br/>
+                Columnas: <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Name</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Ticker</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Sector</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Website</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>HQ Address</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Contact 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Title 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Email 1</code> · <code style={{background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>Phone 1</code> · Contact 2, Email 2... hasta 3 contactos por empresa.
+                {" "}<button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginLeft:6}} onClick={()=>downloadDBTemplate("companies")}>Descargar plantilla →</button>
+              </div>
+
+              {/* Company list */}
+              <div style={{display:"grid",gap:8}}>
+                {filteredCos.map(co=>{
+                  const isEdit=editCo===co.id;
+                  const working=isEdit?co:co;
+                  const clr=SEC_CLR[co.sector]||"#666";
+                  return(
+                    <div key={co.id} style={{border:`1px solid ${isEdit?"rgba(30,90,176,.3)":"rgba(30,90,176,.1)"}`,borderRadius:9,padding:"12px 14px",background:isEdit?"rgba(30,90,176,.03)":"#fff",transition:"all .15s"}}>
+                      {!isEdit?(
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{width:38,height:38,borderRadius:7,background:clr,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:"IBM Plex Mono,monospace",fontSize:9,fontWeight:700,flexShrink:0,textAlign:"center",lineHeight:1.2}}>{co.ticker||"?"}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7}}>
+                              <span style={{fontSize:13,fontWeight:700,color:"var(--cream)"}}>{co.name||"Sin nombre"}</span>
+                              <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${clr}22`,color:clr,fontFamily:"IBM Plex Mono,monospace"}}>{co.sector}</span>
+                            </div>
+                            <div style={{fontSize:10,color:"var(--dim)",marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
+                              {co.hqAddress&&<span>📍 {co.hqAddress}</span>}
+                              {co.website&&<span>🌐 {co.website}</span>}
+                              <span style={{color:"var(--gold)"}}>{co.contacts?.length||0} contacto(s)</span>
+                            </div>
+                            {(co.contacts||[]).length>0&&(
+                              <div style={{marginTop:6,display:"flex",gap:6,flexWrap:"wrap"}}>
+                                {co.contacts.map(r=>(
+                                  <div key={r.id} style={{fontSize:10,background:"rgba(30,90,176,.06)",borderRadius:5,padding:"2px 8px",color:"var(--txt)"}}>
+                                    <strong>{r.name}</strong>{r.title?` · ${r.title}`:""}{r.email?` · ${r.email}`:""}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{display:"flex",gap:5,flexShrink:0}}>
+                            <button className="btn bo bs" style={{fontSize:9,padding:"3px 9px"}} onClick={()=>setEditCo(co.id)}>✏️ Editar</button>
+                            <button aria-label="Eliminar" className="btn bd bs" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>delCo(co.id)}>✕</button>
+                          </div>
+                        </div>
+                      ):(
+                        <div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                            <div><div className="lbl" style={{marginBottom:2}}>Nombre *</div><input className="inp" style={{fontSize:11}} value={co.name} placeholder="Banco Macro" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,name:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
+                            <div><div className="lbl" style={{marginBottom:2}}>Ticker</div><input className="inp" style={{fontSize:11,fontFamily:"IBM Plex Mono,monospace"}} value={co.ticker} placeholder="BMA" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,ticker:e.target.value.toUpperCase()}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
+                            <div><div className="lbl" style={{marginBottom:2}}>Sector</div>
+                              <select className="sel" style={{fontSize:11}} value={co.sector} onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,sector:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}>
+                                {SECTORS.map(s=><option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div><div className="lbl" style={{marginBottom:2}}>Website</div><input className="inp" style={{fontSize:11}} value={co.website||""} placeholder="www.macro.com.ar" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,website:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
+                          </div>
+                          <div style={{marginBottom:10}}><div className="lbl" style={{marginBottom:2}}>Dirección HQ</div><input className="inp" style={{fontSize:11}} value={co.hqAddress||""} placeholder="Av. Eduardo Madero 1182, CABA" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,hqAddress:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
+                          {/* Contacts */}
+                          <div style={{marginBottom:10}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                              <div className="lbl" style={{margin:0}}>👤 Representantes</div>
+                              <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:[...(c.contacts||[]),{id:`rep_${Date.now()}`,name:"",title:"",email:"",phone:""}]}:c);saveGlobalDB({...globalDB,companies:nc});}}>+ Add</button>
+                            </div>
+                            {(co.contacts||[]).map((rep,ri)=>(
+                              <div key={rep.id||ri} style={{display:"grid",gridTemplateColumns:"2fr 1.5fr 2fr 1.5fr auto",gap:5,marginBottom:5,alignItems:"center"}}>
+                                <input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={rep.name||""} placeholder="Nombre *" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:c.contacts.map((r,j)=>j===ri?{...r,name:e.target.value}:r)}:c);saveGlobalDB({...globalDB,companies:nc});}}/>
+                                <input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={rep.title||""} placeholder="Cargo" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:c.contacts.map((r,j)=>j===ri?{...r,title:e.target.value}:r)}:c);saveGlobalDB({...globalDB,companies:nc});}}/>
+                                <input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={rep.email||""} placeholder="email@empresa.com" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:c.contacts.map((r,j)=>j===ri?{...r,email:e.target.value}:r)}:c);saveGlobalDB({...globalDB,companies:nc});}}/>
+                                <input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={rep.phone||""} placeholder="+54 11..." onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:c.contacts.map((r,j)=>j===ri?{...r,phone:e.target.value}:r)}:c);saveGlobalDB({...globalDB,companies:nc});}}/>
+                                <button aria-label="Eliminar rep" style={{background:"none",border:"none",cursor:"pointer",color:"var(--red)",fontSize:13,padding:"0 4px"}} onClick={()=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,contacts:c.contacts.filter((_,j)=>j!==ri)}:c);saveGlobalDB({...globalDB,companies:nc});}}>✕</button>
+                              </div>
+                            ))}
+                            {!(co.contacts||[]).length&&<div style={{fontSize:10,color:"var(--dim)"}}>Sin representantes — clic en + Add</div>}
+                          </div>
+                          <div style={{display:"flex",gap:6}}>
+                            <button className="btn bg bs" style={{fontSize:10}} onClick={()=>setEditCo(null)}>✓ Guardar</button>
+                            <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setEditCo(null)}>Cancelar</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {!filteredCos.length&&(
+                  <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                    <div style={{fontSize:36,marginBottom:8}}>🏢</div>
+                    <div style={{fontSize:14,color:"var(--cream)",marginBottom:6}}>{coSearch?"Sin resultados para tu búsqueda":"Librería de compañías vacía"}</div>
+                    <div style={{fontSize:12}}>Usá + Agregar o 📥 Importar Excel para cargar compañías con sus representantes.</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── INVESTORS ── */}
+          {dbTab==="investors"&&(
+            <div>
+              {/* Toolbar */}
+              <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+                <input className="inp" style={{flex:1,minWidth:200,fontSize:12}} value={invSearch} onChange={e=>setInvSearch(e.target.value)} placeholder="🔍 Buscar por nombre, fondo o email..."/>
+                <button className="btn bg bs" style={{gap:5,fontSize:11}} onClick={addInv}>+ Agregar</button>
+                <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>dbInvExcelRef.current?.click()}>📥 Importar Excel</button>
+                <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>downloadDBTemplate("investors")}>📋 Plantilla</button>
+              </div>
+
+              {/* Format hint */}
+              <div style={{background:"rgba(35,162,158,.04)",border:"1px solid rgba(35,162,158,.15)",borderRadius:7,padding:"10px 14px",marginBottom:12,fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
+                <strong style={{color:"var(--cream)"}}>📋 Formato Excel para importar inversores:</strong><br/>
+                Columnas: <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Name</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Fund</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Position</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Email</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Phone</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>AUM</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Companies</code> (separadas por ;) · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>LinkedIn</code> · <code style={{background:"rgba(35,162,158,.1)",padding:"1px 5px",borderRadius:3}}>Notes</code>
+                {" "}<button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginLeft:6}} onClick={()=>downloadDBTemplate("investors")}>Descargar plantilla →</button>
+              </div>
+
+              {/* Investor list */}
+              <div style={{overflowX:"auto",borderRadius:8,border:"1px solid rgba(30,90,176,.1)",boxShadow:"0 1px 4px rgba(30,90,176,.05)"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                  <thead><tr style={{background:"rgba(35,162,158,.06)"}}>
+                    {["Nombre","Fondo","Cargo","Email","Teléfono","AUM","Empresas de interés","",""].map(h=>(
+                      <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",borderBottom:"1px solid rgba(35,162,158,.15)",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {filteredInvs.map((inv,ii)=>{
+                      const isEdit=editInv===inv.id;
+                      return(
+                        <tr key={inv.id} style={{borderBottom:"1px solid rgba(30,90,176,.04)",background:isEdit?"rgba(35,162,158,.04)":ii%2===0?"rgba(30,90,176,.01)":"transparent"}}>
+                          {!isEdit?(<>
+                            <td style={{padding:"7px 10px",fontWeight:700,color:"var(--cream)",whiteSpace:"nowrap"}}>{inv.name}</td>
+                            <td style={{padding:"7px 10px",color:"var(--txt)"}}>{inv.fund}</td>
+                            <td style={{padding:"7px 10px",color:"var(--dim)",fontSize:10}}>{inv.position}</td>
+                            <td style={{padding:"7px 10px",fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"var(--txt)"}}>{inv.email}</td>
+                            <td style={{padding:"7px 10px",fontSize:10,color:"var(--dim)"}}>{inv.phone}</td>
+                            <td style={{padding:"7px 10px",fontSize:10,color:"var(--dim)"}}>{inv.aum}</td>
+                            <td style={{padding:"7px 10px",maxWidth:200}}>
+                              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                                {(inv.companies||[]).map(c=><span key={c} style={{fontSize:9,background:"rgba(30,90,176,.08)",borderRadius:3,padding:"1px 5px",color:"var(--gold)"}}>{c}</span>)}
+                              </div>
+                            </td>
+                            <td style={{padding:"7px 10px"}}><button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",whiteSpace:"nowrap"}} onClick={()=>setEditInv(inv.id)}>✏️ Editar</button></td>
+                            <td style={{padding:"7px 10px"}}><button aria-label="Eliminar" className="btn bd bs" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>delInv(inv.id)}>✕</button></td>
+                          </>):(<>
+                            <td colSpan={9} style={{padding:"10px 12px"}}>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr",gap:6,marginBottom:7}}>
+                                {[["Nombre","name",""],["Fondo","fund",""],["Cargo","position","Portfolio Manager"],["Email","email",""],["Teléfono","phone",""],["AUM","aum","$2B"]].map(([lbl,f,ph])=>(
+                                  <div key={f}><div className="lbl" style={{marginBottom:2,fontSize:9}}>{lbl}</div>
+                                    <input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={inv[f]||""} placeholder={ph} onChange={e=>{const ni=globalDB.investors.map(i=>i.id===inv.id?{...i,[f]:e.target.value}:i);saveGlobalDB({...globalDB,investors:ni});}}/></div>
+                                ))}
+                              </div>
+                              <div style={{marginBottom:7}}><div className="lbl" style={{marginBottom:2,fontSize:9}}>Empresas de interés (separadas por ;)</div>
+                                <input className="inp" style={{fontSize:10,padding:"3px 7px",width:"100%"}} value={(inv.companies||[]).join("; ")} placeholder="YPF; Pampa; Galicia"
+                                  onChange={e=>{const cos=e.target.value.split(";").map(s=>s.trim()).filter(Boolean);const ni=globalDB.investors.map(i=>i.id===inv.id?{...i,companies:cos}:i);saveGlobalDB({...globalDB,investors:ni});}}/></div>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:7}}>
+                                <div><div className="lbl" style={{marginBottom:2,fontSize:9}}>LinkedIn</div><input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={inv.linkedin||""} placeholder="linkedin.com/in/..." onChange={e=>{const ni=globalDB.investors.map(i=>i.id===inv.id?{...i,linkedin:e.target.value}:i);saveGlobalDB({...globalDB,investors:ni});}}/></div>
+                                <div><div className="lbl" style={{marginBottom:2,fontSize:9}}>Notas</div><input className="inp" style={{fontSize:10,padding:"3px 7px"}} value={inv.notes||""} placeholder="Perfil, intereses..." onChange={e=>{const ni=globalDB.investors.map(i=>i.id===inv.id?{...i,notes:e.target.value}:i);saveGlobalDB({...globalDB,investors:ni});}}/></div>
+                              </div>
+                              <div style={{display:"flex",gap:6}}>
+                                <button className="btn bg bs" style={{fontSize:10}} onClick={()=>setEditInv(null)}>✓ Guardar</button>
+                                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setEditInv(null)}>Cancelar</button>
+                              </div>
+                            </td>
+                          </>)}
+                        </tr>
+                      );
+                    })}
+                    {!filteredInvs.length&&(
+                      <tr><td colSpan={9} style={{padding:"40px 20px",textAlign:"center",color:"var(--dim)"}}>
+                        <div style={{fontSize:32,marginBottom:8}}>👥</div>
+                        <div style={{fontSize:13,color:"var(--cream)",marginBottom:4}}>{invSearch?"Sin resultados":"Librería de inversores vacía"}</div>
+                        <div style={{fontSize:11}}>Usá + Agregar o 📥 Importar Excel para cargar inversores.</div>
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{marginTop:10,fontSize:10,color:"var(--dim)",lineHeight:1.7}}>
+                💡 <strong>Tip:</strong> Los inversores de la librería se usan como base de datos de referencia. Al cargar el Excel de una conferencia, los datos (email, fondo, cargo) se combinan automáticamente.
               </div>
             </div>
           )}
