@@ -2894,8 +2894,8 @@ Daily Summary — ${dayLabel}
     setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
     setOutbound(ev?.outbound||OB_DEF);
     // Jump to correct default tab for this event kind
-    if(ev?.kind==="roadshow") setTab(t=>CONF_TAB_IDS.includes(t)?"roadshow":t);
-    else if(ev?.kind==="outbound") setTab(t=>CONF_TAB_IDS.includes(t)||t==="roadshow"?"outbound":t);
+    if(ev?.kind==="roadshow") setTab(t=>CONF_TAB_IDS.includes(t)||t==="config"?"roadshow":t==="outbound"?"roadshow":t);
+    else if(ev?.kind==="outbound") setTab(t=>CONF_TAB_IDS.includes(t)||t==="roadshow"||t==="config"?"outbound":t);
     else setTab(t=>(t==="roadshow"||t==="outbound")?"upload":t);
   },[activeEv]); // eslint-disable-line
   const evKind=currentEvent?.kind||"conference";
@@ -2911,12 +2911,10 @@ Daily Summary — ${dayLabel}
     DB_TAB,
   ];
   const RS_TABS=[
-    {id:"config",label:"⚙ Config"},
     {id:"roadshow",label:"🗺️ Inbound"},
     DB_TAB,
   ];
   const OUT_TABS=[
-    {id:"config",label:"⚙ Config"},
     {id:"outbound",label:"✈️ Outbound"},
     DB_TAB,
   ];
