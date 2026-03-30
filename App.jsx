@@ -752,7 +752,9 @@ function DayDateInput({day,di,onChange}){
 /* ═══════════════════════════════════════════════════════════════════
    ROADSHOW SCHEDULER
 ═══════════════════════════════════════════════════════════════════ */
-const ROADSHOW_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
+// Hours in 15-min increments: 8, 8.25, 8.5, 8.75, 9, ... 19.75
+const ROADSHOW_HOURS=Array.from({length:48},(_,i)=>8+i*0.25).filter(h=>h<=19.75);
+function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
 const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
 const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6° Piso, CABA",meetingDuration:60,visitors:[],lsTeam:[],mapsApiKey:""};
@@ -1127,7 +1129,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
-    const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseInt(h),duration:parseInt(dur),type,
+    const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
       location:loc,locationCustom:locCustom,status,notes,fullAddress:fullAddr,
@@ -1161,7 +1163,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
           <div className="g2" style={{gap:10,marginBottom:12}}>
             <div><div className="lbl">Hora</div>
               <select className="sel" value={h} onChange={e=>setH(e.target.value)}>
-                {ROADSHOW_HOURS.map(x=><option key={x} value={x}>{x}:00</option>)}
+                {ROADSHOW_HOURS.map(x=><option key={x} value={x}>{fmtHour(x)}</option>)}
               </select></div>
             <div><div className="lbl">Duración</div>
               <select className="sel" value={dur} onChange={e=>setDur(e.target.value)}>
@@ -4276,7 +4278,7 @@ Daily Summary — ${dayLabel}
                     <tbody>
                       {ROADSHOW_HOURS.map(h=>(
                         <tr key={h}>
-                          <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>{h}:00</td>
+                          <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>{fmtHour(h)}</td>
                           {tripDays.map(date=>{
                             const d=new Date(date+"T12:00:00");
                             const isWE=d.getDay()===0||d.getDay()===6;
@@ -4287,7 +4289,7 @@ Daily Summary — ${dayLabel}
                             return(
                               <td key={date}
                                 onClick={()=>!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null})}
-                                style={{height:40,border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}1a`:"transparent",cursor:isWE?"default":"pointer",padding:2,verticalAlign:"top"}}>
+                                style={{height:20,border:"1px solid rgba(30,90,176,.03)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}1a`:"transparent",cursor:isWE?"default":"pointer",padding:2,verticalAlign:"top"}}>
                                 {mtg&&<div style={{background:clr,color:"#fff",borderRadius:3,padding:"2px 4px",fontSize:8.5,fontWeight:700,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:1.5,display:"flex",alignItems:"center",gap:3}}>
                                   <span>{lbl}</span>
                                   {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
@@ -4500,7 +4502,7 @@ Daily Summary — ${dayLabel}
                               <div style={{flex:1,background:conflict?.conflict?"rgba(214,68,68,.06)":conflict?.warning?"rgba(232,133,10,.06)":"rgba(30,90,176,.03)",borderRadius:7,padding:"8px 11px",border:`1px solid ${conflict?.conflict?"rgba(214,68,68,.2)":conflict?.warning?"rgba(232,133,10,.2)":"rgba(30,90,176,.08)"}`}}>
                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                                   <div>
-                                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:700,fontSize:11,color:clr}}>{String(m.hour).padStart(2,"0")}:00</span>
+                                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontWeight:700,fontSize:11,color:clr}}>{fmtHour(m.hour||0)}</span>
                                     <span style={{fontSize:11,color:"var(--dim)",marginLeft:4}}>({dur} min)</span>
                                     <span style={{fontWeight:700,fontSize:13,color:"var(--cream)",marginLeft:8}}>{co?co.name:(m.lsType||m.title||"Meeting")}</span>
                                     {co&&<span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"#fff",background:clr,padding:"1px 5px",borderRadius:3,marginLeft:5}}>{co.ticker}</span>}
@@ -4675,7 +4677,7 @@ Daily Summary — ${dayLabel}
 
 
       {tab==="outbound"&&(()=>{
-        const RS_HOURS=[8,9,10,11,12,13,14,15,16,17,18];
+        const RS_HOURS=ROADSHOW_HOURS;
         function addDest(){
           const nd={id:`dest-${Date.now()}`,city:"",country:"",dateFrom:"",dateTo:"",hotel:"",meetings:[]};
           saveOutbound({...outbound,destinations:[...outbound.destinations,nd]});
@@ -4712,7 +4714,7 @@ Daily Summary — ${dayLabel}
 ${"─".repeat(40)}`;
             const rows=sortedMtgs.map(m=>{
               const d=m.date?new Date(m.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}):"";
-              return `  ${String(m.hour).padStart(2,"0")}:00${d?" · "+d:""} | ${m.fund||"[Fund]"} | ${m.contact||""} | ${m.status==="confirmed"?"✓":"⏳"} | ${m.location||""}${m.notes?" — "+m.notes:""}`;
+              return `  ${fmtHour(m.hour||0)}${d?" · "+d:""} | ${m.fund||"[Fund]"} | ${m.contact||""} | ${m.status==="confirmed"?"✓":"⏳"} | ${m.location||""}${m.notes?" — "+m.notes:""}`;
             }).join("\n");
             return header+"\n"+rows;
           }).filter(Boolean).join("\n\n");
@@ -4813,7 +4815,7 @@ ${"─".repeat(40)}`;
                               </td>
                               <td style={{padding:"5px 6px"}}>
                                 <select className="sel" style={{fontSize:10,padding:"3px 5px",width:70}} value={m.hour} onChange={e=>upMeeting(dest.id,m.id,"hour",parseInt(e.target.value))}>
-                                  {RS_HOURS.map(h=><option key={h} value={h}>{String(h).padStart(2,"0")}:00</option>)}
+                                  {RS_HOURS.map(h=><option key={h} value={h}>{fmtHour(h)}</option>)}
                                 </select>
                               </td>
                               <td style={{padding:"5px 6px",minWidth:140}}><input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.fund||""} placeholder="Fondo / Nombre" onChange={e=>upMeeting(dest.id,m.id,"fund",e.target.value)}/></td>
