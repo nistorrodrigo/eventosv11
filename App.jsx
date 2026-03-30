@@ -1088,7 +1088,8 @@ function getMeetingAddress(m, co, officeAddress){
 // ── Free routing: Nominatim geocoding + OSRM ──────────────────────────────
 function cleanAddr(addr){
   // Strip floor/piso/level info that confuses Nominatim ("Piso 26", "Planta 3", "Piso 6°")
-  return addr.replace(/,?\s*(Piso|Planta|Piso\s*\d+°?|Floor|Level|PB|Oficina)\s*\w*/gi,'').replace(/\s{2,}/g,' ').trim();
+  // Remove floor info: 'Piso 26', '6° Piso', 'Planta 3', 'Floor 2', 'PB', 'Oficina'
+  return addr.replace(/,?\s*(\d+°?\s*)?(Piso|Planta|Floor|Level|Oficina|PB)(\s*\d+°?)?/gi,'').replace(/,?\s*\d+°(\s|,|$)/g,'$1').replace(/\s{2,}/g,' ').replace(/,\s*,/g,',').trim();
 }
 // geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim
 async function geocodeAll(addresses){
