@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { supabase } from "./supabase.js";
 import * as XLSX from "xlsx";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1615,8 +1616,17 @@ function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,
 ═══════════════════════════════════════════════════════════════════ */
 export default function App(){
   // ── Events (persistence) ──────────────────────────────────────
+  // ── Auth state ───────────────────────────────────────────────
+  const [authUser,setAuthUser]   = useState(null);
+  const [authLoading,setAuthLoading] = useState(true);
+  const [authView,setAuthView]   = useState("login"); // "login"|"signup"
+  const [authEmail,setAuthEmail] = useState("");
+  const [authPwd,setAuthPwd]     = useState("");
+  const [authName,setAuthName]   = useState("");
+  const [authErr,setAuthErr]     = useState("");
+  const [authBusy,setAuthBusy]   = useState(false);
   const [globalDB,setGlobalDB] = useState(()=>loadDB());
-  function saveGlobalDB(db){setGlobalDB(db);saveDB(db);}
+  function saveGlobalDB(db){setGlobalDB(db);saveDB(db);cloudSaveGlobalDB(db);}
   const [dbTab,setDbTab]       = useState("companies");  // companies | investors
   const [dbSubTab,setDbSubTab] = useState("list");
   const [coSearch,setCoSearch] = useState("");
@@ -1633,7 +1643,10 @@ export default function App(){
   function saveCurrentEvent(patch){
     setEvents(prev=>{
       const next=prev.map(e=>e.id===activeEv?{...e,...patch}:e);
-      saveEvents(next);return next;
+      saveEvents(next);
+      const updated=next.find(e=>e.id===activeEv);
+      if(updated) cloudSaveEvent(updated);
+      return next;
     });
   }
 
@@ -1737,7 +1750,7 @@ export default function App(){
     const ev={id,name,kind,createdAt:new Date().toISOString(),
       investors:[],companies:COMPANIES_INIT.map(c=>({...c,attendees:[]})),
       meetings:[],unscheduled:[],fixedRoom:{},fundGrouping:{},config:DEFAULT_CONFIG};
-    const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName("");
+    const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName(""); cloudSaveEvent(ev);
     setTab(kind==="roadshow"?"roadshow":kind==="outbound"?"outbound":"upload");
   }
 
@@ -2814,6 +2827,77 @@ Daily Summary — ${dayLabel}
 
   // ── Roadshow derived ─────────────────────────────────────────────
   const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
+  // ── Supabase auth + cloud sync ───────────────────────────────
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setAuthUser(session?.user||null);
+      if(session?.user) loadFromCloud(session.user.id);
+      else setAuthLoading(false);
+    });
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,session)=>{
+      setAuthUser(session?.user||null);
+      if(session?.user) loadFromCloud(session.user.id);
+      else setAuthLoading(false);
+    });
+    return()=>subscription.unsubscribe();
+  },[]);// eslint-disable-line
+
+  async function loadFromCloud(userId){
+    // Load events
+    const{data:evRows}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
+    if(evRows?.length){
+      const cloudEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data}));
+      setEvents(cloudEvs); saveEvents(cloudEvs);
+      setActiveEv(prev=>cloudEvs.find(e=>e.id===prev)?prev:cloudEvs[0]?.id||null);
+    } else {
+      // First login: migrate localStorage events to cloud
+      const local=loadEvents();
+      if(local.length){
+        for(const ev of local){
+          const{id,name,kind,...data}=ev;
+          await supabase.from("ls_events").upsert({id,name,kind,data,user_id:userId});
+        }
+      }
+    }
+    // Load library
+    const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
+    if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
+    setAuthLoading(false);
+  }
+
+  async function cloudSaveEvent(ev){
+    if(!authUser) return;
+    const{id,name,kind,...data}=ev;
+    await supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id});
+  }
+  async function cloudDeleteEvent(evId){
+    if(!authUser) return;
+    await supabase.from("ls_events").delete().eq("id",evId).eq("user_id",authUser.id);
+  }
+  async function cloudSaveGlobalDB(db){
+    if(!authUser) return;
+    await supabase.from("ls_global_db").upsert({user_id:authUser.id,data:db});
+  }
+
+  async function signIn(){
+    setAuthBusy(true);setAuthErr("");
+    const{error}=await supabase.auth.signInWithPassword({email:authEmail,password:authPwd});
+    if(error) setAuthErr(error.message);
+    setAuthBusy(false);
+  }
+  async function signUp(){
+    setAuthBusy(true);setAuthErr("");
+    const{error}=await supabase.auth.signUp({email:authEmail,password:authPwd,options:{data:{display_name:authName}}});
+    if(error) setAuthErr(error.message);
+    else setAuthErr("✅ Revisá tu email para confirmar la cuenta, luego iniciá sesión.");
+    setAuthBusy(false);
+  }
+  async function signOut(){
+    await supabase.auth.signOut();
+    setAuthUser(null);setAuthLoading(false);
+  }
+
+  // ── Wrap saveEvents to also sync to cloud ───────────────────
   // ─── Travel time (OSRM + Nominatim, free, App-level so async setState works) ──
   const rsCoMapForTravel=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);
 
@@ -3006,6 +3090,47 @@ Daily Summary — ${dayLabel}
     </div>
   );
 
+  // ── Auth loading screen ─────────────────────────────────────
+  if(authLoading) return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:16}}>
+      <div style={{width:36,height:36,border:"3px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      <div style={{color:"#7a8fa8",fontSize:12,fontFamily:"IBM Plex Mono,monospace"}}>Cargando...</div>
+    </div>
+  );
+
+  // ── Auth gate ────────────────────────────────────────────────
+  if(!authUser) return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",padding:20}}>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}.auth-inp{width:100%;padding:10px 13px;background:rgba(30,90,176,.08);border:1.5px solid rgba(30,90,176,.25);border-radius:7px;color:#e8eaf0;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px}.auth-inp:focus{border-color:#3399ff}.auth-btn{width:100%;padding:12px;background:#1e5ab0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}.auth-btn:disabled{opacity:.5;cursor:not-allowed}"}</style>
+      <div style={{width:"100%",maxWidth:380,background:"rgba(20,22,40,.98)",border:"1px solid rgba(30,90,176,.2)",borderRadius:16,padding:"36px 32px",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"#e8eaf0",marginBottom:4}}>Latin Securities</div>
+          <div style={{color:"#7a8fa8",fontSize:11,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>LS Event Manager</div>
+        </div>
+        <div style={{display:"flex",gap:4,marginBottom:24,background:"rgba(30,90,176,.08)",borderRadius:8,padding:3}}>
+          {[["login","Iniciar sesión"],["signup","Crear cuenta"]].map(([v,l])=>(
+            <button key={v} onClick={()=>{setAuthView(v);setAuthErr("");}}
+              style={{flex:1,padding:"8px 0",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all .15s",
+                background:authView===v?"#1e5ab0":"transparent",color:authView===v?"#fff":"#7a8fa8"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {authView==="signup"&&<input className="auth-inp" placeholder="Nombre completo" value={authName} onChange={e=>setAuthName(e.target.value)}/>}
+        <input className="auth-inp" type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
+        <input className="auth-inp" type="password" placeholder="Contraseña" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
+        {authErr&&<div style={{fontSize:12,color:authErr.startsWith("✅")?"#3a8c5c":"#e05050",marginBottom:12,lineHeight:1.5,padding:"8px 10px",background:authErr.startsWith("✅")?"rgba(58,140,92,.1)":"rgba(214,68,68,.08)",borderRadius:6}}>{authErr}</div>}
+        <button className="auth-btn" disabled={authBusy||!authEmail||!authPwd} onClick={authView==="login"?signIn:signUp}>
+          {authBusy?"⏳ Procesando...":(authView==="login"?"Entrar":"Crear cuenta")}
+        </button>
+        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"rgba(120,140,170,.5)",fontFamily:"IBM Plex Mono,monospace"}}>
+          Tus datos están cifrados y sincronizados en la nube.
+        </div>
+      </div>
+    </div>
+  );
+
   return(
     <div className="app"><style>{CSS}</style>
 
@@ -3043,6 +3168,10 @@ Daily Summary — ${dayLabel}
           {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":e.kind==="outbound"?"✈️":"🏛"} {e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
+        <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
+          <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
+          <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
+        </div>
       </div>
       <nav className="nav">
         {TABS.map(t=><button key={t.id} className={`ntab${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}
@@ -3086,7 +3215,7 @@ Daily Summary — ${dayLabel}
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
                   {events.length>1&&<button className="btn bd bs" title="Eliminar evento" onClick={()=>{
                     if(confirm(`Eliminar "${e.name}"? Esta acción no se puede deshacer.`)){
-                      const next=events.filter(x=>x.id!==e.id);setEvents(next);saveEvents(next);
+                      const next=events.filter(x=>x.id!==e.id);setEvents(next);saveEvents(next);cloudDeleteEvent(e.id);
                       if(activeEv===e.id) setActiveEv(next[0]?.id||null);
                     }
                   }}>🗑</button>}
