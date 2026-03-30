@@ -1694,10 +1694,38 @@ export default function App(){
   const [invProfile,setInvProfile] = useState(null);
   const [coProfile,setCoProfile]   = useState(null);
   const [showEvMgr,setShowEvMgr]   = useState(false);
+  const [evPasswordModal,setEvPasswordModal] = useState(null); // {evId, mode:"set"|"check", resolve}
+  const [evPasswordInput,setEvPasswordInput] = useState("");
   const [showAddCo,setShowAddCo]   = useState(false);
   const [newCoForm,setNewCoForm]   = useState({name:"",ticker:"",sector:"Financials"});
   const fileRef = useRef();
   const scheduled = meetings.length>0;
+
+  // ── Password helpers ─────────────────────────────────────────
+  async function hashPwd(pwd){ const b=new TextEncoder().encode(pwd); const h=await crypto.subtle.digest("SHA-256",b); return Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,"0")).join(""); }
+  function setEvPassword(evId, pwd){
+    hashPwd(pwd).then(hash=>{
+      const next=events.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined}:e);
+      setEvents(next); saveEvents(next);
+      alert(pwd?"🔒 Contraseña configurada.":"🔓 Contraseña eliminada.");
+    });
+  }
+  async function checkEvPassword(evId){
+    const ev=events.find(e=>e.id===evId);
+    if(!ev?.passwordHash) return true; // no password
+    return new Promise(resolve=>{
+      setEvPasswordModal({evId,mode:"check",resolve});
+      setEvPasswordInput("");
+    });
+  }
+  async function handleOpenEvent(evId){
+    const ok=await checkEvPassword(evId);
+    if(!ok) return;
+    setActiveEv(evId);
+    const ev=events.find(e=>e.id===evId);
+    setTab(ev?.kind==="roadshow"?"roadshow":ev?.kind==="outbound"?"outbound":"upload");
+    setShowEvMgr(false);
+  }
 
   // ── Create new event ─────────────────────────────────────────
   function createEvent(name, kind="conference"){
@@ -3052,9 +3080,12 @@ Daily Summary — ${dayLabel}
                     </div>
                     <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{(e.investors||[]).length} inversores · {(e.meetings||[]).length} reuniones</div>
                   </div>
-                  <button className="btn bo bs" onClick={()=>{setActiveEv(e.id);setShowEvMgr(false);setTab("schedule");}}>Abrir</button>
-                  {events.length>1&&<button className="btn bd bs" onClick={()=>{
-                    if(confirm(`Eliminar "${e.name}"?`)){
+                  <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
+                  <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
+                    setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
+                  }}>{e.passwordHash?"🔒":"🔓"}</button>
+                  {events.length>1&&<button className="btn bd bs" title="Eliminar evento" onClick={()=>{
+                    if(confirm(`Eliminar "${e.name}"? Esta acción no se puede deshacer.`)){
                       const next=events.filter(x=>x.id!==e.id);setEvents(next);saveEvents(next);
                       if(activeEv===e.id) setActiveEv(next[0]?.id||null);
                     }
@@ -3064,6 +3095,42 @@ Daily Summary — ${dayLabel}
             </div>
           </div>
           <div className="modal-footer"><button className="btn bo bs" onClick={()=>setShowEvMgr(false)}>Cerrar</button></div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Password modal ── */}
+    {evPasswordModal&&(
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget){setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}}>
+        <div className="modal" style={{maxWidth:360}}>
+          <div className="modal-hdr">
+            <div className="modal-title">{evPasswordModal.mode==="check"?"🔒 Evento protegido":"🔒 Contraseña del evento"}</div>
+          </div>
+          <div className="modal-body">
+            {evPasswordModal.mode==="check"?(
+              <>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:12}}>Este evento está protegido. Ingresá la contraseña para abrirlo.</p>
+                <div className="lbl">Contraseña</div>
+                <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)}
+                  placeholder="Contraseña..."
+                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}}/>
+              </>
+            ):(
+              <>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:12}}>Ingresá una contraseña para proteger este evento. Dejá vacío para quitar la contraseña.</p>
+                <div className="lbl">Nueva contraseña</div>
+                <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)} placeholder="Dejar vacío para quitar..."/>
+              </>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn bo bs" onClick={()=>{setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}>Cancelar</button>
+            {evPasswordModal.mode==="check"?(
+              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}>Abrir</button>
+            ):(
+              <button className="btn bg bs" onClick={()=>{setEvPassword(evPasswordModal.evId,evPasswordInput);setEvPasswordModal(null);}}>Guardar</button>
+            )}
+          </div>
         </div>
       </div>
     )}
