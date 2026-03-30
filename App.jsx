@@ -1083,16 +1083,42 @@ function getMeetingAddress(m, co, officeAddress){
   return m.locationCustom||"Buenos Aires, Argentina";
 }
 
+// Load Google Maps JS API dynamically (browser-compatible, avoids CORS)
+function loadMapsApi(apiKey){
+  return new Promise((resolve,reject)=>{
+    if(window.google?.maps?.DistanceMatrixService){resolve();return;}
+    if(document.getElementById("gmap-script")){
+      // Already loading — wait for it
+      const check=setInterval(()=>{if(window.google?.maps?.DistanceMatrixService){clearInterval(check);resolve();}},100);
+      setTimeout(()=>{clearInterval(check);reject(new Error("Maps API timeout"));},10000);
+      return;
+    }
+    const s=document.createElement("script");
+    s.id="gmap-script";
+    s.src=`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
+    s.async=true;
+    s.onload=resolve;
+    s.onerror=()=>reject(new Error("Maps API failed to load"));
+    document.head.appendChild(s);
+  });
+}
 async function fetchTravelTime(origin, destination, apiKey){
   if(!apiKey) return null;
-  const url=`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&mode=driving&key=${apiKey}`;
   try{
-    const r=await fetch(url);
-    const d=await r.json();
-    const el=d.rows?.[0]?.elements?.[0];
-    if(el?.status==="OK") return{durationText:el.duration.text,durationSec:el.duration.value,distanceText:el.distance.text};
-    return null;
-  }catch{ return null; }
+    await loadMapsApi(apiKey);
+    return await new Promise((resolve)=>{
+      new window.google.maps.DistanceMatrixService().getDistanceMatrix(
+        {origins:[origin],destinations:[destination],travelMode:"DRIVING",unitSystem:window.google.maps.UnitSystem.METRIC},
+        (res,status)=>{
+          if(status==="OK"){
+            const el=res.rows?.[0]?.elements?.[0];
+            if(el?.status==="OK") resolve({durationText:el.duration.text,durationSec:el.duration.value,distanceText:el.distance.text});
+            else resolve(null);
+          } else resolve(null);
+        }
+      );
+    });
+  }catch(e){ console.warn("Travel time fetch failed:",e.message); return null; }
 }
 
 function openGoogleMapsRoute(stops){
@@ -4541,7 +4567,7 @@ Daily Summary — ${dayLabel}
                                       <span style={{color:"var(--dim)"}}>· {travelData.distanceText}</span>
                                       {conflict?.conflict&&<span style={{color:"var(--red)",fontWeight:700}}>⚠ CONFLICTO — solo {conflict.gapMin} min entre reuniones</span>}
                                       {conflict?.warning&&!conflict.conflict&&<span style={{color:"#e8850a"}}>⚡ Justo — {conflict.gapMin} min de margen</span>}
-                                      {!conflict&&<span style={{color:"var(--grn)"}}>✓ OK ({(nextM.hour*60)-(m.hour*60+dur)-travelData.durationSec/60|0} min de margen)</span>}
+                                      {!conflict&&<span style={{color:"var(--grn)"}}>✓ OK ({Math.floor((nextM.hour*60)-(m.hour*60+dur)-travelData.durationSec/60)} min de margen)</span>}
                                     </>
                                   ):(
                                     <span style={{color:"var(--dim)",fontStyle:"italic"}}>
