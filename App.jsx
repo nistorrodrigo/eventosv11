@@ -662,12 +662,13 @@ html,body{background:var(--ink)}
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WDAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
 function DatePicker({value,onChange,onClose}){
-  const parsed=value?new Date(value+"-01"):new Date(2026,3,1); // default Apr 2026
+  // Handle both YYYY-MM and full YYYY-MM-DD dates
+  const parsed=value?new Date((value.length===7?value+"-01":value)+"T12:00:00"):new Date(2026,3,1);
   const [view,setView]=useState({y:parsed.getFullYear(),m:parsed.getMonth()});
   const today=new Date();
   const firstDay=new Date(view.y,view.m,1).getDay();
   const daysInMonth=new Date(view.y,view.m+1,0).getDate();
-  const selDate=value?new Date(value):null;
+  const selDate=value?new Date(value+"T12:00:00"):null;
   const cells=[];
   for(let i=0;i<firstDay;i++) cells.push(null);
   for(let d=1;d<=daysInMonth;d++) cells.push(d);
