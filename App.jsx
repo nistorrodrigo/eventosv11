@@ -1086,13 +1086,18 @@ function getMeetingAddress(m, co, officeAddress){
 
 // Free travel time: Nominatim geocoding + OSRM routing — no API key needed
 // ── Free routing: Nominatim geocoding + OSRM ──────────────────────────────
+function cleanAddr(addr){
+  // Strip floor/piso/level info that confuses Nominatim ("Piso 26", "Planta 3", "Piso 6°")
+  return addr.replace(/,?\s*(Piso|Planta|Piso\s*\d+°?|Floor|Level|PB|Oficina)\s*\w*/gi,'').replace(/\s{2,}/g,' ').trim();
+}
 // geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim
 async function geocodeAll(addresses){
   const unique=[...new Set(addresses)];
   const coords={};
   for(const addr of unique){
     try{
-      const q=encodeURIComponent(addr+", Buenos Aires, Argentina");
+      const cleaned=cleanAddr(addr);
+      const q=encodeURIComponent(cleaned+", Buenos Aires, Argentina");
       const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
         {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0 latinse"}});
       if(r.ok){
