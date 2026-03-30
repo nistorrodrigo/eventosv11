@@ -821,10 +821,11 @@ function rsToEntity(rs,rsCos){
       const coReps=(()=>{if(m.type!=="company") return "";const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");})();
       // Fund visitors (from trip)
       const visitorsLine=(trip.visitors||[]).filter(v=>v.name).map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(", ");
+      // meetingFormat: Meeting / Lunch / Dinner etc. — shown in Type col, not repeated visitors
+      const fmt=m.meetingFormat||"Meeting";
       return{time:fmtH(m.hour),col1:co?co.name:(m.lsType||m.title||"Meeting"),col1b:co?co.ticker:null,
-        col1c:coReps?('<strong>'+esc(coReps)+'</strong>'+(m.notes?'<br><em>'+esc(m.notes.slice(0,60))+(m.notes.length>60?"...":"")+'</em>':"")):
-                     (m.notes?('<em>'+esc(m.notes.slice(0,80))+(m.notes.length>80?"...":"")+'</em>'):null),
-        col1html:true,col1chtml:true,col2:visitorsLine||(m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom")),col2html:false,col3:locL,col4:st};})
+        col1c:coReps?('<strong>'+esc(coReps)+'</strong>'):null,
+        col1html:true,col1chtml:true,col2:fmt,col2html:false,col3:locL,col4:st};})
   }))};
 }
 
@@ -1159,6 +1160,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
+  const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
   const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
   const d=new Date((date||"2026-04-20")+"T12:00:00");
   const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1172,7 +1174,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
     const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,fullAddress:fullAddr,
+      location:loc,locationCustom:locCustom,status,notes,meetingFormat,fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[]};
     onSave(m);
   }
@@ -1228,12 +1230,19 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
                 placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6° Piso, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
             </div>
           </div>
-          <div style={{marginBottom:12}}><div className="lbl">Estado</div>
+          <div className="g2" style={{gap:10,marginBottom:12}}>
+            <div><div className="lbl">Estado</div>
             <div style={{display:"flex",gap:5}}>
               {[["tentative","⏳ Tentativo"],["confirmed","✅ Confirmado"],["cancelled","❌ Cancelado"]].map(([v,l])=>(
                 <button key={v} className={`btn bs ${status===v?"bg":"bo"}`} style={{fontSize:10,flex:1}} onClick={()=>setStatus(v)}>{l}</button>
               ))}
             </div></div>
+            <div><div className="lbl">Formato</div>
+              <select className="sel" value={meetingFormat} onChange={e=>setMeetingFormat(e.target.value)}>
+                {["Meeting","Breakfast Meeting","Lunch","Dinner","Conference Call","Roadshow Presentation","Site Visit"].map(f=><option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
           <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
           {type==="company"&&coContacts.length>0&&(
