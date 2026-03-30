@@ -4307,7 +4307,7 @@ Daily Summary — ${dayLabel}
                               {(co.location==="hq")&&(
                                 <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.hqAddress||""} placeholder="Dirección HQ (para Google Maps)..." onChange={e=>setCo("hqAddress",e.target.value)}/>
                               )}
-                              {(co.location==="custom")&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder="Otra dirección..." onChange={e=>setCo("locationCustom",e.target.value)}/>}}
+                              {(co.location==="custom")&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder="Otra dirección..." onChange={e=>setCo("locationCustom",e.target.value)}/>}
                               <textarea className="inp" style={{fontSize:10,padding:"3px 6px",minHeight:44,resize:"none"}} value={co.notes||""} placeholder="Notas..." onChange={e=>setCo("notes",e.target.value)}/>
                             </div>
                           </div>

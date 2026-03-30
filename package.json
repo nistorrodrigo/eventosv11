@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint:hooks": "node scripts/lint-hooks.cjs",
+    "prebuild": "node scripts/lint-hooks.cjs"
   },
   "dependencies": {
     "react": "^18.2.0",
