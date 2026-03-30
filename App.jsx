@@ -793,7 +793,8 @@ function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const cli=trip.fund?(trip.clientName?`${trip.fund} (${trip.clientName})`:`${trip.fund}`):(trip.clientName||"[cliente]");
   const visitorLine=visitors.length>1?`los siguientes representantes de ${cli}: ${visNames.join(", ")}`:`${visNames[0]} de ${cli}`;
   const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Arenales 707, 6° Piso, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
-  const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${h}:00 hs`).join("\n")||"• A coordinar según disponibilidad";
+  const fmtHe=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${fmtHe(h)} hs`).join("\n")||"• A coordinar según disponibilidad";
   const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
   const primaryContact=(co.contacts||[])[0];
   const body=`Estimado/a ${primaryContact?.name||co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
@@ -806,18 +807,24 @@ function rsToEntity(rs,rsCos){
   Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
   const days=Object.keys(byDay).sort();
   if(!days.length) return null;
-  const fmtH=h=>`${String(h).padStart(2,"0")}:00`;
+  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
   const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-  const sub=`Buenos Aires Roadshow · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")} · ${trip.hotel||"Buenos Aires"}`;
+  const visitors=(trip.visitors||[]).filter(v=>v.name);
+  const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
+  const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")}${visLine?" · "+visLine:""}`;
   return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
       const locL=m.location==="ls_office"?"LS Offices":m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
+      // Company attendees from meeting
+      const coReps=(()=>{if(m.type!=="company") return "";const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");})();
+      // Fund visitors (from trip)
+      const visitorsLine=(trip.visitors||[]).filter(v=>v.name).map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(", ");
       return{time:fmtH(m.hour),col1:co?co.name:(m.lsType||m.title||"Meeting"),col1b:co?co.ticker:null,
-        col1c:m.notes?('<em>'+esc(m.notes.slice(0,80))+(m.notes.length>80?"...":"")+'</em>'):null,
-        col1html:false,col1chtml:false,col2:m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom"),col2html:false,col3:locL,col4:st,
-        col5reps:(()=>{if(m.type!=="company") return "";const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");})()};})
+        col1c:coReps?('<strong>'+esc(coReps)+'</strong>'+(m.notes?'<br><em>'+esc(m.notes.slice(0,60))+(m.notes.length>60?"...":"")+'</em>':"")):
+                     (m.notes?('<em>'+esc(m.notes.slice(0,80))+(m.notes.length>80?"...":"")+'</em>'):null),
+        col1html:true,col1chtml:true,col2:visitorsLine||(m.type==="company"?"Corporate Meeting":m.type==="ls_internal"?"LS Internal":(m.title||"Custom")),col2html:false,col3:locL,col4:st};})
   }))};
 }
 
@@ -828,7 +835,7 @@ function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose
   const[fmt,setFmt]=useState("text"); // "text" | "html"
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
   const{trip,meetings}=roadshow;
-  const fmtH=h=>`${String(h).padStart(2,"0")}:00`;
+  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
   const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
   const byDay={};(meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
@@ -974,7 +981,9 @@ function buildBookingPage(trip, companies, meetings, officeAddress){
   }
   const slots=[];
   for(const day of workDays){
-    for(const h of [9,10,11,12,14,15,16,17]){
+    // Use 30-min increments 8:30–18:00 for booking page
+    const BOOK_HOURS=[9,9.5,10,10.5,11,11.5,12,12.5,14,14.5,15,15.5,16,16.5,17,17.5];
+    for(const h of BOOK_HOURS){
       if(!busySlots.has(`${day}-${h}`)) slots.push({day,h});
     }
   }
@@ -1004,7 +1013,7 @@ function buildBookingPage(trip, companies, meetings, officeAddress){
 .success{display:none;background:#e8f5ee;border:2px solid #3a8c5c;border-radius:10px;padding:20px;text-align:center;color:#2d5a3d}
 .success h3{font-size:16px;margin-bottom:8px}.copy-box{background:#f4f7fc;border:1px solid #dde;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;margin-top:10px;word-break:break-all}
 </style></head><body><div class="wrap">
-<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} visita Buenos Aires · ${trip.arrivalDate||""} al ${trip.departureDate||""}</p></div>
+<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} · Buenos Aires · ${trip.arrivalDate||""} – ${trip.departureDate||""}</p></div>
 <div class="card"><h2>Seleccioná un horario disponible</h2>
 <div id="slotContainer"></div></div>
 <div class="card" id="formCard" style="display:none"><h2>Tus datos</h2>
@@ -1033,7 +1042,7 @@ function render(){
     slots.forEach(s=>{
       const key=s.id;const isTaken=!!taken[key];const isSel=selectedSlot&&selectedSlot.id===key;
       html+=\`<button class="slot-btn\${isTaken?" taken":""}\${isSel?" selected":""}" onclick="\${isTaken?"":"selectSlot('"+key+"',"+(s.h)+",'"+day+"')"}">\`;
-      html+=\`<span>\${String(s.h).padStart(2,"0")}:00 – \${String(s.h+1).padStart(2,"0")}:00 hs</span>\`;
+      const fmtBH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};const endH=s.h+0.5;html+=\`<span>\${fmtBH(s.h)} – \${fmtBH(endH)} hs</span>\`;
       html+=\`<span class="tag \${isTaken?"tag-taken":"tag-free"}">\${isTaken?"Ocupado":"Disponible"}</span></button>\`;
     });
     html+="</div>";
