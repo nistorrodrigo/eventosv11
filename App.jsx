@@ -1083,30 +1083,37 @@ function getMeetingAddress(m, co, officeAddress){
   return m.locationCustom||"Buenos Aires, Argentina";
 }
 
-// Free travel time estimation using Nominatim (geocoding) + OSRM (routing)
-// No API key required. Uses OpenStreetMap data.
+// Free travel time: Nominatim geocoding + OSRM routing — no API key needed
+const _geoCache={};
 async function geocodeAddress(address){
+  if(_geoCache[address]) return _geoCache[address];
   const q=encodeURIComponent(address+", Buenos Aires, Argentina");
   const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-    {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0"}});
+    {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0 contact@latinsecurities.ar"}});
+  if(!r.ok) return null;
   const d=await r.json();
   if(!d.length) return null;
-  return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  const result={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  _geoCache[address]=result;
+  return result;
 }
-async function fetchTravelTime(origin, destination, _apiKey){
+function sleep(ms){return new Promise(res=>setTimeout(res,ms));}
+async function fetchTravelTime(origin, destination){
   try{
-    const [o,d]=await Promise.all([geocodeAddress(origin),geocodeAddress(destination)]);
+    const o=await geocodeAddress(origin);
+    await sleep(1100); // Nominatim: max 1 req/sec
+    const d=await geocodeAddress(destination);
     if(!o||!d) return null;
     const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`;
     const r=await fetch(url);
+    if(!r.ok) return null;
     const j=await r.json();
     if(j.code!=="Ok"||!j.routes?.length) return null;
     const sec=Math.round(j.routes[0].duration);
     const m=Math.round(j.routes[0].distance/1000*10)/10;
     const min=Math.round(sec/60);
-    const txt=min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`;
-    return{durationText:txt,durationSec:sec,distanceText:`${m} km`};
-  }catch(e){ console.warn("Travel time error:",e.message); return null; }
+    return{durationText:min<60?`${min} min`:`${Math.floor(min/60)}h ${min%60}min`,durationSec:sec,distanceText:`${m} km`};
+  }catch(e){ console.warn("Travel:",e.message); return null; }
 }
 
 function openGoogleMapsRoute(stops){
@@ -2710,6 +2717,40 @@ Daily Summary — ${dayLabel}
 
   // ── Roadshow derived ─────────────────────────────────────────────
   const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
+  // ─── Travel time (OSRM + Nominatim, free) ─────────────────────────────────
+  // Must live at App level — async setState inside IIFE doesn't trigger re-render
+  const rsCoMapForTravel=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);
+  async function calcDayTravel(date){
+    const offAddr=roadshow.trip.officeAddress;
+    const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+    if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
+    const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
+    setTravelLoading(true);
+    const results={};
+    for(let i=0;i<dayMtgs.length-1;i++){
+      results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
+    }
+    setTravelCache(prev=>({...prev,[date]:results}));
+    setTravelLoading(false);
+  }
+  async function calcAllTravel(){
+    const offAddr=roadshow.trip.officeAddress;
+    const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+    const hasMtgs=workDays.some(d=>(roadshow.meetings||[]).some(m=>m.date===d&&m.status!=="cancelled"));
+    if(!hasMtgs){alert("No hay reuniones cargadas.");return;}
+    setTravelLoading(true);
+    for(const date of workDays){
+      const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+      if(dayMtgs.length<2) continue;
+      const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
+      const results={};
+      for(let i=0;i<dayMtgs.length-1;i++){
+        results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
+      }
+      setTravelCache(prev=>({...prev,[date]:results}));
+    }
+    setTravelLoading(false);
+  }
   const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
   const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
   const gridMap=useMemo(()=>{
@@ -4443,23 +4484,35 @@ Daily Summary — ${dayLabel}
 
           {/* EMAILS */}
           {rsSubTab==="travel"&&(()=>{
-            const apiKey=roadshow.trip.mapsApiKey||"";
             const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
             const dur=roadshow.trip.meetingDuration||60;
 
+            const rmMapT=new Map(roadshow.companies.map(c=>[c.id,c]));
             async function calcDayTravel(date){
               const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
               if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
-              const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
-              const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
+              const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
               setTravelLoading(true);
               const results={};
               for(let i=0;i<dayMtgs.length-1;i++){
                 const key=`${date}-${i}`;
-                const t=await fetchTravelTime(addrs[i],addrs[i+1],apiKey);
-                results[key]=t;
+                results[key]=await fetchTravelTime(addrs[i],addrs[i+1]);
               }
               setTravelCache(prev=>({...prev,[date]:results}));
+              setTravelLoading(false);
+            }
+            async function calcAllTravel(){
+              setTravelLoading(true);
+              for(const date of workDays){
+                const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                if(dayMtgs.length<2) continue;
+                const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});
+                const results={};
+                for(let i=0;i<dayMtgs.length-1;i++){
+                  results[`${date}-${i}`]=await fetchTravelTime(addrs[i],addrs[i+1]);
+                }
+                setTravelCache(prev=>({...prev,[date]:results}));
+              }
               setTravelLoading(false);
             }
 
@@ -4470,15 +4523,19 @@ Daily Summary — ${dayLabel}
                   <h3 style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2}}>🗺️ Tiempos de traslado</h3>
                   <p style={{fontSize:12,color:"var(--dim)"}}>Verificá que haya tiempo suficiente entre reuniones considerando el traslado.</p>
                 </div>
-                              <div style={{fontSize:11,background:"rgba(58,140,92,.07)",border:"1px solid rgba(58,140,92,.2)",borderRadius:6,padding:"6px 10px",color:"var(--dim)"}}>
-                  🆓 Tiempos estimados con OpenStreetMap (OSRM) — sin API key. Clic en <strong style={{color:"var(--grn)"}}>Calcular tiempos</strong> en cada día.
+                              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontSize:11,background:"rgba(58,140,92,.07)",border:"1px solid rgba(58,140,92,.2)",borderRadius:6,padding:"5px 10px",color:"var(--dim)"}}>
+                    🆓 OpenStreetMap — sin API key
+                  </div>
+                  <button className="btn bg bs" style={{fontSize:10,gap:5}} disabled={travelLoading} onClick={calcAllTravel}>
+                    {travelLoading?"⏳ Calculando...":"🔄 Calcular todos los traslados"}
+                  </button>
                 </div>
               </div>
 
               {workDays.map(date=>{
                 const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
                 if(!dayMtgs.length) return null;
-                const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
                 const d=new Date(date+"T12:00:00");
                 const dayLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
                 const dayTravel=travelCache[date]||{};
@@ -4493,7 +4550,7 @@ Daily Summary — ${dayLabel}
                           "🔄 Calcular tiempos"
                         </button>}
                         {dayMtgs.length>=2&&<button className="btn bo bs" style={{fontSize:9,gap:4}}
-                          onClick={()=>{const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rmMap.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});openGoogleMapsRoute(addrs);}}>
+                          onClick={()=>{const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});openGoogleMapsRoute(addrs);}}>
                           🗺️ Abrir ruta
                         </button>}
                       </div>
@@ -4505,7 +4562,7 @@ Daily Summary — ${dayLabel}
                       <div style={{position:"absolute",left:9,top:8,bottom:8,width:2,background:"rgba(30,90,176,.15)",borderRadius:1}}/>
 
                       {dayMtgs.map((m,mi)=>{
-                        const co=m.type==="company"?rmMap.get(m.companyId):null;
+                        const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;
                         const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
                         const addr=getMeetingAddress(m,co,roadshow.trip.officeAddress);
                         const endHour=m.hour+Math.floor(dur/60);
@@ -4554,7 +4611,7 @@ Daily Summary — ${dayLabel}
                                     </>
                                   ):(
                                     <span style={{color:"var(--dim)",fontStyle:"italic"}}>
-                                      {(nextM.hour-m.hour)*60-dur} min entre reuniones — {apiKey?"clic en Calcular":"clic en Ver ruta"} para estimar traslado
+                                      {Math.round((nextM.hour-m.hour)*60-dur)} min entre reuniones — presioná Calcular para estimar traslado
                                     </span>
                                   )}
                                 </div>
