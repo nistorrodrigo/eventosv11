@@ -2308,22 +2308,35 @@ export default function App(){
         const wb=XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){alert("Archivo vacío.");return;}
-        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-        const ci=k=>hdr.findIndex(h=>h.includes(k));
-        // Column detection: date, hour/time, company, type, location, status, notes
-        const datC=ci("date"),hourC=Math.max(ci("hour"),ci("time")),coC=Math.max(ci("company"),ci("empresa")),
-          typeC=ci("type"),locC=Math.max(ci("location"),ci("lugar")),statC=ci("status"),notesC=ci("notes");
+        // Skip title/subtitle rows until we find the header row (contains "fecha" or "date" or "compañía")
+        let hdrRowIdx=0;
+        for(let i=0;i<Math.min(rows.length,5);i++){
+          const rowStr=rows[i].map(c=>String(c).toLowerCase()).join("|");
+          if(rowStr.includes("fecha")||rowStr.includes("date")||rowStr.includes("compa")){hdrRowIdx=i;break;}
+        }
+        const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c).trim()));
+        if(!dataRows.length){alert("Archivo vacío o sin filas de datos.");return;}
+        const hdr=rows[hdrRowIdx].map(h=>String(h).toLowerCase().trim());
+        // Flexible column matching — accepts Spanish OR English headers
+        const ci=(...keys)=>{const idx=hdr.findIndex(h=>keys.some(k=>h.includes(k)));return idx;};
+        const datC  = ci("fecha","date");
+        const diaC  = ci("día","dia","day");          // optional — skip column
+        const hourC = ci("hora","hour","time");
+        const coC   = ci("compañía","compania","company","empresa");
+        const typeC = ci("tipo","type");
+        const locC  = ci("dirección","direccion","location","lugar","address");
+        const statC = ci("estado","status");
+        const notesC= ci("notas","notes","nota");
+
         const rsCoMap=new Map(roadshow.companies.map(c=>[c.name.toLowerCase(),c]));
         const newMtgs=[];let skipped=0;
-        rows.slice(1).forEach((r,i)=>{
+        dataRows.forEach((r,i)=>{
           const rawDate=String(r[datC]||"").trim();
-          const rawHour=String(r[hourC]||"").trim();
-          if(!rawDate) return;
-          // Parse date — accept YYYY-MM-DD, DD/MM/YYYY, serial numbers from Excel
+          const rawHour=String(r[hourC>=0?hourC:2]||"").trim();
+          if(!rawDate||rawDate==="Fecha"||rawDate==="Date") return; // skip re-header rows
+          // Parse date — DD/MM/YYYY, YYYY-MM-DD, or Excel serial
           let dateStr="";
           if(/^\d{5}$/.test(rawDate)){
-            // Excel serial date
             const d=new Date(Math.round((parseFloat(rawDate)-25569)*86400*1000));
             dateStr=d.toISOString().slice(0,10);
           } else if(/\d{4}-\d{2}-\d{2}/.test(rawDate)){
@@ -2333,24 +2346,32 @@ export default function App(){
             const y=m[3].length===2?"20"+m[3]:m[3];
             dateStr=`${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
           } else { skipped++; return; }
-          // Parse hour
+          // Parse hour — "09:00", "9", "9.00" all work
           const hourMatch=rawHour.match(/(\d{1,2})/);
           const hour=hourMatch?parseInt(hourMatch[1]):9;
-          // Match company
-          const rawCo=String(r[coC]||"").trim().toLowerCase();
-          const co=rawCo?([...rsCoMap.entries()].find(([k])=>k.includes(rawCo)||rawCo.includes(k))||[])[1]:null;
-          const typeRaw=String(r[typeC]||"company").toLowerCase();
-          const type=typeRaw.includes("internal")||typeRaw.includes("intern")||typeRaw.includes("ls")?"ls_internal":typeRaw.includes("custom")?"custom":"company";
-          const locRaw=String(r[locC]||"ls_office").toLowerCase();
-          const loc=locRaw.includes("hq")||locRaw.includes("empresa")||locRaw.includes("company")?"hq":"ls_office";
-          const statRaw=String(r[statC]||"tentative").toLowerCase();
-          const status=statRaw.includes("confirm")?"confirmed":statRaw.includes("cancel")?"cancelled":"tentative";
+          // Match company against roadshow companies list
+          const rawCoName=coC>=0?String(r[coC]||"").trim():"";
+          const rawCoLow=rawCoName.toLowerCase();
+          const co=rawCoLow?([...rsCoMap.entries()].find(([k])=>k.includes(rawCoLow)||rawCoLow.includes(k))||[])[1]:null;
+          // Type: "Company Visit" → company, anything with "internal/ls/almuerzo/lunch" → ls_internal
+          const typeRaw=typeC>=0?String(r[typeC]||"").toLowerCase():"company";
+          const type=typeRaw.includes("internal")||typeRaw.includes("intern")||typeRaw.includes("ls")||typeRaw.includes("almuerzo")||typeRaw.includes("lunch")||typeRaw.includes("network")?"ls_internal":"company";
+          // Location: if it contains a street address, store as custom; "hq" → hq; otherwise ls_office
+          const locRaw=locC>=0?String(r[locC]||"").trim():"";
+          const locLow=locRaw.toLowerCase();
+          let loc="ls_office", locCustom="";
+          if(locLow.includes("hq")||locLow.includes("headquarters")) loc="hq";
+          else if(locLow.includes("latin securities")||locLow.includes("arenales")||locLow.includes("ls office")||locLow.includes("oficina latin")) loc="ls_office";
+          else if(locRaw.length>4){ loc="custom"; locCustom=locRaw; } // real address → custom
+          // Status: "✅ Confirmado" / "confirmed" / "tentativo" etc.
+          const statRaw=statC>=0?String(r[statC]||"tentative").toLowerCase():"tentative";
+          const status=statRaw.includes("confirm")||statRaw.includes("✅")?"confirmed":statRaw.includes("cancel")||statRaw.includes("❌")?"cancelled":"tentative";
+          const notes=notesC>=0?String(r[notesC]||"").trim():"";
           newMtgs.push({
             id:`rsm-xl-${Date.now()}-${i}`,
             date:dateStr, hour, duration:60, type,
-            companyId:co?.id||"", title:!co?String(r[coC]||"").trim():"",
-            location:loc, locationCustom:"", status,
-            notes:String(r[notesC]||"").trim(),
+            companyId:co?.id||"", title:!co?rawCoName:"",
+            location:loc, locationCustom:locCustom, status, notes,
             attendeeIds:[]
           });
         });
@@ -4150,12 +4171,16 @@ Daily Summary — ${dayLabel}
                 <div style={{marginLeft:"auto"}}>
                   <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
                   <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>rsMtgsExcelRef.current?.click()}>📥 Importar Excel</button>
-                  <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Date | Hour | Company | Type | Location | Status | Notes" onClick={()=>{
-                    const header=["Date","Hour","Company","Type (company/ls_internal/custom)","Location (ls_office/hq)","Status (tentative/confirmed/cancelled)","Notes"];
-                    const example=["2026-04-18","9","Banco Macro","company","ls_office","confirmed","Presentar equity story Q1"];
-                    const ws=XLSX.utils.aoa_to_sheet([header,example]);
-                    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Meetings");
-                    XLSX.writeFile(wb,"Meetings_Template.xlsx");
+                  <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Fecha | Día | Hora | Compañía | Tipo | Dirección/Lugar | Estado | Notas" onClick={()=>{
+                    const header=["Fecha","Día","Hora","Compañía","Tipo","Dirección / Lugar","Estado","Notas"];
+                    const rows=[
+                      ["20/04/2026","Lun","09:00","TGS","Company Visit","Cecilia Grierson 355, Piso 26, CABA","✅ Confirmado","Rodrigo Nistor"],
+                      ["20/04/2026","Lun","10:30","Pampa Energía","Company Visit","Maipú 1, CABA","✅ Confirmado","Rodrigo Nistor"],
+                      ["21/04/2026","Mar","09:00","YPF","Company Visit","Macacha Güemes 515, CABA","✅ Confirmado","Rodrigo Nistor"],
+                    ];
+                    const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+                    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Reuniones");
+                    XLSX.writeFile(wb,"Plantilla_Reuniones.xlsx");
                   }}>📋 Plantilla</button>
                 </div>
               </div>
