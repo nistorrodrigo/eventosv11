@@ -61,7 +61,7 @@ function parseAvail(raw, hours, cfg){
 ═══════════════════════════════════════════════════════════════════ */
 const COMPANIES_INIT = [
   {id:"BMA",   name:"Banco Macro",          ticker:"BMA",   sector:"Financials", hqAddress:"Av. Eduardo Madero 1182, CABA"},
-  {id:"BBAR",  name:"BBVA Argentina",        ticker:"BBAR",  sector:"Financials", hqAddress:"Reconquista 199, CABA"},
+  {id:"BBAR",  name:"BBVA Argentina",        ticker:"BBAR",  sector:"Financials", hqAddress:"Av. Leandro N. Alem 815, Catalinas, CABA"},
   {id:"GGAL",  name:"Grupo Fin. Galicia",    ticker:"GGAL",  sector:"Financials", hqAddress:"Tte. Gral. Perón 430, CABA"},
   {id:"SUPV",  name:"Grupo Supervielle",     ticker:"SUPV",  sector:"Financials", hqAddress:"Bartolomé Mitre 434, CABA"},
   {id:"BYMA",  name:"BYMA",                  ticker:"BYMA",  sector:"Financials"},
@@ -71,12 +71,12 @@ const COMPANIES_INIT = [
   {id:"YPFL",  name:"YPF Luz",               ticker:"YPFL",  sector:"Energy",     hqAddress:"Macacha Güemes 515, Piso 3, CABA"},
   {id:"VIST",  name:"Vista Energy",          ticker:"VIST",  sector:"Energy",     hqAddress:"Av. del Libertador 101, Piso 12, Vicente López"},
   {id:"CEPU",  name:"Central Puerto",        ticker:"CEPU",  sector:"Energy",     hqAddress:"Av. Tomás A. Edison 2701, Puerto Madero, CABA"},
-  {id:"EDN",   name:"Edenor",                 ticker:"EDN",   sector:"Energy",     hqAddress:"Azopardo 1025, CABA"},
+  {id:"EDN",   name:"Edenor",                 ticker:"EDN",   sector:"Energy",     hqAddress:"Av. del Libertador 6363, Núñez, CABA"},
   {id:"TGS",   name:"TGS",                   ticker:"TGS",   sector:"Energy",     hqAddress:"Cecilia Grierson 355, Piso 26, CABA"},
   {id:"GNNEIA",name:"Genneia",               ticker:"GNNEIA",sector:"Energy",     hqAddress:"Nicolás Repetto 3676, Piso 3, Olivos, Bs. As."},
   {id:"MSU",   name:"MSU Energy",            ticker:"MSU",   sector:"Energy",     hqAddress:"Av. Corrientes 222, Piso 10, CABA"},
   {id:"CAAP",  name:"Corporación América",   ticker:"CAAP",  sector:"Infra",      hqAddress:"Honduras 5663, CABA"},
-  {id:"IRS",   name:"IRSA / Cresud",         ticker:"IRS",   sector:"Real Estate",hqAddress:"Moreno 877, Piso 23, CABA"},
+  {id:"IRS",   name:"IRSA / Cresud",         ticker:"IRS",   sector:"Real Estate",hqAddress:"Della Paolera 200, Catalinas, CABA"},
   {id:"LOMA",  name:"Loma Negra",            ticker:"LOMA",  sector:"Infra",      hqAddress:"Cecilia Grierson 355, Piso 4, CABA"},
   {id:"TEO",   name:"Telecom Argentina",     ticker:"TEO",   sector:"TMT",        hqAddress:"Av. Alicia Moreau de Justo 50, CABA"},
   {id:"TGNO4", name:"TGN",                   ticker:"TGNO4", sector:"Energy",     hqAddress:"Don Bosco 3672, Piso 5, CABA"},
