@@ -815,12 +815,26 @@ function rsToEntity(rs,rsCos){
   const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")}${visLine?" · "+visLine:""}`;
   return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
-      const locL=m.location==="ls_office"?"LS Offices":m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const locL=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
-      // Reps: company contacts (selected) or free-text participants for internal/custom
+      // Reps: company contacts (selected) or free-text participants — sorted by last name
       const reps=(()=>{
-        if(m.type==="company"){const allR=rm.get(m.companyId)?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");}
-        return m.participants||"";
+        if(m.type==="company"){
+          const allR=rm.get(m.companyId)?.contacts||[];
+          const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+          const sorted=[...sel.filter(r=>r.name)].sort((a,b)=>{
+            const la=a.name.split(" ").pop()||""; const lb=b.name.split(" ").pop()||"";
+            return la.localeCompare(lb,"es");
+          });
+          return sorted.map(r=>r.name+(r.title?" ("+r.title+")":"")).join(", ");
+        }
+        // Free-text: split by comma, trim, sort by last word, rejoin
+        const parts=(m.participants||"").split(",").map(s=>s.trim()).filter(Boolean);
+        const sorted=[...parts].sort((a,b)=>{
+          const la=a.split(" ").pop()||""; const lb=b.split(" ").pop()||"";
+          return la.localeCompare(lb,"es");
+        });
+        return sorted.join(", ");
       })();
       const fmt=m.meetingFormat||"Meeting";
         const col1Name=co?(co.name+(co.ticker?" ("+co.ticker+")":"")):(m.lsType||m.title||"Meeting");
