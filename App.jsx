@@ -2350,9 +2350,27 @@ export default function App(){
             const y=m[3].length===2?"20"+m[3]:m[3];
             dateStr=`${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
           } else { skipped++; return; }
-          // Parse hour — "09:00", "9", "9.00" all work
-          const hourMatch=rawHour.match(/(\d{1,2})/);
-          const hour=hourMatch?parseInt(hourMatch[1]):9;
+          // Parse hour — handles ALL Excel formats:
+          // - Excel time fraction: 0.375 = 9:00, 0.5 = 12:00, 0.625 = 15:00
+          // - String: "09:00", "9:00", "15:00", "9", "15", "3pm", "3 PM"
+          // - Smart 12h: if hour < 8 → assume PM (add 12). No meetings at 3am.
+          let hour=9;
+          const numVal=parseFloat(rawHour);
+          if(!isNaN(numVal)&&numVal>0&&numVal<1){
+            // Excel time fraction (e.g. 0.375 = 9:00)
+            hour=Math.round(numVal*24);
+          } else {
+            const pmMatch=rawHour.match(/pm/i);
+            const amMatch=rawHour.match(/am/i);
+            const hMatch=rawHour.match(/(\d{1,2})(?:[:h\.,](\d{0,2}))?/);
+            if(hMatch){
+              hour=parseInt(hMatch[1]);
+              if(pmMatch&&hour<12) hour+=12;
+              else if(amMatch&&hour===12) hour=0;
+              else if(!pmMatch&&!amMatch&&hour<8) hour+=12; // 3:00 → 15:00
+            }
+          }
+          hour=Math.max(7,Math.min(20,hour)); // clamp to 7am-8pm
           // Match company against roadshow companies list
           const rawCoName=coC>=0?String(r[coC]||"").trim():"";
           const rawCoLow=rawCoName.toLowerCase();
@@ -4178,11 +4196,21 @@ Daily Summary — ${dayLabel}
                   <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Fecha | Día | Hora | Compañía | Tipo | Dirección/Lugar | Estado | Notas" onClick={()=>{
                     const header=["Fecha","Día","Hora","Compañía","Tipo","Dirección / Lugar","Estado","Notas"];
                     const rows=[
-                      ["20/04/2026","Lun","09:00","TGS","Company Visit","Cecilia Grierson 355, Piso 26, CABA","✅ Confirmado","Rodrigo Nistor"],
-                      ["20/04/2026","Lun","10:30","Pampa Energía","Company Visit","Maipú 1, CABA","✅ Confirmado","Rodrigo Nistor"],
-                      ["21/04/2026","Mar","09:00","YPF","Company Visit","Macacha Güemes 515, CABA","✅ Confirmado","Rodrigo Nistor"],
+                      ["20/04/2026","Lun",9,"TGS","Company Visit","Cecilia Grierson 355, Piso 26, CABA","✅ Confirmado","Rodrigo Nistor"],
+                      ["20/04/2026","Lun",10.5,"Pampa Energía","Company Visit","Maipú 1, CABA","✅ Confirmado","Rodrigo Nistor"],
+                      ["21/04/2026","Mar",9,"YPF","Company Visit","Macacha Güemes 515, CABA","✅ Confirmado","Rodrigo Nistor"],
                     ];
                     const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+                    // Add data validation dropdown for Hora column (col C = index 2)
+                    // Hours 8-20 in 30min intervals as numbers (9, 9.5, 10, 10.5...)
+                    const VALID_HOURS=[8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20];
+                    const hourFormula='"'+VALID_HOURS.join(",")+'"';
+                    ws["!dataValidation"]=[
+                      {sqref:"C2:C100",type:"list",formula1:hourFormula,showDropDown:false,showErrorMessage:true,
+                       errorTitle:"Hora inválida",error:"Usá el dropdown: 9=9am, 9.5=9:30am, 13=1pm, 13.5=1:30pm, etc."}
+                    ];
+                    // Format hora cells as numbers
+                    for(let r=1;r<10;r++){const cell=XLSX.utils.encode_cell({r,c:2});if(ws[cell])ws[cell].t="n";}
                     const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Reuniones");
                     XLSX.writeFile(wb,"Plantilla_Reuniones.xlsx");
                   }}>📋 Plantilla</button>
