@@ -2308,19 +2308,23 @@ export default function App(){
         const wb=XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        // Skip title/subtitle rows until we find the header row (contains "fecha" or "date" or "compañía")
+        // Smart header detection: find the row that has AT LEAST 3 column-like keywords
+        // This avoids false positives from subtitle rows like "agenda de compañías"
+        const COL_KEYS=["fecha","date","hora","hour","time","compañ","company","empresa",
+                        "tipo","type","direc","location","lugar","estado","status","notas","notes"];
         let hdrRowIdx=0;
-        for(let i=0;i<Math.min(rows.length,5);i++){
-          const rowStr=rows[i].map(c=>String(c).toLowerCase()).join("|");
-          if(rowStr.includes("fecha")||rowStr.includes("date")||rowStr.includes("compa")){hdrRowIdx=i;break;}
+        for(let i=0;i<Math.min(rows.length,6);i++){
+          const rowStr=rows[i].map(c=>String(c||"").toLowerCase());
+          const hits=rowStr.filter(cell=>COL_KEYS.some(k=>cell.includes(k))).length;
+          if(hits>=3){hdrRowIdx=i;break;}
         }
-        const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c).trim()));
+        const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c||"").trim()));
         if(!dataRows.length){alert("Archivo vacío o sin filas de datos.");return;}
-        const hdr=rows[hdrRowIdx].map(h=>String(h).toLowerCase().trim());
+        const hdr=rows[hdrRowIdx].map(h=>String(h||"").toLowerCase().trim());
         // Flexible column matching — accepts Spanish OR English headers
         const ci=(...keys)=>{const idx=hdr.findIndex(h=>keys.some(k=>h.includes(k)));return idx;};
         const datC  = ci("fecha","date");
-        const diaC  = ci("día","dia","day");          // optional — skip column
+        const diaC  = ci("día","dia","day");
         const hourC = ci("hora","hour","time");
         const coC   = ci("compañía","compania","company","empresa");
         const typeC = ci("tipo","type");
