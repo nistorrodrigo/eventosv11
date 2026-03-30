@@ -459,7 +459,7 @@ ${sections.map((sec,_si)=>`${_si>0?'<p style="page-break-before:always;margin:0;
 <tr>${sec.headerCols.map(h=>`<th class="th">${esc(h)}</th>`).join("")}</tr>
 ${sec.rows.map((r,i)=>`<tr class="${i%2===0?"even":""}"><td class="tt">${esc(r.time)||""}</td>
 <td>${r.col1html?('<div style="line-height:1.8">'+r.col1+'</div>'):('<strong>'+esc(r.col1)+'</strong>')}${r.col1b?('<br/><small style="color:#666">'+esc(r.col1b)+'</small>'):""}${r.col1c?('<br/>'+(r.col1chtml?r.col1c:('<em style="color:#555">'+esc(r.col1c)+'</em>'))):""}</td>
-<td>${r.col2html?r.col2:esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
+${r.col5!==undefined?('<td style="font-size:9pt;color:#444">'+(r.col5||'')+'</td>'):''}<td>${r.col2html?r.col2:esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
 </table>`).join("")}
 ${(meta.contacts||[]).length?('<div style="margin-top:24px;padding-top:10px;border-top:2px solid #3399ff;font-size:9pt;color:#444"><strong style="color:#1e5ab0">Latin Securities \u2014 Event Contact</strong><br/>'+(meta.contacts||[]).map(c=>'<span>'+esc(c.name)+(c.role?' \u00b7 '+esc(c.role):'')+(c.email?' \u00b7 <a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+(c.phone?' \u00b7 '+esc(c.phone):'')+' </span>').join('&nbsp;|&nbsp;')+'</div>'):''}
 </body></html>`;
@@ -494,7 +494,7 @@ ${entities.flatMap(e=>e.sections.map((sec,_si)=>`<div class="page">
 <tr class="th">${sec.headerCols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
 ${sec.rows.map((r,i)=>`<tr class="${i%2===0?"even":""}"><td class="tt">${esc(r.time)||""}</td>
 <td>${r.col1html?('<div style="line-height:1.9;font-size:10.5pt">'+r.col1+'</div>'):('<strong>'+esc(r.col1)+'</strong>')}${r.col1b?('<br/><small>'+esc(r.col1b)+'</small>'):""}${r.col1c?('<br/>'+(r.col1chtml?r.col1c:('<em>'+esc(r.col1c)+'</em>'))):""}</td>
-<td>${esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
+${r.col5!==undefined?('<td style="font-size:9.5pt;color:#444">'+(r.col5||'')+'</td>'):''}<td>${esc(r.col2)}</td>${r.col4!==undefined?'<td>'+esc(r.col3||'')+'</td>':''}<td class="tr">${r.col4!==undefined?esc(r.col4):esc(r.col3)}</td></tr>`).join("")}
 </table>${_si===e.sections.length-1&&e.attendees?.length?('<div class="atts"><strong>Company Representatives:</strong> '+e.attendees.map(a=>esc(a.name)+(a.title?' ('+esc(a.title)+')':'')).join(' &bull; ')+'</div>'):""}
 ${_si===e.sections.length-1&&(meta.contacts||[]).length?('<div style="margin-top:20px;padding:10px 12px;border-top:2px solid #3399ff;font-size:9pt;color:#444"><strong style="color:#1e5ab0">Latin Securities — Event Contact:&nbsp;</strong>'+(meta.contacts||[]).map(c=>esc(c.name)+(c.role?' &middot; '+esc(c.role):'')+(c.email?' &middot; '+esc(c.email):'')+(c.phone?' &middot; '+esc(c.phone):'')).join('&nbsp;&nbsp;|&nbsp;&nbsp;')+'</div>'):""}
 </div>`)).join("")}
