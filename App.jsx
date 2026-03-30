@@ -1268,7 +1268,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
               />
             )}
             <div style={{marginTop:5}}>
-              <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa (para Google Maps)</div>
+              <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa</div>
               <input className="inp" style={{fontSize:11}} value={fullAddr} onChange={e=>setFullAddr(e.target.value)}
                 placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6° Piso, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
             </div>
@@ -4343,19 +4343,7 @@ Daily Summary — ${dayLabel}
               <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6° Piso, CABA"/></div>
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
-              <div>
-                <div className="lbl" style={{marginBottom:3}}>🗺️ Google Maps API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(opcional — para calcular tiempos automáticamente)</span></div>
-                <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
-                  value={roadshow.trip.mapsApiKey||""} onChange={e=>upTrip("mapsApiKey",e.target.value)}
-                  placeholder="AIza..."/>
-              </div>
-              <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:200}}>
-                Sin key: abre Google Maps en el navegador.<br/>
-                Con key: calcula tiempos automáticamente.<br/>
-                <a href="https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com" target="_blank" style={{color:"var(--gold)"}}>Activar API →</a>
-              </div>
-            </div>
+
             {/* Visitors */}
             <div style={{marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -4698,7 +4686,7 @@ Daily Summary — ${dayLabel}
                                 <option value="custom">📍 Otro</option>
                               </select>
                               {(co.location==="hq")&&(
-                                <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.hqAddress||""} placeholder="Dirección HQ (para Google Maps)..." onChange={e=>setCo("hqAddress",e.target.value)}/>
+                                <input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.hqAddress||""} placeholder="Dirección HQ..." onChange={e=>setCo("hqAddress",e.target.value)}/>
                               )}
                               {(co.location==="custom")&&<input className="inp" style={{fontSize:10,padding:"3px 6px",marginBottom:3}} value={co.locationCustom||""} placeholder="Otra dirección..." onChange={e=>setCo("locationCustom",e.target.value)}/>}
                               <textarea className="inp" style={{fontSize:10,padding:"3px 6px",minHeight:44,resize:"none"}} value={co.notes||""} placeholder="Notas..." onChange={e=>setCo("notes",e.target.value)}/>
