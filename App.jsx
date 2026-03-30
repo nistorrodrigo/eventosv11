@@ -1167,6 +1167,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [coId,setCoId]=useState(meeting?.companyId||"");
   const [lsType,setLsType]=useState(meeting?.lsType||LS_INT_TYPES[0]);
   const [title,setTitle]=useState(meeting?.title||"");
+  const [selectedDate,setSelectedDate]=useState(meeting?.date||date||"");
   const [h,setH]=useState(String(meeting?.hour??hour??9));
   const [dur,setDur]=useState(String(meeting?.duration||60));
   const [loc,setLoc]=useState(meeting?.location||"ls_office");
@@ -1185,7 +1186,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
-    const m={id:meeting?.id||`rsm-${Date.now()}`,date,hour:parseFloat(h),duration:parseInt(dur),type,
+    const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
       location:loc,locationCustom:locCustom,status,notes,meetingFormat,
@@ -1200,7 +1201,19 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
       <div className="modal" style={{maxWidth:460}}>
         <div className="modal-hdr"><div className="modal-title">{mode==="edit"?"Editar Reunión":"Nueva Reunión"}</div></div>
         <div className="modal-body">
-          <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,fontFamily:"IBM Plex Mono,monospace"}}>{dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1)}</div>
+          <div style={{marginBottom:12}}><div className="lbl">Día</div>
+            <select className="sel" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}>
+              {(()=>{
+                if(!trip?.arrivalDate||!trip?.departureDate) return [<option key={selectedDate} value={selectedDate}>{selectedDate}</option>];
+                const days=[];const s=new Date(trip.arrivalDate+"T12:00:00"),e=new Date(trip.departureDate+"T12:00:00");
+                for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){
+                  const iso=d.toISOString().slice(0,10);
+                  const lbl=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+                  days.push(<option key={iso} value={iso}>{lbl.charAt(0).toUpperCase()+lbl.slice(1)}</option>);
+                }
+                return days;
+              })()}
+            </select></div>
           <div style={{marginBottom:12}}><div className="lbl">Tipo</div>
             <div style={{display:"flex",gap:5}}>
               {[["company","🏢 Empresa"],["ls_internal","🔵 LS Interno"],["custom","✏️ Otro"]].map(([v,l])=>(
