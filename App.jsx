@@ -2511,7 +2511,7 @@ export default function App(){
         const statC = ci("estado","status");
         const notesC= ci("notas","notes","nota");
 
-        const rsCoMap=new Map(roadshow.companies.map(c=>[c.name.toLowerCase(),c]));
+        const rsCoMap=new Map((roadshow.companies||[]).map(c=>[c.name.toLowerCase(),c]));
         const newMtgs=[];let skipped=0;
         dataRows.forEach((r,i)=>{
           const rawDate=String(r[datC]||"").trim();
@@ -2982,7 +2982,7 @@ Daily Summary — ${dayLabel}
     setTravelCache(prev=>({...prev,[date]:results}));
     setTravelLoading(false);
   }
-  const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
+  const rsCoById=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);
   const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
   const rsOverlapSet=useMemo(()=>{
     const s=new Set(); const byDay={};
@@ -4623,7 +4623,7 @@ Daily Summary — ${dayLabel}
       {tab==="roadshow"&&(()=>{
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Helper to patch a company field inline (used in meeting modal)
-        window.__rsCoPatch=(coId,field,val)=>{const nc=roadshow.companies.map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
+        window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){const ex=roadshow.meetings.find(x=>x.id===m.id);const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);}
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
@@ -4923,7 +4923,7 @@ Daily Summary — ${dayLabel}
           {rsSubTab==="investor"&&(()=>{
             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name);
             const fund=roadshow.trip.fund||roadshow.trip.clientName||"Inversor";
-            const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
+            const rmMap=new Map((roadshow.companies||[]).map(c=>[c.id,c]));
             const sortedMtgs=[...(roadshow.meetings||[])].filter(m=>m.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour);
             const byDay={};
             sortedMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
@@ -5043,7 +5043,7 @@ Daily Summary — ${dayLabel}
                     email:ct.email||"",phone:ct.phone||""
                   });
                   let added=0,updated=0;
-                  const updatedCos=roadshow.companies.map(rc=>{
+                  const updatedCos=(roadshow.companies||[]).map(rc=>{
                     // Find matching library company by name (case-insensitive)
                     const lib=dbCos.find(c=>c.name.toLowerCase()===rc.name.toLowerCase());
                     if(!lib) return rc;
@@ -5055,7 +5055,7 @@ Daily Summary — ${dayLabel}
                       ticker:lib.ticker||rc.ticker,sector:lib.sector||rc.sector};
                   });
                   // Add companies from library that don't exist in roadshow yet
-                  const existingNames=new Set(roadshow.companies.map(c=>c.name.toLowerCase()));
+                  const existingNames=new Set((roadshow.companies||[]).map(c=>c.name.toLowerCase()));
                   const toAdd=dbCos.filter(c=>!existingNames.has(c.name.toLowerCase())).map(c=>{
                     added++;
                     return{id:c.id||`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -5070,13 +5070,13 @@ Daily Summary — ${dayLabel}
                   if(added) parts.push(`${added} empresa(s) nuevas agregadas`);
                   alert("✅ "+parts.join(" · "));
                 }}>📚 Importar desde Librería</button>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:true}))})}>Activar todas</button>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:roadshow.companies.map(c=>({...c,active:false}))})}>Desactivar todas</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:true}))})}>Activar todas</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:false}))})}>Desactivar todas</button>
                 <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>rsExcelRef.current?.click()}>📥 Importar Excel</button>
                 <div style={{marginLeft:"auto",fontSize:11,color:"var(--dim)"}}>{roadshow.companies.filter(c=>c.active).length} activas de {roadshow.companies.length}</div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {roadshow.companies.map((co,ci)=>{
+                {(roadshow.companies||[]).map((co,ci)=>{
                   function setCo(f,v){const nc=[...roadshow.companies];nc[ci]={...nc[ci],[f]:v};saveRoadshow({...roadshow,companies:nc});}
 
                   const clr=RS_CLR[co.sector]||"#666";
