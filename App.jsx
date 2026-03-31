@@ -823,7 +823,7 @@ const ROADSHOW_HOURS=Array.from({length:25},(_,i)=>8+i*0.5);
 function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
 const RS_CLR={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 const LS_INT_TYPES=["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
-const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6° Piso, CABA",meetingDuration:60,visitors:[],lsTeam:[],mapsApiKey:""};
+const RS_TRIP_DEF={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6° Piso, CABA",meetingDuration:60,visitors:[],lsTeam:[],mapsApiKey:"",resendKey:""};
 const RS_COS_DEF=[
   {id:"rc_bmacro", name:"Banco Macro",                  ticker:"BMA",   sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
   {id:"rc_bbva",   name:"BBVA Argentina",                ticker:"BBAR",  sector:"Financials",  location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
@@ -917,6 +917,8 @@ function rsToEntity(rs,rsCos){
 function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose}){
   const[copied,setCopied]=useState(false);
   const[fmt,setFmt]=useState("text"); // "text" | "html"
+  const[sending,setSending]=useState(false);
+  const[sendResult,setSendResult]=useState(null); // null | "ok" | "err:<msg>"
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
   const{trip,meetings}=roadshow;
   const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
@@ -977,6 +979,31 @@ function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
   function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}
 
+  const resendKey=roadshow.trip?.resendKey||"";
+  async function sendEmail(){
+    if(!resendKey||!toAddrs){return;}
+    setSending(true);setSendResult(null);
+    try{
+      const from="LS Event Manager <onboarding@resend.dev>"; // use verified domain when available
+      const res=await fetch("https://api.resend.com/emails",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},
+        body:JSON.stringify({
+          from,
+          to:toAddrs.split(",").map(s=>s.trim()).filter(Boolean),
+          subject,
+          html:htmlBody,
+          text:textBody,
+          attachments:[]
+        })
+      });
+      const data=await res.json();
+      if(res.ok) setSendResult("ok");
+      else setSendResult("err:"+(data?.message||data?.error||"Error al enviar"));
+    }catch(e){setSendResult("err:"+e.message);}
+    setSending(false);
+  }
+
   return(
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal" style={{maxWidth:680,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
@@ -1010,14 +1037,82 @@ function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose
           )}
           {days.length===0&&<div style={{fontSize:12,color:"var(--red)",marginTop:8}}>⚠ No hay reuniones cargadas. Agregá reuniones en la tab 📅 Agenda primero.</div>}
         </div>
+        {sendResult&&(
+          <div style={{padding:"6px 20px",fontSize:12,
+            color:sendResult==="ok"?"#166534":"#991b1b",
+            background:sendResult==="ok"?"#dcfce7":"#fee2e2",
+            borderTop:"1px solid",borderColor:sendResult==="ok"?"#86efac":"#fca5a5"}}>
+            {sendResult==="ok"?"✅ Email enviado correctamente.":"❌ "+sendResult.replace("err:","")}
+          </div>
+        )}
         <div className="modal-footer" style={{gap:7}}>
           <button className="btn bo bs" onClick={onClose}>Cerrar</button>
           <button className="btn bo bs" onClick={openMail} disabled={!toAddrs}>📧 Abrir en Mail</button>
           <button className={`btn bs ${copied?"bo":"bg"}`} onClick={copyText}>{copied?"✅ ¡Copiado!":"📋 Copiar texto"}</button>
+          {resendKey&&(
+            <button className="btn bg bs" style={{gap:5,background:sending?"#555":undefined}}
+              onClick={sendEmail} disabled={sending||!toAddrs||days.length===0}>
+              {sending?"⏳ Enviando...":"🚀 Enviar email"}
+            </button>
+          )}
+          {!resendKey&&(
+            <button className="btn bo bs" style={{opacity:.5,cursor:"default"}} title="Configurá la Resend API Key en 🧳 Datos del Viaje">
+              🚀 Enviar (sin key)
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+/* ─── ICS Import — parse .ics → meetings ────────────────────── */
+function parseICS(icsText){
+  const events=[];
+  const raw=icsText.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  // Unfold lines (continuation lines start with space or tab)
+  const unfolded=raw.replace(/\n[ \t]/g,"");
+  const blocks=unfolded.split("BEGIN:VEVENT");
+  blocks.slice(1).forEach(block=>{
+    const get=key=>{
+      const re=new RegExp("^"+key+"(?:;[^:\n]*)?:(.*)$","m");
+      const m=block.match(re);
+      if(!m) return "";
+      return m[1].replace(/\\n/g,"\n").replace(/\\,/g,",").replace(/\\;/g,";").trim();
+    };
+    const dtstart=get("DTSTART");
+    const dtend=get("DTEND");
+    const summary=get("SUMMARY")||"Imported Meeting";
+    const location=get("LOCATION")||"";
+    const desc=get("DESCRIPTION")||"";
+    const uid=get("UID")||("imp-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
+    function parseDT(dt){
+      if(!dt) return null;
+      // Strip TZID prefix if any
+      const val=dt.includes(":")?dt.split(":").pop():dt;
+      const m=val.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})/);
+      if(m){
+        const isUTC=val.endsWith("Z");
+        if(isUTC){
+          const utcD=new Date(m[1]+"-"+m[2]+"-"+m[3]+"T"+m[4]+":"+m[5]+":00Z");
+          // Buenos Aires = UTC-3
+          const baD=new Date(utcD.getTime()-3*3600000);
+          return{date:baD.toISOString().slice(0,10),hour:baD.getUTCHours()+baD.getUTCMinutes()/60};
+        }
+        return{date:m[1]+"-"+m[2]+"-"+m[3],hour:parseInt(m[4])+parseInt(m[5])/60};
+      }
+      const d=val.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if(d) return{date:d[1]+"-"+d[2]+"-"+d[3],hour:9};
+      return null;
+    }
+    const start=parseDT(dtstart);
+    const end=parseDT(dtend);
+    if(!start) return;
+    const durMin=end?Math.max(30,Math.round((end.hour-start.hour)*60)):60;
+    events.push({uid,title:summary,date:start.date,hour:Math.round(start.hour),
+      duration:durMin,locationCustom:location,notes:desc.slice(0,300)});
+  });
+  return events;
 }
 
 /* ─── ICS Calendar Export ─────────────────────────────────────── */
@@ -1775,6 +1870,7 @@ export default function App(){
   const [rsSubTab,setRsSubTab]=useState("schedule");
   const [rsEmailParser,setRsEmailParser]=useState("");
   const [rsAgendaEmailModal,setRsAgendaEmailModal]=useState(false);
+  const [icsImportModal,setIcsImportModal]=useState(null); // null | {events:[], pending:[]}  
   const [travelCache,setTravelCache]=useState({});
   const [travelLoading,setTravelLoading]=useState(false);
   const [dragMtg,setDragMtg]=useState(null); // {id, origDate, origHour}
@@ -4734,6 +4830,21 @@ Daily Summary — ${dayLabel}
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
             </div>
 
+            {/* Resend email key */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
+              <div>
+                <div className="lbl" style={{marginBottom:3}}>✉️ Resend API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(para enviar emails directo desde la app)</span></div>
+                <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
+                  value={roadshow.trip.resendKey||""} onChange={e=>upTrip("resendKey",e.target.value)}
+                  placeholder="re_xxxxxxxxxxxxxxxxxxxx"/>
+              </div>
+              <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:180}}>
+                Sin key: copia el texto.<br/>
+                Con key: envía directo al inversor.<br/>
+                <a href="https://resend.com/api-keys" target="_blank" style={{color:"var(--gold)"}}>Obtener key →</a>
+              </div>
+            </div>
+
             {/* Visitors */}
             <div style={{marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -5405,6 +5516,12 @@ Daily Summary — ${dayLabel}
                   <div className="ex-card-t">Exportar .ICS (Outlook)</div>
                   <div className="ex-card-s">Todas las reuniones confirmadas como invitaciones de calendario.</div>
                 </div>
+                <div className="ex-card" role="button" tabIndex={0}
+                  onClick={()=>{const inp=document.createElement("input");inp.type="file";inp.accept=".ics,.ical,text/calendar";inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;const txt=await f.text();const evs=parseICS(txt);if(!evs.length){alert("No se encontraron eventos en el archivo .ics.");return;}setIcsImportModal({events:evs,selected:new Set(evs.map((_,i)=>i))});};inp.click();}}>
+                  <div className="ex-card-ico">📥</div>
+                  <div className="ex-card-t">Importar .ICS (Outlook → App)</div>
+                  <div className="ex-card-s">Cargá un archivo .ics exportado de Outlook o Google Calendar para importar reuniones.</div>
+                </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportBookingPage} onKeyDown={e=>{if(e.key==="Enter")exportBookingPage();}}>
                   <div className="ex-card-ico">🔗</div>
                   <div className="ex-card-t">Página de reserva (HTML)</div>
@@ -5493,6 +5610,65 @@ Daily Summary — ${dayLabel}
             emailData={rsEmailModal.emailData}
             onClose={()=>setRsEmailModal(null)}
           />}
+          {/* ── ICS Import Modal ── */}
+          {icsImportModal&&(
+            <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setIcsImportModal(null);}}>
+              <div className="modal" style={{maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+                <div className="modal-hdr"><div className="modal-title">📥 Importar desde .ICS</div></div>
+                <div className="modal-body" style={{flex:1,overflowY:"auto"}}>
+                  <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>
+                    Se encontraron <strong style={{color:"var(--cream)"}}>{icsImportModal.events.length} evento(s)</strong>. Seleccioná cuáles importar como reuniones.
+                  </p>
+                  <div style={{display:"flex",gap:6,marginBottom:12}}>
+                    <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setIcsImportModal(prev=>({...prev,selected:new Set(prev.events.map((_,i)=>i))}))}>✓ Todos</button>
+                    <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setIcsImportModal(prev=>({...prev,selected:new Set()}))}>✗ Ninguno</button>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {icsImportModal.events.map((ev,i)=>{
+                      const checked=icsImportModal.selected.has(i);
+                      const exists=(roadshow.meetings||[]).some(m=>m.icsUid===ev.uid);
+                      return(
+                        <label key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 12px",background:checked?"rgba(30,90,176,.06)":"var(--ink3)",borderRadius:7,border:"1px solid",borderColor:checked?"rgba(30,90,176,.2)":"transparent",cursor:"pointer"}}>
+                          <input type="checkbox" checked={checked} disabled={exists}
+                            onChange={()=>setIcsImportModal(prev=>{const s=new Set(prev.selected);s.has(i)?s.delete(i):s.add(i);return{...prev,selected:s};})}
+                            style={{marginTop:2,flexShrink:0}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:600,color:"var(--cream)",marginBottom:2}}>{ev.title}</div>
+                            <div style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{ev.date} · {ev.hour}:00 · {ev.duration} min</div>
+                            {ev.locationCustom&&<div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>📍 {ev.locationCustom}</div>}
+                            {exists&&<div style={{fontSize:9,color:"var(--gold)",marginTop:2}}>⚠ Ya importado</div>}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="modal-footer" style={{gap:7}}>
+                  <button className="btn bo bs" onClick={()=>setIcsImportModal(null)}>Cancelar</button>
+                  <button className="btn bg bs" disabled={!icsImportModal.selected.size}
+                    onClick={()=>{
+                      const toImport=[...icsImportModal.selected].map(i=>icsImportModal.events[i]);
+                      const newMtgs=toImport.map(ev=>({
+                        id:`ics-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+                        type:"internal",lsType:"Imported",
+                        date:ev.date,hour:ev.hour,
+                        duration:ev.duration,
+                        location:"other",locationCustom:ev.locationCustom||"",
+                        notes:ev.notes,title:ev.title,
+                        status:"tentative",
+                        icsUid:ev.uid,
+                      }));
+                      saveRoadshow({...roadshow,meetings:[...(roadshow.meetings||[]),...newMtgs]},
+                        `Importó ${newMtgs.length} reunión(es) desde .ICS`);
+                      setIcsImportModal(null);
+                    }}>
+                    📥 Importar {icsImportModal.selected.size} reunión(es)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {rsAgendaEmailModal&&<RoadshowAgendaEmailModal
             roadshow={roadshow}
             rsCos={roadshow.companies}
