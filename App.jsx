@@ -5363,6 +5363,50 @@ Daily Summary — ${dayLabel}
             </div>
           )}
 
+          {/* Activity Log subtab */}
+          {rsSubTab==="activitylog"&&(()=>{
+            const log=currentEvent?.activityLog||[];
+            return(
+              <div>
+                <h2 className="pg-h" style={{fontSize:16,marginBottom:4}}>🕐 Historial de cambios</h2>
+                <p className="pg-s" style={{marginBottom:14}}>Registro de actividad en este evento.</p>
+                {log.length===0?(
+                  <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                    <div style={{fontSize:32,marginBottom:10}}>📋</div>
+                    <div>No hay actividad registrada aún.</div>
+                    <div style={{fontSize:11,marginTop:6}}>Creá o modificá reuniones para registrar cambios.</div>
+                  </div>
+                ):(
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse"}}>
+                      <thead>
+                        <tr style={{background:"rgba(30,90,176,.06)"}}>
+                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Fecha y hora</th>
+                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Usuario</th>
+                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {log.map((entry,i)=>{
+                          const d=new Date(entry.ts);
+                          const fmtTs=isNaN(d)?entry.ts:d.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+                          return(
+                            <tr key={i} style={{borderTop:"1px solid rgba(30,90,176,.06)",background:i%2===0?"transparent":"rgba(30,90,176,.02)"}}>
+                              <td style={{padding:"8px 14px",fontSize:11,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",whiteSpace:"nowrap"}}>{fmtTs}</td>
+                              <td style={{padding:"8px 14px",fontSize:11,color:"var(--gold)",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.user}</td>
+                              <td style={{padding:"8px 14px",fontSize:12,color:"var(--cream)"}}>{entry.action}{entry.detail?<span style={{color:"var(--dim)",marginLeft:6}}>— {entry.detail}</span>:null}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {log.length>=200&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--dim)",textAlign:"center",borderTop:"1px solid rgba(30,90,176,.08)"}}>Mostrando los últimos 200 cambios</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Modals */}
           {rsMtgModal&&<RoadshowMeetingModal
             mode={rsMtgModal.meeting?"edit":"add"}
