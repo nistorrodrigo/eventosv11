@@ -3338,7 +3338,10 @@ Daily Summary — ${dayLabel}
                       <div style={{fontSize:13.5,color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{e.name}</div>
                       <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",background:e.kind==="roadshow"?"rgba(35,162,158,.15)":"rgba(30,90,176,.12)",color:e.kind==="roadshow"?"#23a29e":"var(--gold)",flexShrink:0}}>{e.kind==="roadshow"?"🗺️ Inbound":e.kind==="outbound"?"✈️ Outbound":"🏛 Conferencia"}</span>
                     </div>
-                    <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{(e.investors||[]).length} inversores · {(e.meetings||[]).length} reuniones</div>
+                    <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>
+                      {(e.investors||[]).length} inversores · {(e.meetings||e.roadshow?.meetings||[]).length} reuniones
+                      {(e.activityLog||[]).length>0&&<span style={{marginLeft:6,color:"rgba(30,90,176,.4)"}}>· {(e.activityLog||[]).length} cambios</span>}
+                    </div>
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
                   <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
@@ -5706,6 +5709,49 @@ ${"─".repeat(40)}`;
         </div>
         );
       })()}
+
+      {tab==="activitylog"&&(()=>{
+          const log=currentEvent?.activityLog||[];
+          return(
+            <div>
+              <h2 className="pg-h">🕐 Historial de cambios</h2>
+              <p className="pg-s">Registro de actividad en este evento.</p>
+              {log.length===0?(
+                <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                  <div style={{fontSize:32,marginBottom:10}}>📋</div>
+                  <div>No hay actividad registrada aún.</div>
+                  <div style={{fontSize:11,marginTop:6}}>Las acciones que realices (reuniones, cambios de estado, etc.) aparecerán aquí.</div>
+                </div>
+              ):(
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead>
+                      <tr style={{background:"rgba(30,90,176,.06)"}}>
+                        <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Fecha y hora</th>
+                        <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Usuario</th>
+                        <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {log.map((entry,i)=>{
+                        const d=new Date(entry.ts);
+                        const fmtTs=isNaN(d)?entry.ts:d.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+                        return(
+                          <tr key={i} style={{borderTop:"1px solid rgba(30,90,176,.06)",background:i%2===0?"transparent":"rgba(30,90,176,.02)"}}>
+                            <td style={{padding:"8px 14px",fontSize:11,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",whiteSpace:"nowrap"}}>{fmtTs}</td>
+                            <td style={{padding:"8px 14px",fontSize:11,color:"var(--gold)",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.user}</td>
+                            <td style={{padding:"8px 14px",fontSize:12,color:"var(--cream)"}}>{entry.action}{entry.detail?<span style={{color:"var(--dim)",marginLeft:6}}>— {entry.detail}</span>:null}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {log.length>=200&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--dim)",textAlign:"center",borderTop:"1px solid rgba(30,90,176,.08)"}}>Mostrando los últimos 200 cambios</div>}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       {tab==="db"&&(()=>{
         const dbCos=globalDB.companies||[];
