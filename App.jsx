@@ -2866,17 +2866,20 @@ Daily Summary — ${dayLabel}
   const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
   // ── Supabase auth + cloud sync ───────────────────────────────
   useEffect(()=>{
+    // Safety timeout: if Supabase doesn't respond in 8s (e.g. paused project), show login
+    const safetyTimer = setTimeout(()=>setAuthLoading(false), 8000);
     supabase.auth.getSession().then(({data:{session}})=>{
+      clearTimeout(safetyTimer);
       setAuthUser(session?.user||null);
       if(session?.user) loadFromCloud(session.user.id);
       else setAuthLoading(false);
-    });
+    }).catch(()=>{ clearTimeout(safetyTimer); setAuthLoading(false); });
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,session)=>{
       setAuthUser(session?.user||null);
       if(session?.user) loadFromCloud(session.user.id);
       else setAuthLoading(false);
     });
-    return()=>subscription.unsubscribe();
+    return()=>{ clearTimeout(safetyTimer); subscription.unsubscribe(); };
   },[]);// eslint-disable-line
 
   async function loadFromCloud(userId){
