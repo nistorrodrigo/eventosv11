@@ -2,7 +2,7 @@
 /**
  * lint-hooks.cjs — Pre-deploy guard for THREE recurring bugs in this codebase.
  *
- * BUG 1: useState/useEffect inside IIFE render block → BLANK PAGE
+ * BUG 1: useState/useEffect/useMemo inside IIFE render block or useMemo callback → BLANK PAGE
  *   Pattern:  {tab==="x" && (()=>{ const [s]=useState() ... })()}
  *   Fix:      Move to App() body before return()
  *
@@ -20,6 +20,7 @@ const path = require('path');
 const HOOK_RE       = /\b(useState|useEffect|useCallback|useMemo|useRef)\s*\(/;
 const REACT_DOT_RE  = /\bReact\.(useState|useEffect|useCallback|useMemo|useRef)\s*\(/;
 const IIFE_OPEN     = /&&\s*\(\s*\(\s*\)\s*=>\s*\{/;
+const MEMO_OPEN     = /\buseMemo\s*\(\s*\(\s*\)\s*=>\s*\{|\buseCallback\s*\(/;
 const IIFE_CLOSE    = /\}\s*\)\s*\(\s*\)\s*\}/;
 const INPUT_FILE_RE = /<input\b[^>]*type=["']file["'][^>]*ref=\{|<input\b[^>]*ref=\{[^>]*type=["']file["']/;
 
