@@ -3069,14 +3069,17 @@ Daily Summary — ${dayLabel}
     {id:"schedule",label:"📅 Agenda"},
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const RS_TABS=[
     {id:"roadshow",label:"🗺️ Inbound"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const OUT_TABS=[
     {id:"outbound",label:"✈️ Outbound"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
@@ -3247,9 +3250,9 @@ Daily Summary — ${dayLabel}
               <input className="inp" style={{marginBottom:14}} autoFocus
                 placeholder={newEvKind==="conference"?"Ej: Argentina NY 2026":"Ej: Brasil Roadshow Abril 2026"}
                 value={newEvName} onChange={e=>setNewEvName(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}/>
+                onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&createEvent(newEvName.trim(),newEvKind,newEvTemplate)}/>
               <button className="btn bg" style={{width:"100%",fontSize:13,padding:"10px"}}
-                onClick={()=>newEvName.trim()&&createEvent(newEvName.trim(),newEvKind)}>
+                onClick={()=>newEvName.trim()&&createEvent(newEvName.trim(),newEvKind,newEvTemplate)}>
                 Crear {newEvKind==="conference"?"conferencia":newEvKind==="outbound"?"roadshow outbound":"roadshow inbound"} →
               </button>
             </div>
@@ -4711,7 +4714,7 @@ Daily Summary — ${dayLabel}
 
           {/* Sub-tabs */}
           <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
-            {[["schedule","📅 Agenda"],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
+            {[["schedule","📅 Agenda"],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
               <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setRsSubTab(id)}>{lbl}</button>
             ))}
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
