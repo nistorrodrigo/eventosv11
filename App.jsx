@@ -2984,7 +2984,6 @@ Daily Summary — ${dayLabel}
   }
   const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
   const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
-  const gridMap=useMemo(()=>{
   const rsOverlapSet=useMemo(()=>{
     const s=new Set(); const byDay={};
     (roadshow.meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
@@ -2994,6 +2993,7 @@ Daily Summary — ${dayLabel}
     });
     return s;
   },[roadshow.meetings]);
+  const gridMap=useMemo(()=>{
     const map={};
     meetings.filter(m=>slotDay(m.slotId)===activeDay).forEach(m=>{map[`${m.coId}::${slotHour(m.slotId)}`]=m;});
     return map;
