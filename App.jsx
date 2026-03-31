@@ -404,7 +404,7 @@ function runSchedule(investors, fundGrouping, cfg){
 ═══════════════════════════════════════════════════════════════════ */
 const LS_KEY    = "arginny_events_v1";
 const LS_DB_KEY = "ls_global_db_v1";
-function loadEvents(){try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]");}catch{return[];}}
+function loadEvents(){try{const evs=JSON.parse(localStorage.getItem(LS_KEY)||"[]");const clean=evs.filter(e=>!e._shared);if(clean.length<evs.length)saveEvents(clean);return clean;}catch{return[];}}
 function saveEvents(events){try{localStorage.setItem(LS_KEY,JSON.stringify(events));}catch{}}
 function loadDB(){try{return JSON.parse(localStorage.getItem(LS_DB_KEY)||'{"companies":[],"investors":[]}');}catch{return{companies:[],investors:[]};}}
 function saveDB(db){try{localStorage.setItem(LS_DB_KEY,JSON.stringify(db));}catch{}}
@@ -3078,6 +3078,47 @@ Daily Summary — ${dayLabel}
   ];
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
 
+  // ── Auth loading screen ─────────────────────────────────────
+  if(authLoading) return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:16}}>
+      <div style={{width:36,height:36,border:"3px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      <div style={{color:"#7a8fa8",fontSize:12,fontFamily:"IBM Plex Mono,monospace"}}>Cargando...</div>
+    </div>
+  );
+
+  // ── Auth gate ────────────────────────────────────────────────
+  if(!authUser) return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",padding:20}}>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}.auth-inp{width:100%;padding:10px 13px;background:rgba(30,90,176,.08);border:1.5px solid rgba(30,90,176,.25);border-radius:7px;color:#e8eaf0;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px}.auth-inp:focus{border-color:#3399ff}.auth-btn{width:100%;padding:12px;background:#1e5ab0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}.auth-btn:disabled{opacity:.5;cursor:not-allowed}"}</style>
+      <div style={{width:"100%",maxWidth:380,background:"rgba(20,22,40,.98)",border:"1px solid rgba(30,90,176,.2)",borderRadius:16,padding:"36px 32px",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"#e8eaf0",marginBottom:4}}>Latin Securities</div>
+          <div style={{color:"#7a8fa8",fontSize:11,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>LS Event Manager</div>
+        </div>
+        <div style={{display:"flex",gap:4,marginBottom:24,background:"rgba(30,90,176,.08)",borderRadius:8,padding:3}}>
+          {[["login","Iniciar sesión"],["signup","Crear cuenta"]].map(([v,l])=>(
+            <button key={v} onClick={()=>{setAuthView(v);setAuthErr("");}}
+              style={{flex:1,padding:"8px 0",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all .15s",
+                background:authView===v?"#1e5ab0":"transparent",color:authView===v?"#fff":"#7a8fa8"}}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {authView==="signup"&&<input className="auth-inp" placeholder="Nombre completo" value={authName} onChange={e=>setAuthName(e.target.value)}/>}
+        <input className="auth-inp" type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
+        <input className="auth-inp" type="password" placeholder="Contraseña" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
+        {authErr&&<div style={{fontSize:12,color:authErr.startsWith("✅")?"#3a8c5c":"#e05050",marginBottom:12,lineHeight:1.5,padding:"8px 10px",background:authErr.startsWith("✅")?"rgba(58,140,92,.1)":"rgba(214,68,68,.08)",borderRadius:6}}>{authErr}</div>}
+        <button className="auth-btn" disabled={authBusy||!authEmail||!authPwd} onClick={authView==="login"?signIn:signUp}>
+          {authBusy?"⏳ Procesando...":(authView==="login"?"Entrar":"Crear cuenta")}
+        </button>
+        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"rgba(120,140,170,.5)",fontFamily:"IBM Plex Mono,monospace"}}>
+          Tus datos están cifrados y sincronizados en la nube.
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Dashboard helpers ────────────────────────────────────────
   const dashEvents=events.map(ev=>{
     const mtgs=ev.roadshow?.meetings||ev.meetings||[];
@@ -3216,46 +3257,6 @@ Daily Summary — ${dayLabel}
     </div>
   );
 
-  // ── Auth loading screen ─────────────────────────────────────
-  if(authLoading) return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:16}}>
-      <div style={{width:36,height:36,border:"3px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
-      <div style={{color:"#7a8fa8",fontSize:12,fontFamily:"IBM Plex Mono,monospace"}}>Cargando...</div>
-    </div>
-  );
-
-  // ── Auth gate ────────────────────────────────────────────────
-  if(!authUser) return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",padding:20}}>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}.auth-inp{width:100%;padding:10px 13px;background:rgba(30,90,176,.08);border:1.5px solid rgba(30,90,176,.25);border-radius:7px;color:#e8eaf0;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px}.auth-inp:focus{border-color:#3399ff}.auth-btn{width:100%;padding:12px;background:#1e5ab0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}.auth-btn:disabled{opacity:.5;cursor:not-allowed}"}</style>
-      <div style={{width:"100%",maxWidth:380,background:"rgba(20,22,40,.98)",border:"1px solid rgba(30,90,176,.2)",borderRadius:16,padding:"36px 32px",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"#e8eaf0",marginBottom:4}}>Latin Securities</div>
-          <div style={{color:"#7a8fa8",fontSize:11,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>LS Event Manager</div>
-        </div>
-        <div style={{display:"flex",gap:4,marginBottom:24,background:"rgba(30,90,176,.08)",borderRadius:8,padding:3}}>
-          {[["login","Iniciar sesión"],["signup","Crear cuenta"]].map(([v,l])=>(
-            <button key={v} onClick={()=>{setAuthView(v);setAuthErr("");}}
-              style={{flex:1,padding:"8px 0",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all .15s",
-                background:authView===v?"#1e5ab0":"transparent",color:authView===v?"#fff":"#7a8fa8"}}>
-              {l}
-            </button>
-          ))}
-        </div>
-        {authView==="signup"&&<input className="auth-inp" placeholder="Nombre completo" value={authName} onChange={e=>setAuthName(e.target.value)}/>}
-        <input className="auth-inp" type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
-        <input className="auth-inp" type="password" placeholder="Contraseña" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(authView==="login"?signIn():signUp())}/>
-        {authErr&&<div style={{fontSize:12,color:authErr.startsWith("✅")?"#3a8c5c":"#e05050",marginBottom:12,lineHeight:1.5,padding:"8px 10px",background:authErr.startsWith("✅")?"rgba(58,140,92,.1)":"rgba(214,68,68,.08)",borderRadius:6}}>{authErr}</div>}
-        <button className="auth-btn" disabled={authBusy||!authEmail||!authPwd} onClick={authView==="login"?signIn:signUp}>
-          {authBusy?"⏳ Procesando...":(authView==="login"?"Entrar":"Crear cuenta")}
-        </button>
-        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"rgba(120,140,170,.5)",fontFamily:"IBM Plex Mono,monospace"}}>
-          Tus datos están cifrados y sincronizados en la nube.
-        </div>
-      </div>
-    </div>
-  );
 
   return(
     <div className="app"><style>{CSS}</style>
