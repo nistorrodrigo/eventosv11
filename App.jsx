@@ -3032,14 +3032,93 @@ Daily Summary — ${dayLabel}
   ];
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
 
+  // ── Dashboard helpers ────────────────────────────────────────
+  const dashEvents=events.map(ev=>{
+    const mtgs=ev.roadshow?.meetings||ev.meetings||[];
+    const conf=mtgs.filter(m=>m.status==="confirmed").length;
+    const tent=mtgs.filter(m=>m.status==="tentative").length;
+    const invs=(ev.investors||[]).length;
+    const fund=ev.roadshow?.trip?.fund||ev.roadshow?.trip?.clientName||"";
+    const dateFrom=ev.roadshow?.trip?.arrivalDate||ev.outbound?.destinations?.[0]?.dateFrom||"";
+    const dateTo=ev.roadshow?.trip?.departureDate||ev.outbound?.destinations?.at(-1)?.dateTo||"";
+    const fmtD=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"});}catch{return iso;}};
+    const dates=dateFrom?`${fmtD(dateFrom)}${dateTo&&dateTo!==dateFrom?" – "+fmtD(dateTo):""}`:""
+    const now=new Date();
+    const start=dateFrom?new Date(dateFrom+"T12:00:00"):null;
+    const end=dateTo?new Date(dateTo+"T12:00:00"):null;
+    const state=!start?"draft":now<start?"upcoming":end&&now>end?"past":"active";
+    return{...ev,conf,tent,invs,fund,dates,state};
+  });
+  const hasEvents=events.length>0;
+
   if(!currentEvent) return(
     <div className="app"><style>{CSS}</style>
-      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,background:"var(--ink)"}}>
-        <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"var(--cream)",marginBottom:4,letterSpacing:".01em"}}>Latin Securities</div>
-        <div style={{color:"var(--dim)",fontSize:12,marginBottom:48,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>Latin Securities</div>
+      <div style={{minHeight:"100vh",background:"var(--ink)",padding:"32px 24px"}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:36,maxWidth:900,margin:"0 auto 36px"}}>
+          <div>
+            <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"var(--cream)",letterSpacing:".01em"}}>Latin Securities</div>
+            <div style={{color:"var(--dim)",fontSize:11,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".1em",textTransform:"uppercase",marginTop:2}}>LS Event Manager</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {authUser&&<div style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>☁ {authUser.email}</div>}
+            {authUser&&<button className="btn bo bs" style={{fontSize:9}} onClick={signOut}>Salir</button>}
+          </div>
+        </div>
 
-        {/* Step 1: choose kind */}
-        {!newEvKind&&(
+        <div style={{maxWidth:900,margin:"0 auto"}}>
+          {/* Existing events dashboard */}
+          {hasEvents&&(
+            <div style={{marginBottom:40}}>
+              <div style={{fontSize:13,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".06em",textTransform:"uppercase",marginBottom:16}}>Tus eventos</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+                {dashEvents.map(ev=>{
+                  const stateClr={active:"#3a8c5c",upcoming:"#1e5ab0",past:"#555",draft:"#7a5a00"}[ev.state]||"#666";
+                  const stateLbl={active:"🟢 En curso",upcoming:"🔵 Próximo",past:"⚫ Finalizado",draft:"⚪ Borrador"}[ev.state]||ev.state;
+                  const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
+                  return(
+                    <div key={ev.id} onClick={()=>handleOpenEvent(ev.id)} style={{background:"#fff",border:"1px solid rgba(30,90,176,.1)",borderRadius:12,padding:"18px 20px",cursor:"pointer",transition:"all .18s",position:"relative",overflow:"hidden"}}
+                      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(30,90,176,.12)";e.currentTarget.style.borderColor="rgba(30,90,176,.25)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";e.currentTarget.style.borderColor="rgba(30,90,176,.1)";}}>
+                      {/* Top accent */}
+                      <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:stateClr,opacity:.7}}/>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
+                        <div style={{fontSize:22}}>{kindIcon}</div>
+                        <span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:`${stateClr}18`,color:stateClr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700}}>{stateLbl}</span>
+                      </div>
+                      <div style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2,fontWeight:700}}>{ev.name}</div>
+                      {ev.fund&&<div style={{fontSize:11,color:"var(--dim)",marginBottom:6}}>{ev.fund}</div>}
+                      {ev.dates&&<div style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginBottom:10}}>{ev.dates}</div>}
+                      <div style={{display:"flex",gap:12,paddingTop:10,borderTop:"1px solid rgba(30,90,176,.06)"}}>
+                        {ev.conf>0&&<div style={{fontSize:11,color:"#3a8c5c",fontWeight:700}}><span style={{fontSize:16}}>{ev.conf}</span> conf.</div>}
+                        {ev.tent>0&&<div style={{fontSize:11,color:"#e8850a"}}><span style={{fontSize:16}}>{ev.tent}</span> tent.</div>}
+                        {ev.invs>0&&<div style={{fontSize:11,color:"var(--dim)"}}><span style={{fontSize:16}}>{ev.invs}</span> inv.</div>}
+                        {ev.conf===0&&ev.tent===0&&ev.invs===0&&<div style={{fontSize:11,color:"var(--dim)"}}>Sin datos cargados</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Create new card */}
+                <div onClick={()=>setNewEvKind("")} style={{background:"rgba(30,90,176,.03)",border:"2px dashed rgba(30,90,176,.15)",borderRadius:12,padding:"18px 20px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,minHeight:160,transition:"all .18s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(30,90,176,.35)";e.currentTarget.style.background="rgba(30,90,176,.06)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(30,90,176,.15)";e.currentTarget.style.background="rgba(30,90,176,.03)";}}>
+                  <div style={{fontSize:28,opacity:.4}}>＋</div>
+                  <div style={{fontSize:12,color:"var(--dim)"}}>Nuevo evento</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Create first event */}
+          {!hasEvents&&(
+          <div style={{marginBottom:48}}>
+            <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"var(--cream)",marginBottom:4,letterSpacing:".01em",textAlign:"center"}}>Latin Securities</div>
+            <div style={{color:"var(--dim)",fontSize:12,marginBottom:48,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase",textAlign:"center"}}>Event Manager</div>
+          </div>
+          )}
+
+          {/* Step 1: choose kind */}
+          {!newEvKind&&(
           <div style={{maxWidth:640,width:"100%"}}>
             <div style={{textAlign:"center",fontSize:15,color:"var(--txt)",marginBottom:24}}>¿Qué tipo de evento querés crear?</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,maxWidth:780}}>
@@ -3063,8 +3142,8 @@ Daily Summary — ${dayLabel}
           </div>
         )}
 
-        {/* Step 2: name */}
-        {newEvKind&&(
+          {/* Step 2: name */}
+          {newEvKind&&(
           <div style={{maxWidth:440,width:"100%"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
               <button onClick={()=>setNewEvKind("")} style={{background:"none",border:"none",cursor:"pointer",color:"var(--dim)",fontSize:13,padding:"4px 8px",borderRadius:6,display:"flex",alignItems:"center",gap:5}}>← Volver</button>
@@ -3086,7 +3165,8 @@ Daily Summary — ${dayLabel}
             </div>
           </div>
         )}
-      </div>
+        </div>{/* maxWidth:900 */}
+      </div>{/* outer */}
     </div>
   );
 
@@ -4520,7 +4600,7 @@ Daily Summary — ${dayLabel}
 
           {/* Sub-tabs */}
           <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
-            {[["schedule","📅 Agenda"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
+            {[["schedule","📅 Agenda"],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"]].map(([id,lbl])=>(
               <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setRsSubTab(id)}>{lbl}</button>
             ))}
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
@@ -4714,6 +4794,112 @@ Daily Summary — ${dayLabel}
           )}
 
           {/* EMPRESAS */}
+          {/* VISTA POR INVERSOR */}
+          {rsSubTab==="investor"&&(()=>{
+            const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name);
+            const fund=roadshow.trip.fund||roadshow.trip.clientName||"Inversor";
+            const rmMap=new Map(roadshow.companies.map(c=>[c.id,c]));
+            const sortedMtgs=[...(roadshow.meetings||[])].filter(m=>m.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour);
+            const byDay={};
+            sortedMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
+            const days=Object.keys(byDay).sort();
+            const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+            const STATUS_CLR={confirmed:"#3a8c5c",tentative:"#e8850a",cancelled:"#b03030"};
+            const STATUS_LBL={confirmed:"✅ Confirmado",tentative:"⏳ Tentativo",cancelled:"❌ Cancelado"};
+            return(
+            <div>
+              {/* Header card */}
+              <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontFamily:"Playfair Display,serif",fontSize:22,marginBottom:4}}>{fund}</div>
+                    <div style={{fontSize:12,opacity:.85,marginBottom:8}}>
+                      {roadshow.trip.arrivalDate&&roadshow.trip.departureDate?`${new Date(roadshow.trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})} – ${new Date(roadshow.trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}`:""}</div>
+                    {visitors.length>0&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {visitors.map((v,i)=>(
+                        <div key={i} style={{background:"rgba(255,255,255,.15)",borderRadius:6,padding:"4px 10px",fontSize:11}}>
+                          <span style={{fontWeight:700}}>{v.name}</span>{v.title&&<span style={{opacity:.8}}> · {v.title}</span>}
+                        </div>
+                      ))}
+                    </div>}
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:28,fontWeight:700,lineHeight:1}}>{sortedMtgs.filter(m=>m.status==="confirmed").length}</div>
+                    <div style={{fontSize:11,opacity:.75}}>reuniones confirmadas</div>
+                    <div style={{fontSize:11,opacity:.6,marginTop:2}}>{sortedMtgs.length} total</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Day-by-day agenda */}
+              {days.length===0&&(
+                <div style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
+                  <div style={{fontSize:36,marginBottom:8}}>📅</div>
+                  <div style={{fontSize:14,color:"var(--cream)"}}>No hay reuniones confirmadas aún</div>
+                  <div style={{fontSize:12,marginTop:4}}>Agregá reuniones en la tab 📅 Agenda</div>
+                </div>
+              )}
+              {days.map(date=>{
+                const dayMtgs=byDay[date];
+                const d=new Date(date+"T12:00:00");
+                const isWE=d.getDay()===0||d.getDay()===6;
+                return(
+                  <div key={date} style={{marginBottom:16}}>
+                    <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,fontWeight:700,color:"var(--cream)",textTransform:"capitalize",marginBottom:8,paddingBottom:5,borderBottom:"2px solid rgba(30,90,176,.12)",display:"flex",alignItems:"center",gap:8}}>
+                      {fmtDay(date).charAt(0).toUpperCase()+fmtDay(date).slice(1)}
+                      {isWE&&<span style={{fontSize:9,background:"rgba(232,133,10,.15)",color:"#e8850a",padding:"1px 6px",borderRadius:4}}>Fin de semana</span>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {dayMtgs.map((m,mi)=>{
+                        const co=m.type==="company"?rmMap.get(m.companyId):null;
+                        const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
+                        const addr=getMeetingAddress(m,co,roadshow.trip.officeAddress);
+                        const cleanedAddr=stripNeighborhood(addr);
+                        const nextM=mi<dayMtgs.length-1?dayMtgs[mi+1]:null;
+                        const gap=nextM?Math.round((nextM.hour-m.hour)*60-(m.duration||60)):null;
+                        return(
+                          <div key={m.id} style={{display:"flex",gap:0,alignItems:"stretch"}}>
+                            {/* Time column */}
+                            <div style={{width:52,flexShrink:0,paddingTop:12,textAlign:"right",paddingRight:12}}>
+                              <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,fontWeight:700,color:clr}}>{fmtHour(m.hour)}</div>
+                              <div style={{fontSize:9,color:"var(--dim)",marginTop:1}}>{m.duration||60}min</div>
+                            </div>
+                            {/* Card */}
+                            <div style={{flex:1,background:"#fff",border:`1px solid ${clr}33`,borderLeft:`3px solid ${clr}`,borderRadius:"0 8px 8px 0",padding:"10px 14px",position:"relative"}}>
+                              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+                                <div>
+                                  <div style={{fontSize:13,fontWeight:700,color:"var(--cream)",marginBottom:2}}>
+                                    {co?co.name:(m.lsType||m.title||"Reunión")}
+                                    {co?.ticker&&<span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"#fff",background:clr,padding:"1px 5px",borderRadius:3,marginLeft:5}}>{co.ticker}</span>}
+                                  </div>
+                                  <div style={{fontSize:10,color:"var(--dim)",display:"flex",alignItems:"center",gap:5}}>
+                                    <span>📍</span><span>{cleanedAddr}</span>
+                                  </div>
+                                  {m.type==="company"&&(()=>{
+                                    const allR=co?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+                                    const reps=sel.filter(r=>r.name).map(r=>r.name+(r.title?" ("+r.title+")":"")).join(", ");
+                                    return reps?<div style={{fontSize:10,color:"var(--dim)",marginTop:3}}>👤 {reps}</div>:null;
+                                  })()}
+                                  {m.participants&&<div style={{fontSize:10,color:"var(--dim)",marginTop:3}}>👤 {m.participants}</div>}
+                                </div>
+                                <div style={{flexShrink:0,textAlign:"right"}}>
+                                  <div style={{fontSize:10,fontWeight:600,color:STATUS_CLR[m.status]||"#666"}}>{STATUS_LBL[m.status]||m.status}</div>
+                                  {m.meetingFormat&&m.meetingFormat!=="Meeting"&&<div style={{fontSize:9,color:"var(--dim)",marginTop:2}}>{m.meetingFormat}</div>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            );
+          })()}
+
+          {/* COMPANIES */}
           {rsSubTab==="companies"&&(
             <div>
               <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
