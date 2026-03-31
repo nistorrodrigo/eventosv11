@@ -1664,9 +1664,11 @@ export default function App(){
   function saveCurrentEvent(patch){
     setEvents(prev=>{
       const next=prev.map(e=>e.id===activeEv?{...e,...patch}:e);
-      saveEvents(next);
+      // Only persist/cloud-save own events, not shared ones
+      const ownOnly=next.filter(e=>!e._shared);
+      saveEvents(ownOnly);
       const updated=next.find(e=>e.id===activeEv);
-      if(updated) cloudSaveEvent(updated);
+      if(updated&&!updated._shared) cloudSaveEvent(updated);
       return next;
     });
   }
@@ -2913,30 +2915,43 @@ Daily Summary — ${dayLabel}
   },[]);// eslint-disable-line
 
   async function loadFromCloud(userId){
-    // Load events
-    const{data:evRows}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
-    if(evRows?.length){
-      const cloudEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data}));
-      // Also load events shared with this user (read-only)
-      const{data:sharedEvRows}=await supabase.from("ls_events").select("id,name,kind,data,user_id")
-        .neq("user_id",userId);
-      const sharedEvs=(sharedEvRows||[]).map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data,_shared:true,_ownerId:r.user_id}));
-      const allEvs=[...cloudEvs,...sharedEvs];
-      setEvents(allEvs); saveEvents(allEvs);
-      setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:allEvs[0]?.id||null);
-    } else {
-      // First login: migrate localStorage events to cloud
-      const local=loadEvents();
-      if(local.length){
-        for(const ev of local){
-          const{id,name,kind,...data}=ev;
-          await supabase.from("ls_events").upsert({id,name,kind,data,user_id:userId});
+    try{
+      // Load own events
+      const{data:evRows,error:evErr}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
+      if(evErr) throw evErr;
+      if(evRows?.length){
+        const ownEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data}));
+        saveEvents(ownEvs); // only persist own events to localStorage
+        // Load events shared with this user (only in memory, not saved to localStorage)
+        const{data:sharedEvRows}=await supabase.from("ls_event_shares")
+          .select("event_id").eq("invited_user_id",userId);
+        let sharedEvs=[];
+        if(sharedEvRows?.length){
+          const sharedIds=sharedEvRows.map(s=>s.event_id);
+          const{data:shEvData}=await supabase.from("ls_events")
+            .select("id,name,kind,data,user_id").in("id",sharedIds);
+          sharedEvs=(shEvData||[]).map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data,_shared:true,_ownerId:r.user_id}));
+        }
+        const allEvs=[...ownEvs,...sharedEvs];
+        setEvents(allEvs);
+        setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:ownEvs[0]?.id||null);
+      } else {
+        // First login: migrate localStorage events to cloud
+        const local=loadEvents().filter(e=>!e._shared);
+        if(local.length){
+          for(const ev of local){
+            const{id,name,kind,...data}=ev;
+            await supabase.from("ls_events").upsert({id,name,kind,data,user_id:userId});
+          }
+          setEvents(local);
         }
       }
+      // Load library
+      const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
+      if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
+    }catch(err){
+      console.error("loadFromCloud error:",err);
     }
-    // Load library
-    const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
-    if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
     setAuthLoading(false);
   }
 
