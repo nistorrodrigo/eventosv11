@@ -1729,6 +1729,10 @@ export default function App(){
   const [invProfile,setInvProfile] = useState(null);
   const [coProfile,setCoProfile]   = useState(null);
   const [showEvMgr,setShowEvMgr]   = useState(false);
+  const [shareModal,setShareModal]   = useState(null); // {evId, evName, shares:[]}
+  const [shareEmail,setShareEmail]   = useState("");
+  const [shareBusy,setShareBusy]     = useState(false);
+  const [shareErr,setShareErr]       = useState("");
   const [globalSearch,setGlobalSearch] = useState("");
   const [showSearch,setShowSearch] = useState(false);
   const [evPasswordModal,setEvPasswordModal] = useState(null); // {evId, mode:"set"|"check", resolve}
@@ -1765,6 +1769,35 @@ export default function App(){
   }
 
   // ── Duplicate event ───────────────────────────────────────────────────
+  // ── Event sharing ────────────────────────────────────────────
+  async function openShareModal(evId){
+    const ev=events.find(e=>e.id===evId); if(!ev) return;
+    const{data:shares}=await supabase.from("ls_event_shares")
+      .select("id,invited_email,role,invited_user_id").eq("event_id",evId);
+    setShareModal({evId,evName:ev.name,shares:shares||[]});
+    setShareEmail("");setShareErr("");
+  }
+  async function addShare(){
+    if(!shareEmail.trim()||!shareModal) return;
+    setShareBusy(true);setShareErr("");
+    const{error}=await supabase.from("ls_event_shares").insert({
+      event_id:shareModal.evId,
+      owner_id:authUser.id,
+      invited_email:shareEmail.trim().toLowerCase(),
+      role:"viewer"
+    });
+    if(error){setShareErr(error.message||"Error al compartir");setShareBusy(false);return;}
+    // Refresh list
+    const{data:shares}=await supabase.from("ls_event_shares")
+      .select("id,invited_email,role,invited_user_id").eq("event_id",shareModal.evId);
+    setShareModal(prev=>({...prev,shares:shares||[]}));
+    setShareEmail("");setShareBusy(false);
+  }
+  async function removeShare(shareId){
+    await supabase.from("ls_event_shares").delete().eq("id",shareId);
+    setShareModal(prev=>({...prev,shares:prev.shares.filter(s=>s.id!==shareId)}));
+  }
+
   function duplicateEvent(evId){
     const orig=events.find(e=>e.id===evId); if(!orig) return;
     const id=`ev-${Date.now()}`;
@@ -2884,8 +2917,13 @@ Daily Summary — ${dayLabel}
     const{data:evRows}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
     if(evRows?.length){
       const cloudEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data}));
-      setEvents(cloudEvs); saveEvents(cloudEvs);
-      setActiveEv(prev=>cloudEvs.find(e=>e.id===prev)?prev:cloudEvs[0]?.id||null);
+      // Also load events shared with this user (read-only)
+      const{data:sharedEvRows}=await supabase.from("ls_events").select("id,name,kind,data,user_id")
+        .neq("user_id",userId);
+      const sharedEvs=(sharedEvRows||[]).map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data,_shared:true,_ownerId:r.user_id}));
+      const allEvs=[...cloudEvs,...sharedEvs];
+      setEvents(allEvs); saveEvents(allEvs);
+      setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:allEvs[0]?.id||null);
     } else {
       // First login: migrate localStorage events to cloud
       const local=loadEvents();
@@ -3131,6 +3169,7 @@ Daily Summary — ${dayLabel}
                       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
                         <div style={{fontSize:22}}>{kindIcon}</div>
                         <span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:`${stateClr}18`,color:stateClr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700}}>{stateLbl}</span>
+                      {ev._shared&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"rgba(120,80,200,.15)",color:"#9b6fe0",fontFamily:"IBM Plex Mono,monospace"}}>👥 Compartido</span>}
                       </div>
                       <div style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2,fontWeight:700}}>{ev.name}</div>
                       {ev.fund&&<div style={{fontSize:11,color:"var(--dim)",marginBottom:6}}>{ev.fund}</div>}
@@ -3338,6 +3377,7 @@ Daily Summary — ${dayLabel}
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
                   <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
+                  <button className="btn bo bs" title="Compartir con otros usuarios de LS" onClick={()=>openShareModal(e.id)}>👥 Compartir</button>
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
@@ -3444,6 +3484,57 @@ Daily Summary — ${dayLabel}
             })()}
           </div>
           <div className="modal-footer"><button className="btn bo bs" onClick={()=>{setShowSearch(false);setGlobalSearch("");}}>Cerrar</button></div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Share Modal ── */}
+    {shareModal&&(
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShareModal(null);}}>
+        <div className="modal" style={{maxWidth:440}}>
+          <div className="modal-hdr">
+            <div className="modal-title">👥 Compartir — {shareModal.evName}</div>
+          </div>
+          <div className="modal-body">
+            <p style={{fontSize:12,color:"var(--dim)",marginBottom:14,lineHeight:1.6}}>
+              Los usuarios invitados podrán ver este evento desde su cuenta de LS Event Manager.
+              Deben tener una cuenta creada con ese email.
+            </p>
+            <div style={{display:"flex",gap:6,marginBottom:16}}>
+              <input className="inp" style={{flex:1}} type="email" placeholder="Email del colaborador..."
+                value={shareEmail} onChange={e=>{setShareEmail(e.target.value);setShareErr("");}}
+                onKeyDown={e=>e.key==="Enter"&&addShare()}/>
+              <button className="btn bg bs" style={{flexShrink:0}} disabled={shareBusy||!shareEmail.trim()}
+                onClick={addShare}>{shareBusy?"⏳":"+ Invitar"}</button>
+            </div>
+            {shareErr&&<div style={{fontSize:11,color:"#e05050",marginBottom:10,padding:"6px 10px",background:"rgba(214,68,68,.08)",borderRadius:5}}>{shareErr}</div>}
+            {shareModal.shares.length>0?(
+              <div>
+                <div className="lbl" style={{marginBottom:8}}>Compartido con:</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {shareModal.shares.map(s=>(
+                    <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,background:"var(--ink3)",borderRadius:6,padding:"8px 10px"}}>
+                      <div style={{flex:1}}>
+                        <span style={{fontSize:12,color:"var(--cream)",fontFamily:"IBM Plex Mono,monospace"}}>{s.invited_email}</span>
+                        <span style={{fontSize:10,color:s.invited_user_id?"var(--grn)":"#e8850a",marginLeft:8}}>
+                          {s.invited_user_id?"✓ Usuario registrado":"⏳ Sin cuenta aún"}
+                        </span>
+                      </div>
+                      <span style={{fontSize:9,color:"var(--dim)",padding:"1px 6px",background:"rgba(30,90,176,.1)",borderRadius:3}}>👁 Viewer</span>
+                      <button className="btn bd bs" style={{fontSize:9,padding:"2px 7px"}} onClick={()=>removeShare(s.id)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ):(
+              <div style={{fontSize:12,color:"var(--dim)",textAlign:"center",padding:"16px 0"}}>
+                Aún no compartiste este evento con nadie.
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn bo bs" onClick={()=>setShareModal(null)}>Cerrar</button>
+          </div>
         </div>
       </div>
     )}
