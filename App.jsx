@@ -1201,13 +1201,22 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   useEffect(()=>{if(coId&&!meeting){setSelReps(((companies||[]).find(c=>c.id===coId)?.contacts||[]).map(r=>r.id));}else if(coId&&meeting){setSelReps(meeting.attendeeIds||[]);}}, [coId]); // eslint-disable-line
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
+    const prevM=meeting||{};
     const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
       location:loc,locationCustom:locCustom,status,notes,meetingFormat,
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
-      attendeeIds:type==="company"?selReps:[]};
+      attendeeIds:type==="company"?selReps:[],
+      changeLog:(()=>{
+        const now=new Date().toISOString(); const log=[...(prevM.changeLog||[])];
+        const chk=(f,nv)=>{if(String(prevM[f]??'')!==String(nv??'')) log.push({at:now,field:f,from:prevM[f],to:nv});};
+        chk('date',selectedDate||date);chk('hour',parseFloat(h));chk('duration',parseInt(dur));
+        chk('status',status);chk('companyId',type==="company"?coId:'');
+        return log;
+      })()};
+    onSave(m);
     onSave(m);
   }
   const actCos=(companies||[]).filter(c=>c.active);
@@ -1287,6 +1296,18 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
               </select>
             </div>
           </div>
+          {meeting?.changeLog?.length>0&&(
+            <div style={{marginBottom:10,background:"rgba(30,90,176,.04)",borderRadius:6,padding:"7px 10px"}}>
+              <div className="lbl" style={{marginBottom:3}}>🕐 Historial</div>
+              <div style={{maxHeight:68,overflowY:"auto"}}>
+                {[...(meeting.changeLog||[])].reverse().slice(0,5).map((c,i)=>(
+                  <div key={i} style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginBottom:1}}>
+                    {new Date(c.at).toLocaleDateString("es-AR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})} · <b>{c.field}</b>: {String(c.from??"-").slice(0,14)} → {String(c.to??"-").slice(0,14)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
           {type!=="company"&&(
@@ -1689,6 +1710,7 @@ export default function App(){
   const [rsAgendaEmailModal,setRsAgendaEmailModal]=useState(false);
   const [travelCache,setTravelCache]=useState({});
   const [travelLoading,setTravelLoading]=useState(false);
+  const [dragMtg,setDragMtg]=useState(null); // {id, origDate, origHour}
   const [rsShowParser,setRsShowParser]=useState(false);
   const [prevYearData,setPrevYearData] = useState(null);
   const prevYearRef = useRef();
@@ -1707,6 +1729,8 @@ export default function App(){
   const [invProfile,setInvProfile] = useState(null);
   const [coProfile,setCoProfile]   = useState(null);
   const [showEvMgr,setShowEvMgr]   = useState(false);
+  const [globalSearch,setGlobalSearch] = useState("");
+  const [showSearch,setShowSearch] = useState(false);
   const [evPasswordModal,setEvPasswordModal] = useState(null); // {evId, mode:"set"|"check", resolve}
   const [evPasswordInput,setEvPasswordInput] = useState("");
   const [showAddCo,setShowAddCo]   = useState(false);
@@ -1738,6 +1762,19 @@ export default function App(){
     const ev=events.find(e=>e.id===evId);
     setTab(ev?.kind==="roadshow"?"roadshow":ev?.kind==="outbound"?"outbound":"upload");
     setShowEvMgr(false);
+  }
+
+  // ── Duplicate event ───────────────────────────────────────────────────
+  function duplicateEvent(evId){
+    const orig=events.find(e=>e.id===evId); if(!orig) return;
+    const id=`ev-${Date.now()}`;
+    const dup={...orig,id,name:`${orig.name} (copia)`,createdAt:new Date().toISOString(),
+      meetings:[],unscheduled:[],investors:[],
+      roadshow:orig.roadshow?{...orig.roadshow,meetings:[]}:undefined,
+      passwordHash:undefined};
+    const next=[...events,dup]; setEvents(next); saveEvents(next);
+    setActiveEv(id); cloudSaveEvent(dup); setShowEvMgr(false);
+    setTab(dup.kind==="roadshow"?"roadshow":dup.kind==="outbound"?"outbound":"upload");
   }
 
   // ── Create new event ─────────────────────────────────────────
@@ -2945,6 +2982,15 @@ Daily Summary — ${dayLabel}
   const rsCoById=useMemo(()=>new Map(roadshow.companies.map(c=>[c.id,c])),[roadshow.companies]);
   const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
   const gridMap=useMemo(()=>{
+  const rsOverlapSet=useMemo(()=>{
+    const s=new Set(); const byDay={};
+    (roadshow.meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
+    Object.values(byDay).forEach(ms=>{
+      ms.sort((a,b)=>a.hour-b.hour);
+      for(let i=0;i<ms.length-1;i++){if(ms[i].hour+(ms[i].duration||60)/60>ms[i+1].hour){s.add(ms[i].id);s.add(ms[i+1].id);}}
+    });
+    return s;
+  },[roadshow.meetings]);
     const map={};
     meetings.filter(m=>slotDay(m.slotId)===activeDay).forEach(m=>{map[`${m.coId}::${slotHour(m.slotId)}`]=m;});
     return map;
@@ -3248,6 +3294,7 @@ Daily Summary — ${dayLabel}
           {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":e.kind==="outbound"?"✈️":"🏛"} {e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
+        <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>setShowSearch(true)}>🔍</button>
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
@@ -3290,6 +3337,7 @@ Daily Summary — ${dayLabel}
                     <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{(e.investors||[]).length} inversores · {(e.meetings||[]).length} reuniones</div>
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
+                  <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
@@ -3340,6 +3388,62 @@ Daily Summary — ${dayLabel}
               <button className="btn bg bs" onClick={()=>{setEvPassword(evPasswordModal.evId,evPasswordInput);setEvPasswordModal(null);}}>Guardar</button>
             )}
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Global Search Modal ── */}
+    {showSearch&&(
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget){setShowSearch(false);setGlobalSearch("");}}}>
+        <div className="modal" style={{maxWidth:540}}>
+          <div className="modal-hdr"><div className="modal-title">🔍 Búsqueda global</div></div>
+          <div className="modal-body" style={{padding:"12px 20px"}}>
+            <input className="inp" autoFocus value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)}
+              placeholder="Empresa, inversor, reunión, ticker..." style={{marginBottom:12,fontSize:13}}/>
+            {(()=>{
+              const q=(globalSearch||"").toLowerCase().trim();
+              if(!q) return <div style={{color:"var(--dim)",fontSize:12,textAlign:"center",padding:"20px 0"}}>Escribí para buscar en reuniones, empresas e inversores</div>;
+              const results=[];
+              // Search meetings in current event
+              (roadshow.meetings||[]).forEach(m=>{
+                const co=m.type==="company"?rsCoById.get(m.companyId):null;
+                const txt=[co?.name,co?.ticker,m.lsType,m.title,m.participants,m.notes].filter(Boolean).join(" ").toLowerCase();
+                if(txt.includes(q)) results.push({type:"meeting",icon:"📅",title:co?.name||(m.lsType||m.title||"Reunión"),sub:`${m.date} · ${fmtHour(m.hour)}${m.status==="confirmed"?" · ✅":""}`,onClick:()=>{setRsMtgModal({date:m.date,hour:m.hour,meeting:m});setRsSubTab("schedule");setShowSearch(false);}});
+              });
+              // Search roadshow companies
+              (roadshow.companies||[]).forEach(co=>{
+                const txt=[co.name,co.ticker,co.sector,co.hqAddress,...(co.contacts||[]).map(c=>c.name+c.title)].join(" ").toLowerCase();
+                if(txt.includes(q)) results.push({type:"company",icon:"🏢",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:co.sector+(co.hqAddress?" · "+co.hqAddress:""),onClick:()=>{setRsSubTab("companies");setShowSearch(false);}});
+              });
+              // Search library
+              (globalDB.companies||[]).forEach(co=>{
+                const txt=[co.name,co.ticker,co.sector,...(co.contacts||[]).map(c=>c.name)].join(" ").toLowerCase();
+                if(txt.includes(q)) results.push({type:"db",icon:"📚",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:"Librería · "+co.sector,onClick:()=>{setTab("db");setDbTab("companies");setShowSearch(false);}});
+              });
+              (globalDB.investors||[]).forEach(inv=>{
+                const txt=[inv.name,inv.fund,inv.position,inv.notes].filter(Boolean).join(" ").toLowerCase();
+                if(txt.includes(q)) results.push({type:"investor",icon:"👤",title:inv.name,sub:(inv.fund||"")+(inv.position?" · "+inv.position:""),onClick:()=>{setTab("db");setDbTab("investors");setShowSearch(false);}});
+              });
+              if(!results.length) return <div style={{color:"var(--dim)",fontSize:12,textAlign:"center",padding:"20px 0"}}>Sin resultados para "{q}"</div>;
+              return(
+                <div style={{maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+                  <div style={{fontSize:10,color:"var(--dim)",marginBottom:4}}>{results.length} resultado(s)</div>
+                  {results.slice(0,20).map((r,i)=>(
+                    <div key={i} onClick={r.onClick} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.08)",transition:"all .12s"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background="rgba(30,90,176,.1)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.background="rgba(30,90,176,.04)";}}>
+                      <span style={{fontSize:18}}>{r.icon}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--cream)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
+                        <div style={{fontSize:10,color:"var(--dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+          <div className="modal-footer"><button className="btn bo bs" onClick={()=>{setShowSearch(false);setGlobalSearch("");}}>Cerrar</button></div>
         </div>
       </div>
     )}
@@ -4614,6 +4718,14 @@ Daily Summary — ${dayLabel}
             <div>
               {/* Legend + add button */}
               <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
+                <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginRight:4}} onClick={()=>{
+                  const tent=(roadshow.meetings||[]).filter(m=>m.status==="tentative").length;
+                  if(!tent){alert("No hay reuniones tentativas.");return;}
+                  if(!confirm(`¿Confirmar ${tent} reunión(es) tentativa(s)?`)) return;
+                  const now=new Date().toISOString();
+                  const updated=(roadshow.meetings||[]).map(m=>m.status==="tentative"?{...m,status:"confirmed",changeLog:[...(m.changeLog||[]),{at:now,field:"status",from:"tentative",to:"confirmed"}]}:m);
+                  saveRoadshow({...roadshow,meetings:updated});
+                }}>✅ Confirmar todas</button>
                 {[...new Set([...roadshow.companies.filter(c=>c.active).map(c=>c.sector),"LS Internal"])].map(s=>(
                   <div key={s} style={{display:"flex",alignItems:"center",gap:3,fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>
                     <div style={{width:7,height:7,borderRadius:1,background:RS_CLR[s]||"#666"}}/>
@@ -4713,9 +4825,18 @@ Daily Summary — ${dayLabel}
                               return(
                                 <td key={date}
                                   rowSpan={rows}
-                                  onClick={()=>!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null})}
+                                  onClick={()=>{if(dragMtg)return;!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null});}}
+                                  onDragOver={e=>{if(dragMtg&&!mtg&&!isWE){e.preventDefault();e.currentTarget.style.background="rgba(30,90,176,.18)";}}}
+                                  onDragLeave={e=>{e.currentTarget.style.background="";}}
+                                  onDrop={e=>{
+                                    e.currentTarget.style.background="";
+                                    if(!dragMtg||mtg||isWE) return;
+                                    const updated=(roadshow.meetings||[]).map(m=>m.id===dragMtg.id?{...m,date,hour:h,changeLog:[...(m.changeLog||[]),{at:new Date().toISOString(),field:"moved",from:`${dragMtg.origDate} ${fmtHour(dragMtg.origHour)}`,to:`${date} ${fmtHour(h)}`}]}:m);
+                                    saveRoadshow({...roadshow,meetings:updated});
+                                    setDragMtg(null);
+                                  }}
                                   style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
-                                  {mtg&&<div style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1}}>
+                                  {mtg&&<div draggable onDragStart={()=>setDragMtg({id:mtg.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)} style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1,outline:rsOverlapSet.has(mtg.id)?"2px solid #e05050":undefined,outlineOffset:"-2px",cursor:"grab",opacity:dragMtg?.id===mtg.id?.4:1}}>
                                     <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
                                       <span>{lbl}</span>
                                       {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
@@ -4808,6 +4929,9 @@ Daily Summary — ${dayLabel}
             const STATUS_LBL={confirmed:"✅ Confirmado",tentative:"⏳ Tentativo",cancelled:"❌ Cancelado"};
             return(
             <div>
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
+              </div>
               {/* Header card */}
               <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
