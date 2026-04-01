@@ -1906,6 +1906,7 @@ export default function App(){
   const [invProfile,setInvProfile] = useState(null);
   const [coProfile,setCoProfile]   = useState(null);
   const [showEvMgr,setShowEvMgr]   = useState(false);
+  const [dashboardView,setDashboardView] = useState(false);
   const [globalSearch,setGlobalSearch] = useState("");
   const [showSearch,setShowSearch] = useState(false);
   const [evPasswordModal,setEvPasswordModal] = useState(null); // {evId, mode:"set"|"check", resolve}
@@ -3322,7 +3323,7 @@ Daily Summary — ${dayLabel}
   });
   const hasEvents=events.length>0;
 
-  if(!currentEvent) return(
+  if(!currentEvent||dashboardView) return(
     <div className="app"><style>{CSS}</style>
       <div style={{minHeight:"100vh",background:"var(--ink)",padding:"32px 24px"}}>
         {/* Header */}
@@ -3505,7 +3506,7 @@ Daily Summary — ${dayLabel}
 
     {/* HEADER */}
     <header className="hdr">
-      <div className="brand">
+      <div className="brand" style={{cursor:"pointer"}} onClick={()=>setDashboardView(v=>!v)} title="Dashboard">
         <h1>LS Event Manager</h1>
         <p>Latin Securities · Roadshow/Event Manager</p>
       </div>
