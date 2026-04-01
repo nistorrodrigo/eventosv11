@@ -1939,6 +1939,7 @@ export default function App(){
     const ev=events.find(e=>e.id===evId);
     setTab(ev?.kind==="roadshow"?"roadshow":ev?.kind==="outbound"?"outbound":"upload");
     setShowEvMgr(false);
+    setDashboardView(false);
   }
 
   // ── Duplicate event ───────────────────────────────────────────────────
@@ -3337,47 +3338,85 @@ Daily Summary — ${dayLabel}
         </div>
 
         <div style={{maxWidth:900,margin:"0 auto"}}>
-          {/* Existing events dashboard */}
+          
+          {/* ── Global stats bar ── */}
           {hasEvents&&(
-            <div style={{marginBottom:40}}>
-              <div style={{fontSize:13,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".06em",textTransform:"uppercase",marginBottom:16}}>Tus eventos</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-                {dashEvents.map(ev=>{
-                  const stateClr={active:"#3a8c5c",upcoming:"#1e5ab0",past:"#555",draft:"#7a5a00"}[ev.state]||"#666";
-                  const stateLbl={active:"🟢 En curso",upcoming:"🔵 Próximo",past:"⚫ Finalizado",draft:"⚪ Borrador"}[ev.state]||ev.state;
-                  const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
-                  return(
-                    <div key={ev.id} onClick={()=>handleOpenEvent(ev.id)} style={{background:"#fff",border:"1px solid rgba(30,90,176,.1)",borderRadius:12,padding:"18px 20px",cursor:"pointer",transition:"all .18s",position:"relative",overflow:"hidden"}}
-                      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(30,90,176,.12)";e.currentTarget.style.borderColor="rgba(30,90,176,.25)";}}
-                      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";e.currentTarget.style.borderColor="rgba(30,90,176,.1)";}}>
-                      {/* Top accent */}
-                      <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:stateClr,opacity:.7}}/>
-                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
-                        <div style={{fontSize:22}}>{kindIcon}</div>
-                        <span style={{fontSize:9,padding:"2px 8px",borderRadius:10,background:`${stateClr}18`,color:stateClr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700}}>{stateLbl}</span>
-                      </div>
-                      <div style={{fontFamily:"Playfair Display,serif",fontSize:16,color:"var(--cream)",marginBottom:2,fontWeight:700}}>{ev.name}</div>
-                      {ev.fund&&<div style={{fontSize:11,color:"var(--dim)",marginBottom:6}}>{ev.fund}</div>}
-                      {ev.dates&&<div style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginBottom:10}}>{ev.dates}</div>}
-                      <div style={{display:"flex",gap:12,paddingTop:10,borderTop:"1px solid rgba(30,90,176,.06)"}}>
-                        {ev.conf>0&&<div style={{fontSize:11,color:"#3a8c5c",fontWeight:700}}><span style={{fontSize:16}}>{ev.conf}</span> conf.</div>}
-                        {ev.tent>0&&<div style={{fontSize:11,color:"#e8850a"}}><span style={{fontSize:16}}>{ev.tent}</span> tent.</div>}
-                        {ev.invs>0&&<div style={{fontSize:11,color:"var(--dim)"}}><span style={{fontSize:16}}>{ev.invs}</span> inv.</div>}
-                        {ev.conf===0&&ev.tent===0&&ev.invs===0&&<div style={{fontSize:11,color:"var(--dim)"}}>Sin datos cargados</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-                {/* Create new card */}
-                <div onClick={()=>setNewEvKind("")} style={{background:"rgba(30,90,176,.03)",border:"2px dashed rgba(30,90,176,.15)",borderRadius:12,padding:"18px 20px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,minHeight:160,transition:"all .18s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(30,90,176,.35)";e.currentTarget.style.background="rgba(30,90,176,.06)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(30,90,176,.15)";e.currentTarget.style.background="rgba(30,90,176,.03)";}}>
-                  <div style={{fontSize:28,opacity:.4}}>＋</div>
-                  <div style={{fontSize:12,color:"var(--dim)"}}>Nuevo evento</div>
+            <div style={{display:"flex",gap:0,marginBottom:28,background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.1)",borderRadius:12,overflow:"hidden"}}>
+              {[
+                {lbl:"Total",val:events.length,clr:"var(--cream)"},
+                {lbl:"En curso",val:dashEvents.filter(e=>e.state==="active").length,clr:"#3a8c5c"},
+                {lbl:"Próximos",val:dashEvents.filter(e=>e.state==="upcoming").length,clr:"#1e5ab0"},
+                {lbl:"Borradores",val:dashEvents.filter(e=>e.state==="draft").length,clr:"#e8850a"},
+                {lbl:"Finalizados",val:dashEvents.filter(e=>e.state==="past").length,clr:"var(--dim)"},
+                {lbl:"Reuniones",val:dashEvents.reduce((s,e)=>{const m=e.roadshow?.meetings||e.meetings||[];return s+m.length;},0),clr:"var(--cream)"},
+              ].map(({lbl,val,clr})=>(
+                <div key={lbl} style={{flex:1,padding:"14px 10px",borderRight:"1px solid rgba(30,90,176,.1)",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:clr,fontFamily:"Playfair Display,serif",lineHeight:1}}>{val}</div>
+                  <div style={{fontSize:8,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".07em",marginTop:4}}>{lbl}</div>
                 </div>
+              ))}
+              <div style={{padding:"14px 16px",display:"flex",alignItems:"center",flexShrink:0}}>
+                <button className="btn bg bs" style={{whiteSpace:"nowrap",fontSize:11,gap:5}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
               </div>
             </div>
           )}
+
+          {/* ── Event sections by status ── */}
+          {hasEvents&&(()=>{
+            const SECTIONS=[
+              {state:"active",  icon:"🟢",label:"En curso",    clr:"#3a8c5c"},
+              {state:"upcoming",icon:"🔵",label:"Próximos",    clr:"#1e5ab0"},
+              {state:"draft",   icon:"⚪",label:"Borradores",  clr:"#b45309"},
+              {state:"past",    icon:"⚫",label:"Finalizados", clr:"#6b7280"},
+            ];
+            return SECTIONS.map(sec=>{
+              const evs=dashEvents.filter(e=>e.state===sec.state);
+              if(!evs.length) return null;
+              return(
+                <div key={sec.state} style={{marginBottom:30}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:8,borderBottom:"1px solid rgba(30,90,176,.08)"}}>
+                    <span>{sec.icon}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>{sec.label}</span>
+                    <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>({evs.length})</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:10}}>
+                    {evs.map(ev=>{
+                      const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
+                      const kindLbl=ev.kind==="roadshow"?"Inbound":ev.kind==="outbound"?"Outbound":"Conferencia";
+                      const totalMtgs=(ev.roadshow?.meetings||ev.meetings||[]).length;
+                      return(
+                        <div key={ev.id}
+                          onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}
+                          style={{background:"#fff",border:`1px solid ${sec.clr}25`,borderRadius:10,
+                            padding:"15px 17px",cursor:"pointer",transition:"all .16s",
+                            position:"relative",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}}
+                          onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 6px 18px ${sec.clr}22`;e.currentTarget.style.borderColor=`${sec.clr}55`;}}
+                          onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,.04)";e.currentTarget.style.borderColor=`${sec.clr}25`;}}>
+                          <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:sec.clr,borderRadius:"10px 0 0 10px"}}/>
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:7}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:16}}>{kindIcon}</span>
+                              <span style={{fontSize:8,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",fontWeight:600,background:`${sec.clr}12`,padding:"2px 6px",borderRadius:4,textTransform:"uppercase",letterSpacing:".08em"}}>{kindLbl}</span>
+                            </div>
+                            {ev.dates&&<span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{ev.dates}</span>}
+                          </div>
+                          <div style={{fontFamily:"Playfair Display,serif",fontSize:14.5,color:"#0f1923",fontWeight:700,marginBottom:ev.fund?2:7,lineHeight:1.25}}>{ev.name}</div>
+                          {ev.fund&&<div style={{fontSize:10,color:"#6b7280",marginBottom:7}}>{ev.fund}</div>}
+                          <div style={{display:"flex",gap:12,paddingTop:7,borderTop:"1px solid #f3f4f6",alignItems:"center"}}>
+                            {ev.conf>0&&<span style={{fontSize:10,color:"#3a8c5c",fontWeight:700}}>✓ {ev.conf}</span>}
+                            {ev.tent>0&&<span style={{fontSize:10,color:"#e8850a"}}>◌ {ev.tent}</span>}
+                            {totalMtgs>0&&<span style={{fontSize:10,color:"#9ca3af"}}>{totalMtgs} mtgs</span>}
+                            {ev.invs>0&&<span style={{fontSize:10,color:"#9ca3af"}}>{ev.invs} inv.</span>}
+                            {(ev.activityLog||[]).length>0&&<span style={{fontSize:9,color:"#cbd5e1",marginLeft:"auto",fontFamily:"IBM Plex Mono,monospace"}}>{(ev.activityLog||[]).length} cambios</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()}
 
           {/* Create first event */}
           {!hasEvents&&(
