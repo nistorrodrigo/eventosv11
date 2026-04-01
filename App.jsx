@@ -3552,7 +3552,138 @@ Daily Summary — ${dayLabel}
         )}
         </div>{/* maxWidth:900 */}
       </div>{/* outer */}
+
+      {/* NEW EVENT MODAL — also needed inside dashboard return */}
+      {showEvMgr&&(
+        <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}>
+          <div className="modal" style={{maxWidth:480}}>
+            <div className="modal-hdr"><div className="modal-title">Nuevo evento</div></div>
+            <div className="modal-body">
+              <div style={{marginBottom:16}}>
+                <div className="lbl" style={{marginBottom:8}}>Tipo de evento</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  {[["roadshow","🗺️","Inbound Roadshow"],["outbound","✈️","Outbound Roadshow"],["conference","🏛","Conferencia"]].map(([k,ic,lbl])=>(
+                    <div key={k} onClick={()=>setNewEvKind(k)}
+                      style={{padding:"14px 10px",border:`2px solid ${newEvKind===k?"#1e5ab0":"rgba(30,90,176,.15)"}`,borderRadius:10,cursor:"pointer",textAlign:"center",background:newEvKind===k?"rgba(30,90,176,.06)":"transparent",transition:"all .15s"}}>
+                      <div style={{fontSize:24,marginBottom:5}}>{ic}</div>
+                      <div style={{fontSize:11,color:"var(--cream)",fontWeight:600,lineHeight:1.3}}>{lbl}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {newEvKind&&(
+                <div>
+                  <div className="lbl" style={{marginBottom:6}}>Nombre del evento</div>
+                  <input className="inp" value={newEvName} onChange={e=>setNewEvName(e.target.value)}
+                    placeholder={newEvKind==="roadshow"?"Ej: IMP 2026":newEvKind==="outbound"?"Ej: US Roadshow 2Q26":"Ej: Argentina in NY 2026"}
+                    onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim(),newEvKind),setShowEvMgr(false))}
+                    autoFocus style={{marginBottom:12}}/>
+                  <button className="btn bg bs" style={{width:"100%",justifyContent:"center"}}
+                    disabled={!newEvName.trim()}
+                    onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim(),newEvKind);setShowEvMgr(false);setNewEvName("");setNewEvKind(null);}}}>
+                    Crear evento →
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer"><button className="btn bo bs" onClick={()=>{setShowEvMgr(false);setNewEvName("");setNewEvKind(null);}}>Cancelar</button></div>
+          </div>
+        </div>
+      )}
+
     </div>
+
+    {/* NEW EVENT MODAL */}
+    {showEvMgr&&(
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}>
+        <div className="modal" style={{maxWidth:440}}>
+          <div className="modal-hdr"><div className="modal-title">Gestión de Eventos</div></div>
+          <div className="modal-body">
+            <div style={{marginBottom:16}}>
+              <div className="lbl" style={{marginBottom:6}}>Tipo de evento</div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                {[["conference","🏛 Conferencia"],["roadshow","🗺️ Inbound"],["outbound","✈️ Outbound"]].map(([k,l])=>(
+                  <button key={k} className={`btn bs ${newEvKind===k?"bg":"bo"}`} style={{flex:1,fontSize:11}} onClick={()=>setNewEvKind(k)}>{l}</button>
+                ))}
+              </div>
+              <div className="lbl" style={{marginBottom:4}}>Nombre del evento</div>
+              <div className="flex" style={{marginTop:0}}>
+                <input className="inp" style={{flex:1}} placeholder={newEvKind==="conference"?"Ej: Argentina NY 2026":newEvKind==="outbound"?"Ej: US Roadshow Q2 2026":"Ej: Brasil Roadshow Abril 2026"} value={newEvName} onChange={e=>setNewEvName(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim(),newEvKind),setShowEvMgr(false))}/>
+                <button className="btn bg bs" onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim(),newEvKind);setShowEvMgr(false);}}}>Crear</button>
+              </div>
+            </div>
+            <div className="sec-hdr">Eventos existentes</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
+              {events.map(e=>(
+                <div key={e.id} className={`ev-card${e.id===activeEv?" active-ev":""}`}>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <div style={{fontSize:13.5,color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{e.name}</div>
+                      <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",background:e.kind==="roadshow"?"rgba(35,162,158,.15)":"rgba(30,90,176,.12)",color:e.kind==="roadshow"?"#23a29e":"var(--gold)",flexShrink:0}}>{e.kind==="roadshow"?"🗺️ Inbound":e.kind==="outbound"?"✈️ Outbound":"🏛 Conferencia"}</span>
+                    </div>
+                    <div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>
+                      {(e.investors||[]).length} inversores · {(e.meetings||e.roadshow?.meetings||[]).length} reuniones
+                      {(e.activityLog||[]).length>0&&<span style={{marginLeft:6,color:"rgba(30,90,176,.4)"}}>· {(e.activityLog||[]).length} cambios</span>}
+                    </div>
+                  </div>
+                  <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
+                  <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
+                  <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
+                    setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
+                  }}>{e.passwordHash?"🔒":"🔓"}</button>
+                  {events.length>1&&<button className="btn bd bs" title="Eliminar evento" onClick={()=>{
+                    if(confirm(`Eliminar "${e.name}"? Esta acción no se puede deshacer.`)){
+                      const next=events.filter(x=>x.id!==e.id);setEvents(next);saveEvents(next);cloudDeleteEvent(e.id);
+                      if(activeEv===e.id) setActiveEv(next[0]?.id||null);
+                    }
+                  }}>🗑</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="modal-footer"><button className="btn bo bs" onClick={()=>setShowEvMgr(false)}>Cerrar</button></div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Password modal ── */}
+    {evPasswordModal&&(
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget){setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}}>
+        <div className="modal" style={{maxWidth:360}}>
+          <div className="modal-hdr">
+            <div className="modal-title">{evPasswordModal.mode==="check"?"🔒 Evento protegido":"🔒 Contraseña del evento"}</div>
+          </div>
+          <div className="modal-body">
+            {evPasswordModal.mode==="check"?(
+              <>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:12}}>Este evento está protegido. Ingresá la contraseña para abrirlo.</p>
+                <div className="lbl">Contraseña</div>
+                <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)}
+                  placeholder="Contraseña..."
+                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}}/>
+              </>
+            ):(
+              <>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:12}}>Ingresá una contraseña para proteger este evento. Dejá vacío para quitar la contraseña.</p>
+                <div className="lbl">Nueva contraseña</div>
+                <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)} placeholder="Dejar vacío para quitar..."/>
+              </>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn bo bs" onClick={()=>{setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}>Cancelar</button>
+            {evPasswordModal.mode==="check"?(
+              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}>Abrir</button>
+            ):(
+              <button className="btn bg bs" onClick={()=>{setEvPassword(evPasswordModal.evId,evPasswordInput);setEvPasswordModal(null);}}>Guardar</button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Global Search Modal ── */}
   );
 
 
