@@ -3264,6 +3264,25 @@ Daily Summary — ${dayLabel}
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
 
   // ── Auth loading screen ─────────────────────────────────────
+  // ── Dashboard helpers ────────────────────────────────────────
+  const dashEvents=useMemo(()=>events.map(ev=>{
+    const mtgs=ev.roadshow?.meetings||ev.meetings||[];
+    const conf=mtgs.filter(m=>m.status==="confirmed").length;
+    const tent=mtgs.filter(m=>m.status==="tentative").length;
+    const invs=(ev.investors||[]).length;
+    const fund=ev.roadshow?.trip?.fund||ev.roadshow?.trip?.clientName||"";
+    const dateFrom=ev.roadshow?.trip?.arrivalDate||ev.outbound?.destinations?.[0]?.dateFrom||"";
+    const dateTo=ev.roadshow?.trip?.departureDate||ev.outbound?.destinations?.at(-1)?.dateTo||"";
+    const fmtD=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"});}catch{return iso;}};
+    const dates=dateFrom?`${fmtD(dateFrom)}${dateTo&&dateTo!==dateFrom?" – "+fmtD(dateTo):""}`:""
+    const now=new Date();
+    const start=dateFrom?new Date(dateFrom+"T12:00:00"):null;
+    const end=dateTo?new Date(dateTo+"T12:00:00"):null;
+    const state=!start?"draft":now<start?"upcoming":end&&now>end?"past":"active";
+    return{...ev,conf,tent,invs,fund,dates,state};
+  }),[events]);
+  const hasEvents=events.length>0;
+
   if(authLoading) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:16}}>
       <div style={{width:36,height:36,border:"3px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
@@ -3303,25 +3322,6 @@ Daily Summary — ${dayLabel}
       </div>
     </div>
   );
-
-  // ── Dashboard helpers ────────────────────────────────────────
-  const dashEvents=useMemo(()=>events.map(ev=>{
-    const mtgs=ev.roadshow?.meetings||ev.meetings||[];
-    const conf=mtgs.filter(m=>m.status==="confirmed").length;
-    const tent=mtgs.filter(m=>m.status==="tentative").length;
-    const invs=(ev.investors||[]).length;
-    const fund=ev.roadshow?.trip?.fund||ev.roadshow?.trip?.clientName||"";
-    const dateFrom=ev.roadshow?.trip?.arrivalDate||ev.outbound?.destinations?.[0]?.dateFrom||"";
-    const dateTo=ev.roadshow?.trip?.departureDate||ev.outbound?.destinations?.at(-1)?.dateTo||"";
-    const fmtD=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"});}catch{return iso;}};
-    const dates=dateFrom?`${fmtD(dateFrom)}${dateTo&&dateTo!==dateFrom?" – "+fmtD(dateTo):""}`:""
-    const now=new Date();
-    const start=dateFrom?new Date(dateFrom+"T12:00:00"):null;
-    const end=dateTo?new Date(dateTo+"T12:00:00"):null;
-    const state=!start?"draft":now<start?"upcoming":end&&now>end?"past":"active";
-    return{...ev,conf,tent,invs,fund,dates,state};
-  }),[events]);
-  const hasEvents=events.length>0;
 
   if(!currentEvent||dashboardView) return(
     <div className="app"><style>{CSS}</style>
