@@ -3325,103 +3325,155 @@ Daily Summary — ${dayLabel}
 
   if(!currentEvent||dashboardView) return(
     <div className="app"><style>{CSS}</style>
-      <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#f7f9fc 0%,#edf2f9 60%,#f5f7fc 100%)"}}>
+      <div style={{minHeight:"100vh",background:"#f2f5fb",fontFamily:"'Lora',Georgia,serif"}}>
 
-        {/* ── Nav bar ── */}
-        <div style={{background:"#000039",padding:"0 32px"}}>
-          <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:60}}>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <img src="data:image/png;base64,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" style={{height:30,display:"block",filter:"brightness(0) invert(1)"}} alt="Latin Securities"/>
-              <div style={{width:1,height:26,background:"rgba(255,255,255,.15)"}}/>
-              <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"rgba(255,255,255,.45)",letterSpacing:".18em",textTransform:"uppercase"}}>Event Manager</span>
+        {/* ══ NAVBAR ══ */}
+        <div style={{background:"#000039",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+          <div style={{maxWidth:1200,margin:"0 auto",padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58}}>
+            <div style={{display:"flex",alignItems:"center",gap:16}}>
+              <img src="data:image/png;base64,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" style={{height:28,display:"block",filter:"brightness(0) invert(1)",opacity:.92}} alt="Latin Securities"/>
+              <div style={{width:1,height:22,background:"rgba(255,255,255,.12)"}}/>
+              <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9.5,color:"rgba(255,255,255,.38)",letterSpacing:".25em",textTransform:"uppercase",fontWeight:500}}>Event Manager</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {authUser&&<span style={{fontSize:10,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace"}}>{authUser.email}</span>}
-              {authUser&&<button style={{padding:"4px 13px",border:"1px solid rgba(255,255,255,.18)",borderRadius:5,background:"transparent",color:"rgba(255,255,255,.55)",fontSize:11,cursor:"pointer"}} onClick={signOut}>Salir</button>}
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              {authUser&&<span style={{fontSize:10,color:"rgba(255,255,255,.35)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>{authUser.email}</span>}
+              {authUser&&<button
+                style={{padding:"5px 14px",border:"1px solid rgba(255,255,255,.15)",borderRadius:4,background:"rgba(255,255,255,.04)",color:"rgba(255,255,255,.5)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit",letterSpacing:".04em",transition:"all .15s"}}
+                onMouseEnter={e=>{e.target.style.borderColor="rgba(255,255,255,.35)";e.target.style.color="rgba(255,255,255,.8)";}}
+                onMouseLeave={e=>{e.target.style.borderColor="rgba(255,255,255,.15)";e.target.style.color="rgba(255,255,255,.5)";}}
+                onClick={signOut}>Salir</button>}
             </div>
           </div>
         </div>
 
-        {/* ── Hero ── */}
-        <div style={{background:"linear-gradient(175deg,#000039 0%,#0d1a4a 70%,#162258 100%)",padding:"40px 32px 60px"}}>
-          <div style={{maxWidth:1100,margin:"0 auto"}}>
-            <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.35)",letterSpacing:".22em",textTransform:"uppercase",marginBottom:12}}>Buenos Aires · Latin Securities</div>
-            <h1 style={{fontFamily:"Playfair Display,serif",fontSize:36,fontWeight:400,color:"#fff",margin:"0 0 8px",letterSpacing:"-.01em",lineHeight:1.15}}>Roadshow &amp; Event Manager</h1>
-            <p style={{fontSize:12,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace",margin:0,letterSpacing:".06em"}}>Institutional Sales · Gestión de agenda y exportación</p>
+        {/* ══ HERO ══ */}
+        <div style={{background:"linear-gradient(165deg,#000039 0%,#091040 55%,#0e1852 100%)",padding:"52px 40px 76px",position:"relative",overflow:"hidden"}}>
+          {/* Diagonal grid decoration */}
+          <div style={{position:"absolute",inset:0,opacity:.04,backgroundImage:"repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",backgroundSize:"30px 30px",pointerEvents:"none"}}/>
+          {/* Accent line */}
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,#1e5ab0 30%,#3399ff 60%,transparent)"}}/>
+          <div style={{maxWidth:1200,margin:"0 auto",position:"relative"}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+              <div>
+                <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.3)",letterSpacing:".28em",textTransform:"uppercase",marginBottom:14}}>Buenos Aires · Latin Securities</div>
+                <h1 style={{fontFamily:"Playfair Display,serif",fontSize:42,fontWeight:400,color:"#fff",margin:"0 0 10px",letterSpacing:"-.02em",lineHeight:1.1}}>Roadshow &amp; Event Manager</h1>
+                <p style={{fontSize:12,color:"rgba(255,255,255,.38)",fontFamily:"IBM Plex Mono,monospace",margin:0,letterSpacing:".07em"}}>Institutional Sales · Gestión de agenda y exportación</p>
+              </div>
+              <div style={{display:"flex",gap:10,alignSelf:"flex-end",paddingBottom:4}}>
+                <button
+                  style={{padding:"10px 20px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,color:"rgba(255,255,255,.7)",fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:".04em",transition:"all .15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(255,255,255,.3)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.07)";e.currentTarget.style.borderColor="rgba(255,255,255,.15)";}}
+                  onClick={()=>setShowEvMgr(true)}>+ Nuevo evento</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{maxWidth:1100,margin:"-20px auto 0",padding:"0 32px 48px",position:"relative"}}>
+        {/* ══ MAIN CONTENT ══ */}
+        <div style={{maxWidth:1200,margin:"-22px auto 0",padding:"0 40px 60px",position:"relative"}}>
 
-          {/* ── Global stats bar ── */}
+          {/* ── Stats card ── */}
           {hasEvents&&(
-            <div style={{display:"flex",gap:0,marginBottom:28,background:"#fff",border:"none",borderRadius:14,overflow:"hidden",boxShadow:"0 8px 40px rgba(0,0,57,.1),0 1px 3px rgba(0,0,0,.06)"}}>
+            <div style={{display:"flex",gap:0,marginBottom:36,background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,57,.09),0 1px 3px rgba(0,0,0,.05)"}}>
               {[
-                {lbl:"Total",val:events.length,clr:"var(--cream)"},
-                {lbl:"En curso",val:dashEvents.filter(e=>e.state==="active").length,clr:"#3a8c5c"},
-                {lbl:"Próximos",val:dashEvents.filter(e=>e.state==="upcoming").length,clr:"#1e5ab0"},
-                {lbl:"Borradores",val:dashEvents.filter(e=>e.state==="draft").length,clr:"#e8850a"},
-                {lbl:"Finalizados",val:dashEvents.filter(e=>e.state==="past").length,clr:"var(--dim)"},
-                {lbl:"Reuniones",val:dashEvents.reduce((s,e)=>{const m=e.roadshow?.meetings||e.meetings||[];return s+m.length;},0),clr:"var(--cream)"},
-              ].map(({lbl,val,clr})=>(
-                <div key={lbl} style={{flex:1,padding:"16px 10px",borderRight:"1px solid #f0f3f8",textAlign:"center"}}>
-                  <div style={{fontSize:24,fontWeight:700,color:clr,fontFamily:"Playfair Display,serif",lineHeight:1}}>{val}</div>
-                  <div style={{fontSize:8,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".09em",marginTop:5}}>{lbl}</div>
+                {lbl:"Total",     val:events.length,                                            clr:"#000039"},
+                {lbl:"En curso",  val:dashEvents.filter(e=>e.state==="active").length,          clr:"#166534"},
+                {lbl:"Próximos",  val:dashEvents.filter(e=>e.state==="upcoming").length,        clr:"#1e5ab0"},
+                {lbl:"Borradores",val:dashEvents.filter(e=>e.state==="draft").length,           clr:"#b45309"},
+                {lbl:"Finalizados",val:dashEvents.filter(e=>e.state==="past").length,           clr:"#6b7280"},
+                {lbl:"Reuniones", val:dashEvents.reduce((s,e)=>{return s+(e.roadshow?.meetings||e.meetings||[]).length;},0), clr:"#1e5ab0"},
+              ].map(({lbl,val,clr},i)=>(
+                <div key={lbl} style={{flex:1,padding:"20px 12px",borderRight:"1px solid #f0f3f8",textAlign:"center",transition:"background .15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="#f9fafb";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="";}}
+                >
+                  <div style={{fontSize:28,fontWeight:700,color:clr,fontFamily:"Playfair Display,serif",lineHeight:1,marginBottom:6}}>{val}</div>
+                  <div style={{fontSize:8.5,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>{lbl}</div>
                 </div>
               ))}
-              <div style={{padding:"14px 16px",display:"flex",alignItems:"center",flexShrink:0}}>
-                <button style={{whiteSpace:"nowrap",fontSize:12,padding:"9px 18px",background:"#000039",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontWeight:600,letterSpacing:".02em",fontFamily:"inherit"}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
+              <div style={{padding:"20px 20px",display:"flex",alignItems:"center",borderLeft:"1px solid #f0f3f8"}}>
+                <button
+                  style={{whiteSpace:"nowrap",fontSize:12,padding:"10px 20px",background:"#000039",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,letterSpacing:".03em",fontFamily:"inherit",transition:"background .15s,transform .1s",boxShadow:"0 2px 8px rgba(0,0,57,.25)"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background="#0d1a4a";e.currentTarget.style.transform="translateY(-1px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="#000039";e.currentTarget.style.transform="";}}
+                  onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
               </div>
             </div>
           )}
 
-          {/* ── Event sections by status ── */}
+          {/* ── Event sections ── */}
           {hasEvents&&(()=>{
             const SECTIONS=[
-              {state:"active",  icon:"🟢",label:"En curso",    clr:"#3a8c5c"},
-              {state:"upcoming",icon:"🔵",label:"Próximos",    clr:"#1e5ab0"},
-              {state:"draft",   icon:"⚪",label:"Borradores",  clr:"#b45309"},
-              {state:"past",    icon:"⚫",label:"Finalizados", clr:"#6b7280"},
+              {state:"active",  icon:"🟢",label:"En curso",    clr:"#166534",accent:"#dcfce7"},
+              {state:"upcoming",icon:"🔵",label:"Próximos",    clr:"#1e5ab0",accent:"#dbeafe"},
+              {state:"draft",   icon:"⚪",label:"Borradores",  clr:"#b45309",accent:"#fef3c7"},
+              {state:"past",    icon:"⚫",label:"Finalizados", clr:"#6b7280",accent:"#f3f4f6"},
             ];
             return SECTIONS.map(sec=>{
               const evs=dashEvents.filter(e=>e.state===sec.state);
               if(!evs.length) return null;
               return(
-                <div key={sec.state} style={{marginBottom:30}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:10,borderBottom:"2px solid",borderColor:sec.clr+"22"}}>
-                    <span>{sec.icon}</span>
-                    <span style={{fontSize:10,fontWeight:700,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".15em"}}>{sec.label}</span>
-                    <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>({evs.length})</span>
+                <div key={sec.state} style={{marginBottom:36}}>
+                  {/* Section header */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                    <div style={{width:10,height:10,borderRadius:"50%",background:sec.clr,boxShadow:`0 0 0 3px ${sec.accent}`}}/>
+                    <span style={{fontSize:10,fontWeight:700,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".18em"}}>{sec.label}</span>
+                    <span style={{fontSize:10,color:"#cbd5e1",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>({evs.length})</span>
+                    <div style={{flex:1,height:1,background:"linear-gradient(90deg,"+sec.clr+"25,transparent)"}}/>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:10}}>
+                  {/* Cards grid */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))",gap:12}}>
                     {evs.map(ev=>{
                       const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
                       const kindLbl=ev.kind==="roadshow"?"Inbound":ev.kind==="outbound"?"Outbound":"Conferencia";
                       const totalMtgs=(ev.roadshow?.meetings||ev.meetings||[]).length;
+                      const pct=totalMtgs>0?Math.round(ev.conf/totalMtgs*100):0;
                       return(
                         <div key={ev.id}
                           onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}
-                          style={{background:"#fff",border:`1px solid ${sec.clr}20`,borderRadius:12,
-                            padding:"18px 20px",cursor:"pointer",transition:"all .18s",
-                            position:"relative",overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,57,.06),0 1px 2px rgba(0,0,0,.04)"}}
-                          onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 10px 32px ${sec.clr}30,0 2px 6px rgba(0,0,0,.06)`;e.currentTarget.style.borderColor=`${sec.clr}55`;}}
-                          onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,.04)";e.currentTarget.style.borderColor=`${sec.clr}25`;}}>
-                          <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:sec.clr}}/>
-                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:7}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:16}}>{kindIcon}</span>
-                              <span style={{fontSize:8,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",fontWeight:600,background:`${sec.clr}12`,padding:"2px 6px",borderRadius:4,textTransform:"uppercase",letterSpacing:".08em"}}>{kindLbl}</span>
+                          style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:12,
+                            padding:"20px 22px",cursor:"pointer",transition:"all .18s cubic-bezier(.4,0,.2,1)",
+                            position:"relative",overflow:"hidden",
+                            boxShadow:"0 1px 4px rgba(0,0,57,.05)"}}
+                          onMouseEnter={e=>{
+                            e.currentTarget.style.transform="translateY(-3px)";
+                            e.currentTarget.style.boxShadow=`0 12px 36px ${sec.clr}22,0 2px 8px rgba(0,0,0,.06)`;
+                            e.currentTarget.style.borderColor=`${sec.clr}40`;
+                          }}
+                          onMouseLeave={e=>{
+                            e.currentTarget.style.transform="";
+                            e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,57,.05)";
+                            e.currentTarget.style.borderColor="#e9eef5";
+                          }}>
+                          {/* Left bar */}
+                          <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:`linear-gradient(180deg,${sec.clr},${sec.clr}88)`}}/>
+                          {/* Top row */}
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
+                            <div style={{display:"flex",alignItems:"center",gap:7}}>
+                              <span style={{fontSize:17}}>{kindIcon}</span>
+                              <span style={{fontSize:8.5,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700,background:sec.accent,padding:"2px 7px",borderRadius:4,textTransform:"uppercase",letterSpacing:".1em"}}>{kindLbl}</span>
                             </div>
-                            {ev.dates&&<span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{ev.dates}</span>}
+                            {ev.dates&&<span style={{fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>{ev.dates}</span>}
                           </div>
-                          <div style={{fontFamily:"Playfair Display,serif",fontSize:15.5,color:"#000039",fontWeight:700,marginBottom:ev.fund?3:8,lineHeight:1.2,letterSpacing:"-.01em"}}>{ev.name}</div>
-                          {ev.fund&&<div style={{fontSize:10.5,color:"#7a8fa8",marginBottom:8,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".03em"}}>{ev.fund}</div>}
-                          <div style={{display:"flex",gap:12,paddingTop:7,borderTop:"1px solid #f3f4f6",alignItems:"center"}}>
-                            {ev.conf>0&&<span style={{fontSize:10,color:"#3a8c5c",fontWeight:700}}>✓ {ev.conf}</span>}
-                            {ev.tent>0&&<span style={{fontSize:10,color:"#e8850a"}}>◌ {ev.tent}</span>}
-                            {totalMtgs>0&&<span style={{fontSize:10,color:"#9ca3af"}}>{totalMtgs} mtgs</span>}
-                            {ev.invs>0&&<span style={{fontSize:10,color:"#9ca3af"}}>{ev.invs} inv.</span>}
-                            {(ev.activityLog||[]).length>0&&<span style={{fontSize:9,color:"#cbd5e1",marginLeft:"auto",fontFamily:"IBM Plex Mono,monospace"}}>{(ev.activityLog||[]).length} cambios</span>}
+                          {/* Name */}
+                          <div style={{fontFamily:"Playfair Display,serif",fontSize:17,color:"#000039",fontWeight:700,marginBottom:ev.fund?4:10,lineHeight:1.2,letterSpacing:"-.01em"}}>{ev.name}</div>
+                          {ev.fund&&<div style={{fontSize:10.5,color:"#7a8fa8",marginBottom:10,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".03em"}}>{ev.fund}</div>}
+                          {/* Progress bar (if has meetings) */}
+                          {totalMtgs>0&&(
+                            <div style={{marginBottom:10}}>
+                              <div style={{height:3,background:"#f0f3f8",borderRadius:2,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:pct+"%",background:`linear-gradient(90deg,${sec.clr},${sec.clr}aa)`,borderRadius:2,transition:"width .4s ease"}}/>
+                              </div>
+                            </div>
+                          )}
+                          {/* Stats row */}
+                          <div style={{display:"flex",gap:14,alignItems:"center",paddingTop:10,borderTop:"1px solid #f0f3f8"}}>
+                            {ev.conf>0&&<span style={{fontSize:10,color:"#166534",fontWeight:700,fontFamily:"IBM Plex Mono,monospace"}}>✓ {ev.conf}</span>}
+                            {ev.tent>0&&<span style={{fontSize:10,color:"#b45309",fontFamily:"IBM Plex Mono,monospace"}}>◌ {ev.tent}</span>}
+                            {totalMtgs>0&&<span style={{fontSize:10,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{totalMtgs} mtgs</span>}
+                            {ev.invs>0&&<span style={{fontSize:10,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{ev.invs} inv.</span>}
+                            {(ev.activityLog||[]).length>0&&<span style={{fontSize:9,color:"#d1d5db",marginLeft:"auto",fontFamily:"IBM Plex Mono,monospace"}}>{(ev.activityLog||[]).length} cambios</span>}
                           </div>
                         </div>
                       );
