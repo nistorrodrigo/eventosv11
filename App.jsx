@@ -3305,7 +3305,7 @@ Daily Summary — ${dayLabel}
   );
 
   // ── Dashboard helpers ────────────────────────────────────────
-  const dashEvents=events.map(ev=>{
+  const dashEvents=useMemo(()=>events.map(ev=>{
     const mtgs=ev.roadshow?.meetings||ev.meetings||[];
     const conf=mtgs.filter(m=>m.status==="confirmed").length;
     const tent=mtgs.filter(m=>m.status==="tentative").length;
@@ -3320,7 +3320,7 @@ Daily Summary — ${dayLabel}
     const end=dateTo?new Date(dateTo+"T12:00:00"):null;
     const state=!start?"draft":now<start?"upcoming":end&&now>end?"past":"active";
     return{...ev,conf,tent,invs,fund,dates,state};
-  });
+  }),[events]);
   const hasEvents=events.length>0;
 
   if(!currentEvent||dashboardView) return(
@@ -3454,7 +3454,10 @@ Daily Summary — ${dayLabel}
                               <span style={{fontSize:17}}>{kindIcon}</span>
                               <span style={{fontSize:8.5,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700,background:sec.accent,padding:"2px 7px",borderRadius:4,textTransform:"uppercase",letterSpacing:".1em"}}>{kindLbl}</span>
                             </div>
-                            {ev.dates&&<span style={{fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>{ev.dates}</span>}
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              {ev.dates&&<span style={{fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>{ev.dates}</span>}
+                              <span style={{fontSize:9,color:sec.clr,opacity:.6,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>→</span>
+                            </div>
                           </div>
                           {/* Name */}
                           <div style={{fontFamily:"Playfair Display,serif",fontSize:17,color:"#000039",fontWeight:700,marginBottom:ev.fund?4:10,lineHeight:1.2,letterSpacing:"-.01em"}}>{ev.name}</div>
@@ -3473,7 +3476,14 @@ Daily Summary — ${dayLabel}
                             {ev.tent>0&&<span style={{fontSize:10,color:"#b45309",fontFamily:"IBM Plex Mono,monospace"}}>◌ {ev.tent}</span>}
                             {totalMtgs>0&&<span style={{fontSize:10,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{totalMtgs} mtgs</span>}
                             {ev.invs>0&&<span style={{fontSize:10,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{ev.invs} inv.</span>}
-                            {(ev.activityLog||[]).length>0&&<span style={{fontSize:9,color:"#d1d5db",marginLeft:"auto",fontFamily:"IBM Plex Mono,monospace"}}>{(ev.activityLog||[]).length} cambios</span>}
+                            <div style={{display:"flex",gap:6,marginLeft:"auto"}} onClick={e=>e.stopPropagation()}>
+                              <button style={{fontSize:9,padding:"2px 8px",border:"1px solid #e5e7eb",borderRadius:4,background:"#fff",color:"#6b7280",cursor:"pointer",fontFamily:"inherit"}}
+                                onClick={e=>{e.stopPropagation();const n=prompt("Renombrar evento:",ev.name);if(n&&n.trim()&&n.trim()!==ev.name){const next=events.map(x=>x.id===ev.id?{...x,name:n.trim()}:x);setEvents(next);saveEvents(next);cloudSaveEvent({...ev,name:n.trim()});}}}
+                              >✏️</button>
+                              {events.length>1&&<button style={{fontSize:9,padding:"2px 8px",border:"1px solid #fee2e2",borderRadius:4,background:"#fff",color:"#dc2626",cursor:"pointer",fontFamily:"inherit"}}
+                                onClick={e=>{e.stopPropagation();if(confirm(`Eliminar "${ev.name}"?`)){const next=events.filter(x=>x.id!==ev.id);setEvents(next);saveEvents(next);cloudDeleteEvent(ev.id);if(activeEv===ev.id)setActiveEv(next[0]?.id||null);}}}
+                              >🗑</button>}
+                            </div>
                           </div>
                         </div>
                       );
