@@ -984,17 +984,25 @@ function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose
     if(!resendKey||!toAddrs){return;}
     setSending(true);setSendResult(null);
     try{
-      const from="LS Event Manager <onboarding@resend.dev>"; // use verified domain when available
+      // Resend requires a verified domain. Use lsContact email as reply-to.
+      // If you have a verified domain, change "from" to match it.
+      const senderName=lsContact?.name||"Latin Securities";
+      const senderEmail=lsContact?.email||"onboarding@resend.dev";
+      // For verified domain: use senderEmail. Fallback: onboarding@resend.dev (Resend test)
+      const from=senderEmail.includes("resend.dev")||senderEmail.includes("latinsecurities.ar")
+        ?`${senderName} <${senderEmail}>`
+        :`Latin Securities LS <onboarding@resend.dev>`;
+      const replyTo=lsContact?.email?[{email:lsContact.email,name:senderName}]:undefined;
       const res=await fetch("https://api.resend.com/emails",{
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},
         body:JSON.stringify({
           from,
           to:toAddrs.split(",").map(s=>s.trim()).filter(Boolean),
+          reply_to:lsContact?.email||undefined,
           subject,
           html:htmlBody,
           text:textBody,
-          attachments:[]
         })
       });
       const data=await res.json();
@@ -1823,12 +1831,18 @@ export default function App(){
 
   const currentEvent = events.find(e=>e.id===activeEv);
 
+  // Debounced cloud save — avoids Supabase write on every keystroke
+  const _cloudSaveTimer=useRef(null);
   function saveCurrentEvent(patch){
     setEvents(prev=>{
       const next=prev.map(e=>e.id===activeEv?{...e,...patch}:e);
       saveEvents(next);
       const updated=next.find(e=>e.id===activeEv);
-      if(updated) cloudSaveEvent(updated);
+      if(updated){
+        // Debounce: only push to Supabase after 1.5s of no changes
+        clearTimeout(_cloudSaveTimer.current);
+        _cloudSaveTimer.current=setTimeout(()=>cloudSaveEvent(updated),1500);
+      }
       return next;
     });
   }
