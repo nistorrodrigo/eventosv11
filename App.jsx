@@ -3506,8 +3506,8 @@ Daily Summary — ${dayLabel}
 
     {/* HEADER */}
     <header className="hdr">
-      <div className="brand" style={{cursor:"pointer"}} onClick={()=>setDashboardView(v=>!v)} title="Dashboard">
-        <h1>LS Event Manager</h1>
+      <div className="brand">
+        <h1 style={{cursor:"pointer"}} onClick={()=>setDashboardView(v=>!v)} title="Dashboard">🏠 LS Event Manager</h1>
         <p>Latin Securities · Roadshow/Event Manager</p>
       </div>
       {/* Event switcher */}
