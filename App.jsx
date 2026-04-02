@@ -56,6 +56,10 @@ export default function App(){
   // ── Auth state ───────────────────────────────────────────────
   const [authUser,setAuthUser]   = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
+  const [pwaPrompt,setPwaPrompt] = useState(null);
+  const [pwaInstalled,setPwaInstalled] = useState(
+    window.matchMedia?.('(display-mode: standalone)').matches || false
+  );
   const [authView,setAuthView]   = useState("login"); // "login"|"signup"
   const [authEmail,setAuthEmail] = useState("");
   const [authPwd,setAuthPwd]     = useState("");
