@@ -1523,6 +1523,20 @@ Latin Securities`;
               value={postNotes} onChange={e=>setPostNotes(e.target.value)}
               placeholder="Puntos clave discutidos, intereses del inversor, próximos pasos..."/>
           </div>
+          {/* Meeting Feedback */}
+          {mode==="edit"&&(
+            <div style={{borderTop:"1px solid rgba(30,90,176,.08)",paddingTop:14}}>
+              <div className="lbl" style={{marginBottom:10,display:"flex",alignItems:"center",gap:7}}>
+                📊 Feedback de la reunión
+                <span style={{fontSize:9,color:"var(--dim)",fontWeight:400}}>— para reporte interno</span>
+              </div>
+              <FeedbackWidget feedback={meeting?.feedback||{}} onChange={fb=>{
+                // Save feedback inline without closing modal
+                const updated={...meeting,feedback:fb};
+                onSave(updated);
+              }}/>
+            </div>
+          )}
           {/* Attendees check — who actually went */}
           {mode==="edit"&&type==="company"&&coId&&(()=>{
             const allContacts=(actCos.find(c=>c.id===coId)?.contacts||[]).filter(c=>c.name);
@@ -1647,6 +1661,86 @@ Latin Securities`;
     )}
   </>);
 }
+// ── Meeting Feedback Widget ─────────────────────────────────────────
+const INTEREST_LEVELS=[
+  {val:1,lbl:"Sin interés",    clr:"#dc2626",bg:"#fee2e2",emoji:"💤"},
+  {val:2,lbl:"Bajo interés",   clr:"#ea580c",bg:"#ffedd5",emoji:"😐"},
+  {val:3,lbl:"Interés medio",  clr:"#ca8a04",bg:"#fef9c3",emoji:"👍"},
+  {val:4,lbl:"Interesado",     clr:"#16a34a",bg:"#dcfce7",emoji:"😃"},
+  {val:5,lbl:"Muy interesado", clr:"#166534",bg:"#bbf7d0",emoji:"🔥"},
+];
+const FEEDBACK_TOPICS=["Valuación","Macro","Mgmt","Sector","Deuda","ESG","Gobernanza","Deal flow","M&A","Dividendos","FX","Tasas","Resultados","Guidance"];
+const NEXT_STEPS=[
+  {val:"follow_up_call",  lbl:"📞 Follow-up call"},
+  {val:"send_materials",  lbl:"📄 Enviar materiales"},
+  {val:"meeting_again",   lbl:"🔁 Repetir reunión"},
+  {val:"monitor",         lbl:"👁 Monitorear"},
+  {val:"no_interest",     lbl:"❌ Sin interés"},
+];
+function FeedbackWidget({feedback={},onChange,compact=false}){
+  const fb={interestLevel:0,topics:[],nextStep:"",internalNotes:"",...feedback};
+  const set=(k,v)=>onChange({...fb,[k]:v});
+  const toggleTopic=t=>set("topics",fb.topics.includes(t)?fb.topics.filter(x=>x!==t):[...fb.topics,t]);
+  const curLevel=INTEREST_LEVELS.find(l=>l.val===fb.interestLevel);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:compact?8:12}}>
+      {/* Interest level */}
+      <div>
+        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em",color:"var(--dim)",marginBottom:6}}>Nivel de interés</div>
+        <div style={{display:"flex",gap:4}}>
+          {INTEREST_LEVELS.map(l=>(
+            <button key={l.val}
+              onClick={()=>set("interestLevel",fb.interestLevel===l.val?0:l.val)}
+              title={l.lbl}
+              style={{flex:1,padding:compact?"6px 4px":"8px 4px",border:`2px solid ${fb.interestLevel===l.val?l.clr:"rgba(30,90,176,.1)"}`,borderRadius:7,background:fb.interestLevel===l.val?l.bg:"transparent",cursor:"pointer",transition:"all .12s",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <span style={{fontSize:compact?16:20}}>{l.emoji}</span>
+              {!compact&&<span style={{fontSize:7.5,fontFamily:"IBM Plex Mono,monospace",color:fb.interestLevel===l.val?l.clr:"var(--dim)",fontWeight:fb.interestLevel===l.val?700:400,lineHeight:1.2,textAlign:"center"}}>{l.lbl}</span>}
+            </button>
+          ))}
+        </div>
+        {curLevel&&<div style={{fontSize:10,color:curLevel.clr,fontFamily:"IBM Plex Mono,monospace",marginTop:4,fontWeight:600}}>{curLevel.emoji} {curLevel.lbl}</div>}
+      </div>
+      {/* Topics */}
+      <div>
+        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em",color:"var(--dim)",marginBottom:6}}>Temas discutidos</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {FEEDBACK_TOPICS.map(t=>{
+            const active=fb.topics.includes(t);
+            return(
+              <button key={t} onClick={()=>toggleTopic(t)}
+                style={{padding:"3px 9px",borderRadius:20,border:`1px solid ${active?"#1e5ab0":"rgba(30,90,176,.15)"}`,background:active?"rgba(30,90,176,.1)":"transparent",color:active?"#1e5ab0":"var(--dim)",fontSize:10,cursor:"pointer",transition:"all .1s",fontWeight:active?600:400}}>
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {/* Next step */}
+      <div>
+        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em",color:"var(--dim)",marginBottom:6}}>Próximo paso</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {NEXT_STEPS.map(s=>{
+            const active=fb.nextStep===s.val;
+            return(
+              <button key={s.val} onClick={()=>set("nextStep",active?"":s.val)}
+                style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${active?"#1e5ab0":"rgba(30,90,176,.15)"}`,background:active?"#1e5ab0":"transparent",color:active?"#fff":"var(--dim)",fontSize:10,cursor:"pointer",transition:"all .1s"}}>
+                {s.lbl}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {/* Internal notes */}
+      <div>
+        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em",color:"var(--dim)",marginBottom:4}}>Notas internas</div>
+        <textarea className="inp" style={{minHeight:compact?44:60,resize:"vertical",fontSize:11}}
+          value={fb.internalNotes} onChange={e=>set("internalNotes",e.target.value)}
+          placeholder="Impresiones del equipo, contexto del fondo, acciones concretas..."/>
+      </div>
+    </div>
+  );
+}
+
 function RoadshowEmailModal({company,emailData,onClose}){
   const [copied,setCopied]=useState(false);
   function copy(){const t=`Para: ${emailData.to}\nAsunto: ${emailData.subject}\n\n${emailData.body}`;navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=520");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+t.replace(/</g,"&lt;")+"</pre>");w.document.close();});}
@@ -3545,7 +3639,7 @@ Daily Summary — ${dayLabel}
     return Object.entries(m).filter(([,ids])=>ids.length>1);
   },[investors]);
 
-  const CONF_TAB_IDS=["upload","investors","companies","schedule","export","historical"];
+  const CONF_TAB_IDS=["upload","investors","companies","schedule","feedback","export","historical"];
   useEffect(()=>{
     const ev=events.find(e=>e.id===activeEv);
     setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
@@ -3563,6 +3657,7 @@ Daily Summary — ${dayLabel}
     {id:"investors",label:`👥 (${investors.length})`},
     {id:"companies",label:"🏢 Compañías"},
     {id:"schedule",label:"📅 Agenda"},
+    {id:"feedback",label:`📊 Feedback${meetings.filter(m=>m.feedback?.interestLevel).length>0?" ("+meetings.filter(m=>m.feedback?.interestLevel).length+")":""}`},
     {id:"export",label:"⬇ Exportar"},
     {id:"historical",label:"📊 Histórico"},
     {id:"activitylog",label:"🕐 Historial"},
@@ -4937,6 +5032,86 @@ Daily Summary — ${dayLabel}
           </>)}
         </div>
       )}
+
+      {/* ════ FEEDBACK ════ */}
+      {tab==="feedback"&&(()=>{
+        const INTEREST_LABELS=["","💤 Sin interés","😐 Bajo","👍 Medio","😃 Interesado","🔥 Muy interesado"];
+        const INTEREST_COLORS=["","#dc2626","#ea580c","#ca8a04","#16a34a","#166534"];
+        const withFb=meetings.filter(m=>m.feedback?.interestLevel);
+        const invByIdFb=new Map(investors.map(i=>[i.id,i]));
+        const coByIdFb=new Map(companies.map(c=>[c.id,c]));
+        const byLevel={};withFb.forEach(m=>{const l=m.feedback?.interestLevel||0;byLevel[l]=(byLevel[l]||0)+1;});
+        const avgInterest=withFb.length?Math.round(withFb.reduce((s,m)=>s+(m.feedback?.interestLevel||0),0)/withFb.length*10)/10:0;
+        const NEXT_LABELS={"follow_up_call":"📞 Follow-up call","send_materials":"📄 Enviar materiales","meeting_again":"🔁 Repetir reunión","monitor":"👁 Monitorear","no_interest":"❌ Sin interés"};
+        return(
+          <div className="pg">
+            <h2 className="pg-h" style={{marginBottom:4}}>📊 Feedback de reuniones</h2>
+            <p className="pg-s" style={{marginBottom:16}}>Completar después de cada reunión. Generá el reporte interno en un click.</p>
+
+            {/* Stats */}
+            <div style={{display:"flex",gap:0,marginBottom:20,background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,57,.08)",border:"1px solid #e9eef5"}}>
+              {[{lbl:"Total",val:meetings.length,clr:"#000039"},{lbl:"Con feedback",val:withFb.length,clr:"#1e5ab0"},{lbl:"Sin feedback",val:meetings.length-withFb.length,clr:"#9ca3af"},{lbl:"Interés prom.",val:avgInterest?"⭐ "+avgInterest+"/5":"—",clr:"#ca8a04"}].map(({lbl,val,clr})=>(
+                <div key={lbl} style={{flex:1,padding:"14px 10px",borderRight:"1px solid #f0f3f8",textAlign:"center"}}>
+                  <div style={{fontSize:20,fontWeight:700,color:clr,fontFamily:"Playfair Display,serif",lineHeight:1}}>{val}</div>
+                  <div style={{fontSize:8,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{lbl}</div>
+                </div>
+              ))}
+              {withFb.length>0&&(
+                <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:6,borderLeft:"1px solid #f0f3f8"}}>
+                  <button className="btn bg bs" style={{fontSize:10,whiteSpace:"nowrap"}} onClick={()=>{
+                    const rows=withFb.map(m=>{const inv=(m.invIds||[]).map(id=>invByIdFb.get(id)).filter(Boolean);const co=coByIdFb.get(m.coId);const fb=m.feedback||{};return INTEREST_LABELS[fb.interestLevel||0]+" | "+inv.map(i=>i.name).join(", ")+" | "+inv.map(i=>i.fund).filter(Boolean).join(", ")+" | "+(co?.name||"")+" | "+(fb.topics||[]).join(", ")+" | "+(NEXT_LABELS[fb.nextStep||""]||"")+" | "+(fb.internalNotes||"");});
+                    const txt="FEEDBACK — "+(currentEvent?.name||"Conferencia")+"\n"+"─".repeat(60)+"\n"+rows.join("\n")+"\n\nLatin Securities";
+
+
+
+
+
+                    navigator.clipboard.writeText(txt).then(()=>alert("✅ Copiado")).catch(()=>{const w=window.open("","_blank","width=700,height=480");w.document.write("<pre style='font:12px monospace;padding:20px;white-space:pre-wrap'>"+txt+"</pre>");w.document.close();});
+                  }}>📋 Copiar WhatsApp</button>
+                  <button className="btn bo bs" style={{fontSize:10,whiteSpace:"nowrap"}} onClick={()=>{
+                    const rows=withFb.map(m=>{const inv=(m.invIds||[]).map(id=>invByIdFb.get(id)).filter(Boolean);const co=coByIdFb.get(m.coId);const fb=m.feedback||{};return`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 12px;font-size:20px">${["","💤","😐","👍","😃","🔥"][fb.interestLevel||0]}</td><td style="padding:8px 12px"><b style="color:#000039">${inv.map(i=>i.name).join(", ")}</b><br><small style="color:#6b7280">${inv.map(i=>i.fund).filter(Boolean).join(", ")}</small></td><td style="padding:8px 12px;color:#1e5ab0;font-weight:600">${co?.ticker||""}</td><td style="padding:8px 12px">${(fb.topics||[]).map(t=>`<span style="background:#f0f4ff;padding:1px 7px;border-radius:10px;margin:1px;display:inline-block;font-size:10px">${t}</span>`).join("")}</td><td style="padding:8px 12px;font-size:11px">${NEXT_LABELS[fb.nextStep||""]||""}</td><td style="padding:8px 12px;font-size:11px;color:#6b7280">${fb.internalNotes||""}</td></tr>`;}).join("");
+                    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Feedback</title><style>body{font-family:Segoe UI,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th{background:#000039;color:#fff;padding:7px 12px;text-align:left;font-size:10px;text-transform:uppercase}</style></head><body><div style="display:flex;justify-content:space-between;padding-bottom:12px;margin-bottom:16px;border-bottom:2.5px solid #000039"><div style="font-size:14px;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase">LATIN SECURITIES<br><span style="font-size:9px;color:#9ca3af;font-weight:400;letter-spacing:.18em">FEEDBACK REPORT</span></div><div style="text-align:right;font-size:11px;color:#6b7280">${currentEvent?.name||""}<br>${new Date().toLocaleDateString("es-AR")}</div></div><table><tr><th></th><th>Inversor</th><th>Co.</th><th>Temas</th><th>Próximo paso</th><th>Notas</th></tr>${rows}</table></body></html>`;
+                    openPrint(html);
+                  }}>📄 PDF</button>
+                </div>
+              )}
+            </div>
+
+            {/* Meeting cards */}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {meetings.map(m=>{
+                const inv=(m.invIds||[]).map(id=>invByIdFb.get(id)).filter(Boolean);
+                const co=coByIdFb.get(m.coId);
+                const fb=m.feedback||{};
+                const hasFb=!!fb.interestLevel;
+                return(
+                  <div key={m.id} style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,57,.04)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:hasFb?"#f9fafb":"#fff",borderBottom:"1px solid #f3f4f6"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,color:"#000039",fontSize:12}}>{inv.map(i=>i.name).join(", ")||"Sin inversor"}</div>
+                        <div style={{fontSize:10,color:"#6b7280",marginTop:1}}>
+                          {inv.map(i=>i.fund).filter(Boolean).join(", ")}
+                          {co&&<span style={{marginLeft:8,background:"rgba(30,90,176,.07)",color:"#1e5ab0",padding:"1px 6px",borderRadius:3,fontSize:9,fontWeight:600}}>{co.ticker}</span>}
+                        </div>
+                      </div>
+                      {hasFb&&<div style={{flexShrink:0,textAlign:"right"}}><div style={{fontSize:20}}>{["","💤","😐","👍","😃","🔥"][fb.interestLevel]}</div><div style={{fontSize:9,color:INTEREST_COLORS[fb.interestLevel],fontWeight:600,fontFamily:"IBM Plex Mono,monospace"}}>{INTEREST_LABELS[fb.interestLevel]}</div></div>}
+                      {!hasFb&&<div style={{fontSize:10,color:"#d1d5db",fontFamily:"IBM Plex Mono,monospace",flexShrink:0}}>sin feedback</div>}
+                    </div>
+                    <div style={{padding:"12px 14px"}}>
+                      <FeedbackWidget compact feedback={fb} onChange={fbNew=>{
+                        const updated=meetings.map(mx=>mx.id===m.id?{...mx,feedback:fbNew}:mx);
+                        setMeetings(updated);
+                        saveCurrentEvent({meetings:updated});
+                      }}/>
+                    </div>
+                  </div>
+                );
+              })}
+              {!meetings.length&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>No hay reuniones cargadas aún.</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ════ EXPORT ════ */}
       {tab==="export"&&(
@@ -6619,7 +6794,8 @@ ${"─".repeat(40)}`;
 
                         {/* Editable list below grid */}
                         {sortedMtgs.map((m,mi)=>(
-                          <div key={m.id} id={`ob-mtg-${m.id}`} style={{
+                          <div key={m.id}>
+                          <div id={`ob-mtg-${m.id}`} style={{
                             display:"grid",gridTemplateColumns:"100px 70px 1fr 1fr 1fr 100px 1fr 28px",
                             gap:4,alignItems:"center",marginBottom:4,padding:"5px 6px",
                             background:mi%2===0?"rgba(30,90,176,.02)":"transparent",
@@ -6639,7 +6815,16 @@ ${"─".repeat(40)}`;
                             </select>
                             <input className="inp" style={{fontSize:10,padding:"3px 6px"}} value={m.notes||""} placeholder="Agenda, contexto..." onChange={e=>upMeeting(dest.id,m.id,"notes",e.target.value)}/>
                             <button aria-label="Eliminar" className="btn bd bs" style={{fontSize:9,padding:"2px 4px"}} onClick={()=>delMeeting(dest.id,m.id)}>✕</button>
+                            <button
+                              title="Feedback de la reunión"
+                              className={`btn bs ${m.feedback?.interestLevel?"bg":"bo"}`}
+                              style={{fontSize:9,padding:"2px 7px",flexShrink:0}}
+                              onClick={()=>upMeeting(dest.id,m.id,"showFeedback",!m.showFeedback)}>
+                              {m.feedback?.interestLevel?(["","💤","😐","👍","😃","🔥"][m.feedback.interestLevel]):"📊"}
+                            </button>
                           </div>
+                          {m.showFeedback&&<div style={{marginBottom:6,padding:"12px 14px",background:"rgba(30,90,176,.03)",borderRadius:8,border:"1px solid rgba(30,90,176,.08)"}}><FeedbackWidget compact feedback={m.feedback||{}} onChange={fb=>upMeeting(dest.id,m.id,"feedback",fb)}/></div>}
+                        </div>
                         ))}
                         {!sortedMtgs.length&&<div style={{fontSize:11,color:"var(--dim)",padding:"8px 0"}}>Sin reuniones — clic en + Reunión para agregar.</div>}
                       </div>
