@@ -1492,7 +1492,16 @@ Daily Summary — ${dayLabel}
   // ── Roadshow derived ─────────────────────────────────────────────
   const tripDays=useMemo(()=>{const{arrivalDate,departureDate}=roadshow.trip;if(!arrivalDate||!departureDate)return[];const days=[];const s=new Date(arrivalDate+"T12:00:00"),e=new Date(departureDate+"T12:00:00");for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1))days.push(d.toISOString().slice(0,10));return days;},[roadshow.trip.arrivalDate,roadshow.trip.departureDate]);
   // ── Supabase auth + cloud sync ───────────────────────────────
+  // ── PWA install prompt ───────────────────────────────────────────
   useEffect(()=>{
+    const handler=e=>{e.preventDefault();setPwaPrompt(e);};
+    window.addEventListener('beforeinstallprompt',handler);
+    window.addEventListener('appinstalled',()=>{setPwaInstalled(true);setPwaPrompt(null);});
+    if(window.matchMedia('(display-mode: standalone)').matches) setPwaInstalled(true);
+    return()=>window.removeEventListener('beforeinstallprompt',handler);
+  },[]);
+
+    useEffect(()=>{
     // Safety timeout: if Supabase doesn't respond in 8s (e.g. paused project), show login
     const safetyTimer = setTimeout(()=>setAuthLoading(false), 8000);
     supabase.auth.getSession().then(({data:{session}})=>{
@@ -1858,6 +1867,13 @@ Daily Summary — ${dayLabel}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
+        {pwaPrompt&&!pwaInstalled&&(
+          <button className="btn bs" title="Instalar como app"
+            style={{fontSize:9,padding:"2px 8px",background:"#1e5ab0",color:"#fff",border:"none",gap:4,cursor:"pointer",borderRadius:4}}
+            onClick={async()=>{pwaPrompt.prompt();const r=await pwaPrompt.userChoice;if(r.outcome==="accepted")setPwaPrompt(null);}}>
+            ⬇ Instalar
+          </button>
+        )}
         </div>
       </div>
       <nav className="nav">

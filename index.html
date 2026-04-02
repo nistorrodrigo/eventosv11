@@ -1,12 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LS Events" />
+    <meta name="theme-color" content="#000039" />
+    <meta name="description" content="Latin Securities · Roadshow & Event Manager" />
+
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+
     <title>LS Event Manager · Latin Securities</title>
+
+    <style>
+      /* Prevent flash of white on load */
+      html, body { background: #000039; margin: 0; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(r => console.log('[SW] registered:', r.scope))
+            .catch(e => console.warn('[SW] failed:', e));
+        });
+      }
+    </script>
   </body>
 </html>

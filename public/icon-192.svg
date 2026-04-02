@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#000039"/>
+  <text x="96" y="72" text-anchor="middle" font-family="Georgia,serif" font-size="52" font-weight="700" fill="white">LS</text>
+  <text x="96" y="110" text-anchor="middle" font-family="Georgia,serif" font-size="18" font-weight="400" fill="rgba(255,255,255,0.7)">Event</text>
+  <text x="96" y="132" text-anchor="middle" font-family="Georgia,serif" font-size="18" font-weight="400" fill="rgba(255,255,255,0.7)">Manager</text>
+  <rect x="32" y="148" width="128" height="2" rx="1" fill="#3399ff" opacity="0.6"/>
+</svg>
