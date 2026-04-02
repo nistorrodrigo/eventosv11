@@ -1742,9 +1742,9 @@ function FeedbackWidget({feedback={},onChange,compact=false}){
 }
 
 // ── KioskModal — Day-of full-screen view ────────────────────────────────
-function KioskModal({roadshow,tripDays,rsCoById,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
+function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
   const today=new Date().toISOString().slice(0,10);
-  const kioskDate=tripDays.includes(today)?today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]||today);
+  const kioskDate=kioskDateProp||(tripDays.includes(today)?today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]||today));
   const kioskMtgs=(roadshow.meetings||[]).filter(m=>m.date===kioskDate&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
   const cur=kioskMtgs[Math.min(kioskIdx,kioskMtgs.length-1)];
   const co=cur?.type==="company"?rsCoById.get(cur.companyId):null;
@@ -1855,7 +1855,12 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskIdx,setKioskIdx,kioskFb,set
             {kioskFb&&cur&&(
               <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,padding:"16px",marginBottom:12}}>
                 <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.35)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:12}}>Feedback</div>
-                <FeedbackWidget feedback={kioskFbData} onChange={fb=>{setKioskFbData(fb);if(cur){onSaveMtg({...cur,feedback:fb});}}}/>
+                <FeedbackWidget feedback={kioskFbData} onChange={fb=>{
+                setKioskFbData(fb);
+                // Immediate save for button clicks (interestLevel, topics, nextStep)
+                // Debounced for text (internalNotes)
+                if(cur) onSaveMtg({...cur,feedback:fb});
+              }}/>
               </div>
             )}
           </div>
@@ -4322,6 +4327,14 @@ Daily Summary — ${dayLabel}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
         <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>setShowSearch(true)}>🔍</button>
+        {evKind==="roadshow"&&<button className="btn bo bs" style={{fontSize:9,borderColor:"rgba(30,90,176,.3)"}} title="Modo día — vista simplificada para celular"
+          onClick={()=>{
+            const today=new Date().toISOString().slice(0,10);
+            const todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+            const targetDate=todayMtgs.length?today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]);
+            if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
+            setRsDayFilter(targetDate);setKioskIdx(0);setKioskFb(false);setKioskMode(true);
+          }}>📱</button>}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
@@ -6747,6 +6760,7 @@ Daily Summary — ${dayLabel}
             roadshow={roadshow}
             tripDays={tripDays}
             rsCoById={rsCoById}
+            kioskDate={rsDayFilter}
             kioskIdx={kioskIdx}
             setKioskIdx={setKioskIdx}
             kioskFb={kioskFb}
