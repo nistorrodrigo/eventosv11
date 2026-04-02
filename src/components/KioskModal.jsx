@@ -1,5 +1,5 @@
 // ── KioskModal.jsx ──
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
   const today=new Date().toISOString().slice(0,10);
@@ -21,6 +21,10 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
   const fund=roadshow.trip.fund||roadshow.trip.clientName||"Roadshow";
   const n=kioskMtgs.length;
   const idx=Math.min(kioskIdx,n-1);
+  // Voice recognition state
+  const [voiceActive,setVoiceActive]=useState(false);
+  const [voiceLang,setVoiceLang]=useState("es-AR");
+  const recognitionRef=useRef(null);
   // Time remaining until current meeting
   const now=new Date();
   const _mh=cur?Math.floor(cur.hour):0;
@@ -29,6 +33,31 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
   const minsUntil=mtgStart?Math.round((mtgStart-now)/60000):null;
   const timeStatus=minsUntil===null?"":minsUntil>120?`en ${Math.floor(minsUntil/60)}h ${minsUntil%60}m`:minsUntil>0?`en ${minsUntil} min`:minsUntil>-90?"En curso":"Finalizada";
   const timeColor=minsUntil===null?"":minsUntil<=0?"#4ade80":minsUntil<=30?"#fbbf24":"rgba(255,255,255,.3)";
+
+  function startVoice(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){ alert("Tu navegador no soporta reconocimiento de voz. Usá Chrome o Edge."); return; }
+    if(voiceActive){
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec=new SR();
+    recognitionRef.current=rec;
+    rec.lang=voiceLang;
+    rec.continuous=false;
+    rec.interimResults=false;
+    rec.onstart=()=>setVoiceActive(true);
+    rec.onend=()=>setVoiceActive(false);
+    rec.onerror=()=>setVoiceActive(false);
+    rec.onresult=e=>{
+      const transcript=Array.from(e.results).map(r=>r[0].transcript).join(" ").trim();
+      if(transcript&&cur){
+        const newNotes=(cur.postNotes?cur.postNotes+" "+transcript:transcript);
+        onSaveMtg({...cur,postNotes:newNotes});
+      }
+    };
+    rec.start();
+  }
 
   return(
     <div
@@ -140,6 +169,38 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
                 <div style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:"#4ade80",textTransform:"uppercase",marginBottom:3}}>Post-reunión</div>
                 <div style={{fontSize:11,color:"rgba(255,255,255,.65)",lineHeight:1.6}}>{cur.postNotes}</div>
               </div>}
+              {/* Voice note button */}
+              {cur&&(
+                <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center"}}>
+                  <button
+                    onClick={startVoice}
+                    style={{
+                      flex:1,padding:"10px 14px",borderRadius:9,
+                      border:"1px solid "+(voiceActive?"#ef4444":"rgba(255,255,255,.15)"),
+                      background:voiceActive?"rgba(239,68,68,.15)":"rgba(255,255,255,.04)",
+                      color:voiceActive?"#ef4444":"rgba(255,255,255,.6)",
+                      fontSize:13,cursor:"pointer",
+                      display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                      transition:"all .2s",
+                      animation:voiceActive?"pulse 1s infinite":undefined,
+                    }}>
+                    <span style={{fontSize:18}}>{voiceActive?"🔴":"🎤"}</span>
+                    <span style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10}}>
+                      {voiceActive?"Escuchando... (toca para parar)":"Dictar nota post-reunión"}
+                    </span>
+                  </button>
+                  <select
+                    value={voiceLang}
+                    onChange={e=>setVoiceLang(e.target.value)}
+                    style={{padding:"8px",borderRadius:7,border:"1px solid rgba(255,255,255,.15)",
+                      background:"rgba(255,255,255,.04)",color:"rgba(255,255,255,.5)",
+                      fontSize:10,fontFamily:"IBM Plex Mono,monospace",cursor:"pointer"}}>
+                    <option value="es-AR">🇦🇷 ES</option>
+                    <option value="en-US">🇺🇸 EN</option>
+                    <option value="pt-BR">🇧🇷 PT</option>
+                  </select>
+                </div>
+              )}
               {/* Completion summary bar */}
               {(cur?.postNotes||hasFb)&&(
                 <div style={{marginTop:10,padding:"6px 10px",background:"rgba(22,101,52,.08)",borderRadius:6,display:"flex",gap:10,alignItems:"center"}}>
