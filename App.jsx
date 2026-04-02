@@ -1881,6 +1881,7 @@ export default function App(){
   const [obSubTab,setObSubTab]=useState("schedule");
   const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
   const [rsMtgModal,setRsMtgModal]=useState(null);
+  const [rsDayFilter,setRsDayFilter]=useState(null); // null=all days, "YYYY-MM-DD"=single day
   const [rsEmailModal,setRsEmailModal]=useState(null);
   const [rsSubTab,setRsSubTab]=useState("schedule");
   const [rsEmailParser,setRsEmailParser]=useState("");
@@ -5180,6 +5181,30 @@ Daily Summary — ${dayLabel}
                     {s}
                   </div>
                 ))}
+                {/* Day filter pills */}
+                <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
+                  <button
+                    className={`btn bs ${!rsDayFilter?"bg":"bo"}`}
+                    style={{fontSize:8,padding:"2px 8px"}}
+                    onClick={()=>setRsDayFilter(null)}>
+                    Todos
+                  </button>
+                  {tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;}).map(d=>{
+                    const dd=new Date(d+"T12:00:00");
+                    const today=new Date().toISOString().slice(0,10);
+                    const isToday=d===today;
+                    const lbl=dd.toLocaleDateString("es-AR",{weekday:"short",day:"numeric"});
+                    return(
+                      <button key={d}
+                        className={`btn bs ${rsDayFilter===d?"bg":"bo"}`}
+                        style={{fontSize:8,padding:"2px 8px",position:"relative",
+                          ...(isToday?{borderColor:"#1e5ab0",fontWeight:700}:{})}}
+                        onClick={()=>setRsDayFilter(prev=>prev===d?null:d)}>
+                        {isToday?"📅 Hoy":lbl}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div style={{marginLeft:"auto"}}>
                   <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
                   <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>rsMtgsExcelRef.current?.click()}>📥 Importar Excel</button>
@@ -5224,7 +5249,7 @@ Daily Summary — ${dayLabel}
                     <thead>
                       <tr>
                         <th style={{background:"rgba(30,90,176,.04)",padding:"5px 3px",borderBottom:"2px solid rgba(30,90,176,.12)",fontSize:8,color:"var(--dim)"}}></th>
-                        {tripDays.map(date=>{
+                        {(rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays).map(date=>{
                           const d=new Date(date+"T12:00:00");
                           const isWE=d.getDay()===0||d.getDay()===6;
                           const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -5242,9 +5267,9 @@ Daily Summary — ${dayLabel}
                         // Build skip map: cells occupied by a rowspan from a meeting above
                         // skip[date][slotIndex] = true if covered by a prior rowspan
                         const skip={};
-                        tripDays.forEach(date=>{skip[date]={};});
+                        (rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays).forEach(date=>{skip[date]={};});
                         ROADSHOW_HOURS.forEach((h,hi)=>{
-                          tripDays.forEach(date=>{
+                          (rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays).forEach(date=>{
                             if(skip[date][hi]) return;
                             const mtg=rsBySlot[`${date}-${h}`];
                             if(mtg){
@@ -5255,12 +5280,13 @@ Daily Summary — ${dayLabel}
                             }
                           });
                         });
-                        return ROADSHOW_HOURS.map((h,hi)=>(
+                        const visibleDays=rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays;
+                    return ROADSHOW_HOURS.map((h,hi)=>(
                           <tr key={h} style={{height:28}}>
                             <td style={{background:"rgba(30,90,176,.02)",borderRight:"2px solid rgba(30,90,176,.07)",textAlign:"right",padding:"2px 5px 2px 2px",fontSize:8.5,color:h%1===0?"var(--dim)":"rgba(120,140,170,.4)",fontFamily:"IBM Plex Mono,monospace",verticalAlign:"top",paddingTop:3,whiteSpace:"nowrap"}}>
                               {h%1===0?fmtHour(h):"·"}
                             </td>
-                            {tripDays.map(date=>{
+                            {visibleDays.map(date=>{
                               if(skip[date][hi]) return null;
                               const d=new Date(date+"T12:00:00");
                               const isWE=d.getDay()===0||d.getDay()===6;
@@ -5284,7 +5310,9 @@ Daily Summary — ${dayLabel}
                                     setDragMtg(null);
                                   }}
                                   style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
-                                  {mtg&&<div draggable onDragStart={()=>setDragMtg({id:mtg.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)} style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1,outline:rsOverlapSet.has(mtg.id)?"2px solid #e05050":undefined,outlineOffset:"-2px",cursor:"grab",opacity:dragMtg?.id===mtg.id?.4:1}}>
+                                  {mtg&&<div title={`${mtg.type==="company"?(co?.name||"?"):(mtg.lsType||mtg.title||"Reunión")} · ${fmtHour(h)} · Click para editar`} draggable onDragStart={()=>setDragMtg({id:mtg.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)} style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1,outline:rsOverlapSet.has(mtg.id)?"2px solid #e05050":undefined,outlineOffset:"-2px",cursor:"pointer",opacity:dragMtg?.id===mtg.id?.4:1,transition:"filter .1s"}}
+                                    onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.15)"}
+                                    onMouseLeave={e=>e.currentTarget.style.filter=""}>
                                     <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
                                       <span>{lbl}</span>
                                       {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
