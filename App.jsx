@@ -2304,6 +2304,8 @@ export default function App(){
   const [dashboardView,setDashboardView] = useState(false);
   const [globalSearch,setGlobalSearch] = useState("");
   const [showSearch,setShowSearch] = useState(false);
+  const [searchFilter,setSearchFilter] = useState("all"); // "all"|"meeting"|"company"|"investor"|"db"
+  const [searchStatus,setSearchStatus] = useState("all"); // "all"|"confirmed"|"tentative"
   const [evPasswordModal,setEvPasswordModal] = useState(null); // {evId, mode:"set"|"check", resolve}
   const [evPasswordInput,setEvPasswordInput] = useState("");
   const [showAddCo,setShowAddCo]   = useState(false);
@@ -4346,7 +4348,7 @@ Daily Summary — ${dayLabel}
           {events.filter(e=>!e.archived||e.id===activeEv).map(e=><option key={e.id} value={e.id}>{e.archived?"🗄 ":e.kind==="roadshow"?"🗺️ ":e.kind==="outbound"?"✈️ ":"🏛 "}{e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
-        <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>setShowSearch(true)}>🔍</button>
+        <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>{setSearchFilter("all");setSearchStatus("all");setShowSearch(true);}}>🔍</button>
         {evKind==="roadshow"&&(()=>{
           const _today=new Date().toISOString().slice(0,10);
           const _todayCount=(roadshow.meetings||[]).filter(m=>m.date===_today&&m.status!=="cancelled").length;
@@ -4463,32 +4465,66 @@ Daily Summary — ${dayLabel}
 
     {/* ── Global Search Modal ── */}
     {showSearch&&(
-      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget){setShowSearch(false);setGlobalSearch("");}}}>
+      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget){setShowSearch(false);setGlobalSearch("");setSearchFilter("all");setSearchStatus("all");}}}>
         <div className="modal" style={{maxWidth:540}}>
           <div className="modal-hdr"><div className="modal-title">🔍 Búsqueda global</div></div>
           <div className="modal-body" style={{padding:"12px 20px"}}>
             <input className="inp" autoFocus value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)}
-              placeholder="Empresa, inversor, reunión, ticker..." style={{marginBottom:12,fontSize:13}}/>
+              placeholder="Empresa, inversor, reunión, ticker..." style={{marginBottom:8,fontSize:13}}/>
+            {/* Filter chips */}
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+              {[["all","Todos"],["meeting","📅 Reuniones"],["company","🏢 Empresas"],["investor","👤 Inversores"],["db","📚 Librería"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setSearchFilter(v)}
+                  style={{padding:"2px 9px",borderRadius:20,border:`1px solid ${searchFilter===v?"#1e5ab0":"rgba(30,90,176,.15)"}`,
+                    background:searchFilter===v?"rgba(30,90,176,.1)":"transparent",
+                    color:searchFilter===v?"#1e5ab0":"var(--dim)",fontSize:10,cursor:"pointer",fontWeight:searchFilter===v?600:400}}>
+                  {l}
+                </button>
+              ))}
+              {(searchFilter==="all"||searchFilter==="meeting")&&<>
+                <div style={{width:1,background:"rgba(30,90,176,.1)",margin:"0 2px"}}/>
+                {[["all","Todos estados"],["confirmed","✅ Confirmadas"],["tentative","◌ Tentativas"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setSearchStatus(v)}
+                    style={{padding:"2px 9px",borderRadius:20,border:`1px solid ${searchStatus===v?"#166534":"rgba(30,90,176,.1)"}`,
+                      background:searchStatus===v?"rgba(22,101,52,.08)":"transparent",
+                      color:searchStatus===v?"#166534":"var(--dim)",fontSize:10,cursor:"pointer",fontWeight:searchStatus===v?600:400}}>
+                    {l}
+                  </button>
+                ))}
+              </>}
+            </div>
             {(()=>{
               const q=(globalSearch||"").toLowerCase().trim();
               if(!q) return <div style={{color:"var(--dim)",fontSize:12,textAlign:"center",padding:"20px 0"}}>Escribí para buscar en reuniones, empresas e inversores</div>;
               const results=[];
               // Search meetings in current event
-              (roadshow.meetings||[]).forEach(m=>{
-                const co=m.type==="company"?rsCoById.get(m.companyId):null;
-                const txt=[co?.name,co?.ticker,m.lsType,m.title,m.participants,m.notes].filter(Boolean).join(" ").toLowerCase();
-                if(txt.includes(q)) results.push({type:"meeting",icon:"📅",title:co?.name||(m.lsType||m.title||"Reunión"),sub:`${m.date} · ${fmtHour(m.hour)}${m.status==="confirmed"?" · ✅":""}`,onClick:()=>{setRsMtgModal({date:m.date,hour:m.hour,meeting:m});setRsSubTab("schedule");setShowSearch(false);}});
-              });
+              if(searchFilter==="all"||searchFilter==="meeting"){
+                (roadshow.meetings||[]).filter(m=>{
+                  if(searchStatus==="confirmed"&&m.status!=="confirmed") return false;
+                  if(searchStatus==="tentative"&&m.status!=="tentative") return false;
+                  return true;
+                }).forEach(m=>{
+                  const co=m.type==="company"?rsCoById.get(m.companyId):null;
+                  const txt=[co?.name,co?.ticker,m.lsType,m.title,m.participants,m.notes,m.postNotes].filter(Boolean).join(" ").toLowerCase();
+                  if(!txt.includes(q)) return;
+                  const statusTag=m.status==="confirmed"?"✅":"◌";
+                  results.push({type:"meeting",icon:"📅",title:co?.name||(m.lsType||m.title||"Reunión"),sub:`${m.date} · ${fmtHour(m.hour)} · ${statusTag} ${m.status==="confirmed"?"Confirmada":"Tentativa"}`,onClick:()=>{setRsMtgModal({date:m.date,hour:m.hour,meeting:m});setRsSubTab("schedule");setShowSearch(false);}});
+                });
+              }
               // Search roadshow companies
-              (roadshow.companies||[]).forEach(co=>{
-                const txt=[co.name,co.ticker,co.sector,co.hqAddress,...(co.contacts||[]).map(c=>c.name+c.title)].join(" ").toLowerCase();
-                if(txt.includes(q)) results.push({type:"company",icon:"🏢",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:co.sector+(co.hqAddress?" · "+co.hqAddress:""),onClick:()=>{setRsSubTab("companies");setShowSearch(false);}});
-              });
+              if(searchFilter==="all"||searchFilter==="company"){
+                (roadshow.companies||[]).forEach(co=>{
+                  const txt=[co.name,co.ticker,co.sector,co.hqAddress,...(co.contacts||[]).map(c=>c.name+c.title)].join(" ").toLowerCase();
+                  if(txt.includes(q)) results.push({type:"company",icon:"🏢",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:co.sector+(co.hqAddress?" · "+co.hqAddress:""),onClick:()=>{setRsSubTab("companies");setShowSearch(false);}});
+                });
+              }
               // Search library
-              (globalDB.companies||[]).forEach(co=>{
-                const txt=[co.name,co.ticker,co.sector,...(co.contacts||[]).map(c=>c.name)].join(" ").toLowerCase();
-                if(txt.includes(q)) results.push({type:"db",icon:"📚",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:"Librería · "+co.sector,onClick:()=>{setTab("db");setDbTab("companies");setShowSearch(false);}});
-              });
+              if(searchFilter==="all"||searchFilter==="db"){
+                (globalDB.companies||[]).forEach(co=>{
+                  const txt=[co.name,co.ticker,co.sector,...(co.contacts||[]).map(c=>c.name)].join(" ").toLowerCase();
+                  if(txt.includes(q)) results.push({type:"db",icon:"📚",title:`${co.name}${co.ticker?" ("+co.ticker+")":""}`,sub:"Librería · "+co.sector,onClick:()=>{setTab("db");setDbTab("companies");setShowSearch(false);}});
+                });
+              }
               (globalDB.investors||[]).forEach(inv=>{
                 const txt=[inv.name,inv.fund,inv.position,inv.notes].filter(Boolean).join(" ").toLowerCase();
                 if(txt.includes(q)) results.push({type:"investor",icon:"👤",title:inv.name,sub:(inv.fund||"")+(inv.position?" · "+inv.position:""),onClick:()=>{setTab("db");setDbTab("investors");setShowSearch(false);}});
@@ -6401,6 +6437,32 @@ Daily Summary — ${dayLabel}
                             </div>
                           </div>
                           <div style={{display:"flex",gap:5}}>
+                            {(()=>{
+                              const coMtgs=(roadshow.meetings||[]).filter(m=>m.companyId===co.id&&m.type==="company");
+                              const allConf=coMtgs.length>0&&coMtgs.every(m=>m.status==="confirmed");
+                              const hasAnyTent=coMtgs.some(m=>m.status==="tentative");
+                              return coMtgs.length>0&&(
+                                <button
+                                  className={`btn bs ${allConf?"bo":"bg"}`}
+                                  style={{fontSize:9,flex:1,gap:3,
+                                    background:allConf?"transparent":"rgba(22,101,52,.1)",
+                                    borderColor:allConf?"rgba(22,101,52,.3)":"rgba(22,101,52,.5)",
+                                    color:allConf?"var(--grn)":"#166534"}}
+                                  title={allConf?"Todas confirmadas — click para marcar tentativas":"Confirmar todas las reuniones de "+co.name}
+                                  onClick={()=>{
+                                    const newStatus=allConf?"tentative":"confirmed";
+                                    const now=new Date().toISOString();
+                                    const updated=(roadshow.meetings||[]).map(m=>
+                                      m.companyId===co.id&&m.type==="company"
+                                        ?{...m,status:newStatus,changeLog:[...(m.changeLog||[]),{at:now,field:"status",from:m.status,to:newStatus}]}
+                                        :m
+                                    );
+                                    saveRoadshow({...roadshow,meetings:updated});
+                                  }}>
+                                  {allConf?"✓ Todas conf.":"✅ Confirmar "+(coMtgs.length>1?coMtgs.length+" mtgs":"reunión")}
+                                </button>
+                              );
+                            })()}
                             <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>✉️ Email</button>
                             <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} title="Brief PDF para imprimir antes de la reunión" onClick={()=>exportCompanyBrief(co)}>📄 Brief</button>
                             <button className="btn bg bs" style={{fontSize:9,gap:3,flex:1}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null,preCoId:co.id});}}>+ Reunión</button>
