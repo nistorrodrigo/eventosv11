@@ -5363,6 +5363,65 @@ Daily Summary — ${dayLabel}
                   <div style={{fontSize:14,color:"var(--cream)"}}>Configurá las fechas del viaje para ver el calendario</div>
                 </div>
               ):(
+                <>
+                {rsDayFilter&&(()=>{
+                  const dayMtgs=(roadshow.meetings||[]).filter(m=>m.date===rsDayFilter&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                  const dayDate=new Date(rsDayFilter+"T12:00:00");
+                  const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+                  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+                  return(
+                    <div style={{marginBottom:12}}>
+                      <div style={{background:"#000039",borderRadius:10,padding:"14px 18px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div>
+                          <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"rgba(255,255,255,.45)",letterSpacing:".15em",textTransform:"uppercase",marginBottom:4}}>{DN[dayDate.getDay()]} · {dayDate.toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>
+                          <div style={{fontFamily:"Playfair Display,serif",fontSize:18,color:"#fff",fontWeight:400}}>Agenda del día</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:22,fontWeight:700,color:"#fff",fontFamily:"Playfair Display,serif"}}>{dayMtgs.length}</div>
+                          <div style={{fontSize:9,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>reuniones</div>
+                        </div>
+                      </div>
+                      {dayMtgs.length===0?(<div style={{textAlign:"center",padding:"28px 20px",color:"var(--dim)",fontSize:12}}>Sin reuniones este día</div>):(
+                        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {dayMtgs.map((m)=>{
+                            const co=m.type==="company"?rsCoById.get(m.companyId):null;
+                            const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
+                            const allC=co?.contacts||[];
+                            const selIds=m.attendeeIds||[];
+                            const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
+                            const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
+                            const isConf=m.status==="confirmed";
+                            return(
+                              <div key={m.id} onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
+                                style={{background:"#fff",border:`1px solid ${clr}30`,borderRadius:10,padding:"14px 16px",cursor:"pointer",position:"relative",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,57,.04)",transition:"all .15s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 4px 16px ${clr}22`;e.currentTarget.style.borderColor=`${clr}55`;}}
+                                onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,57,.04)";e.currentTarget.style.borderColor=`${clr}30`;}}>
+                                <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:clr}}/>
+                                <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                                  <div style={{minWidth:60,textAlign:"center",paddingTop:2}}>
+                                    <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:15,fontWeight:700,color:"#000039",lineHeight:1}}>{fmtH(m.hour)}</div>
+                                    <div style={{fontSize:8,color:"#9ca3af",marginTop:3,fontFamily:"IBM Plex Mono,monospace"}}>{roadshow.trip.meetingDuration||60}m</div>
+                                  </div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                                      {co&&<div style={{width:26,height:26,borderRadius:4,background:clr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7.5,fontWeight:700,color:"#fff",fontFamily:"IBM Plex Mono,monospace",flexShrink:0}}>{co.ticker?.slice(0,4)}</div>}
+                                      <div style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:"#000039",lineHeight:1.2}}>{co?co.name:(m.lsType||m.title||"Reunión interna")}</div>
+                                    </div>
+                                    {reps.length>0&&<div style={{fontSize:10,color:"#374151",marginBottom:3}}>{reps.map(r=>r.name+(r.title?" · "+r.title:"")).join(" — ")}</div>}
+                                    <div style={{fontSize:10,color:"#6b7280"}}>📍 {locStr}{m.meetingFormat&&m.meetingFormat!=="Meeting"?" · 🍽 "+m.meetingFormat:""}</div>
+                                    {m.notes&&<div style={{fontSize:10,color:"#6b7280",marginTop:4,paddingTop:4,borderTop:"1px solid #f3f4f6",lineHeight:1.5}}>📋 {m.notes}</div>}
+                                    {m.postNotes&&<div style={{fontSize:10,color:"#166534",marginTop:3,lineHeight:1.5}}>✅ {m.postNotes}</div>}
+                                  </div>
+                                  <span style={{flexShrink:0,padding:"3px 9px",borderRadius:5,fontSize:8.5,fontWeight:600,background:isConf?"#dcfce7":"#fef9c3",color:isConf?"#166534":"#854d0e"}}>{isConf?"✓ Conf.":"◌ Tent."}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div style={{overflowX:"auto",borderRadius:8,border:"1px solid rgba(30,90,176,.1)",boxShadow:"0 1px 4px rgba(30,90,176,.05)",marginBottom:14}}>
                   <table style={{borderCollapse:"collapse",width:"100%"}}>
                     <colgroup>
@@ -5491,7 +5550,7 @@ Daily Summary — ${dayLabel}
                       })()}
                     </tbody>
                   </table>
-                </div>
+                </div></>
               )}
 
               {/* Meeting list */}
