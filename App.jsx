@@ -1776,6 +1776,7 @@ Daily Summary — ${dayLabel}
     <DashboardView
       events={events} dashEvents={dashEvents} setEvents={setEvents} saveEvents={saveEvents}
       hasEvents={hasEvents} cloudSaveEvent={cloudSaveEvent} hashPwd={hashPwd}
+      createEvent={createEvent} duplicateEvent={duplicateEvent} setEvPassword={setEvPassword}
       activeEv={activeEv} setActiveEv={setActiveEv} config={config}
       authUser={authUser} authView={authView} setAuthView={setAuthView}
       authEmail={authEmail} setAuthEmail={setAuthEmail}
@@ -3308,6 +3309,18 @@ Daily Summary — ${dayLabel}
         rsShowParser={rsShowParser} setRsShowParser={setRsShowParser}
         rsCoById={rsCoById} rsCoMapForTravel={rsCoMapForTravel} tripDays={tripDays}
         currentEvent={currentEvent}
+        dragMtg={dragMtg} setDragMtg={setDragMtg}
+        rsEmailParser={rsEmailParser} setRsEmailParser={setRsEmailParser}
+        travelCache={travelCache} setTravelCache={setTravelCache}
+        travelLoading={travelLoading} setTravelLoading={setTravelLoading}
+        rsBySlot={rsBySlot} rsOverlapSet={rsOverlapSet}
+        search={search} setSearch={setSearch}
+        exportBookingPage={exportBookingPage}
+        exportRoadshowICS={exportRoadshowICS}
+        exportRoadshowPDF={exportRoadshowPDF}
+        exportRoadshowWord={exportRoadshowWord}
+        handleRsEmailParse={handleRsEmailParse}
+        openPrint={openPrint}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
       />}
@@ -3317,6 +3330,7 @@ Daily Summary — ${dayLabel}
         outbound={outbound} saveOutbound={saveOutbound}
         config={config} events={events} globalDB={globalDB}
         currentEvent={currentEvent}
+        obSubTab={obSubTab} setObSubTab={setObSubTab}
       />}
 
       {tab==="activitylog"&&(()=>{

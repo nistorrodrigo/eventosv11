@@ -10,6 +10,7 @@ import * as XLSX from "xlsx";
 export function RoadshowOutboundTab({
   outbound, saveOutbound, config, events, globalDB,
   currentEvent,
+  obSubTab, setObSubTab,
 }){
         const RS_HOURS=ROADSHOW_HOURS;
         function addDest(){

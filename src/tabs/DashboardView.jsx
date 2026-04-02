@@ -5,6 +5,7 @@ import { CSS } from "../styles.js";
 export function DashboardView({
   events, dashEvents, setEvents, saveEvents,
   hasEvents, cloudSaveEvent, hashPwd,
+  createEvent, duplicateEvent, setEvPassword,
   activeEv, setActiveEv, config,
   authUser, authView, setAuthView,
   authEmail, setAuthEmail, authPwd, setAuthPwd,
