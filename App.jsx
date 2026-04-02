@@ -1775,6 +1775,7 @@ Daily Summary — ${dayLabel}
   if(!currentEvent||dashboardView) return(
     <DashboardView
       events={events} dashEvents={dashEvents} setEvents={setEvents} saveEvents={saveEvents}
+      hasEvents={hasEvents} cloudSaveEvent={cloudSaveEvent} hashPwd={hashPwd}
       activeEv={activeEv} setActiveEv={setActiveEv} config={config}
       authUser={authUser} authView={authView} setAuthView={setAuthView}
       authEmail={authEmail} setAuthEmail={setAuthEmail}
@@ -3368,6 +3369,8 @@ Daily Summary — ${dayLabel}
         editInv={editInv} setEditInv={setEditInv}
         crmSearch={crmSearch} setCrmSearch={setCrmSearch}
         crmFund={crmFund} setCrmFund={setCrmFund}
+        dbCoExcelRef={dbCoExcelRef} dbInvExcelRef={dbInvExcelRef}
+        downloadDBTemplate={downloadDBTemplate}
       />}
 
 

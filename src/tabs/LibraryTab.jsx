@@ -9,6 +9,7 @@ export function LibraryTab({
   coSearch, setCoSearch, invSearch, setInvSearch,
   editCo, setEditCo, editInv, setEditInv,
   crmSearch, setCrmSearch, crmFund, setCrmFund,
+  dbCoExcelRef, dbInvExcelRef, downloadDBTemplate,
 }){
         const dbCos=globalDB.companies||[];
         const dbInvs=globalDB.investors||[];
