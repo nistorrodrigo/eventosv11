@@ -2098,6 +2098,10 @@ export default function App(){
   const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
   const [rsMtgModal,setRsMtgModal]=useState(null);
   const [rsDayFilter,setRsDayFilter]=useState(null); // null=all days, "YYYY-MM-DD"=single day
+  const [kioskMode,setKioskMode]=useState(false);
+  const [kioskIdx,setKioskIdx]=useState(0);
+  const [kioskFb,setKioskFb]=useState(false);
+  const [kioskFbData,setKioskFbData]=useState({});
   const [rsEmailModal,setRsEmailModal]=useState(null);
   const [rsSubTab,setRsSubTab]=useState("schedule");
   const [rsEmailParser,setRsEmailParser]=useState("");
@@ -5730,6 +5734,14 @@ Daily Summary — ${dayLabel}
                   })}
                 </div>
                 <div style={{marginLeft:"auto"}}>
+                  <button className="btn bo bs" style={{fontSize:9,gap:4,borderColor:"rgba(30,90,176,.3)"}} title="Modo día — vista simplificada para celular"
+                    onClick={()=>{
+                      const today=new Date().toISOString().slice(0,10);
+                      const todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                      const targetDate=todayMtgs.length?today:(rsDayFilter||(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]));
+                      if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
+                      setRsDayFilter(targetDate);setKioskIdx(0);setKioskMode(true);
+                    }}>📱 Modo día</button>
                   <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
                   <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>rsMtgsExcelRef.current?.click()}>📥 Importar Excel</button>
                   {roadshow.meetings.length>0&&<button className="btn bd bs" style={{fontSize:9,gap:4}} onClick={()=>{if(confirm(`¿Borrar las ${roadshow.meetings.length} reunión(es) del roadshow? Esta acción no se puede deshacer.`))saveRoadshow({...roadshow,meetings:[]});}}>🗑 Borrar todo</button>}
@@ -7178,6 +7190,172 @@ ${"─".repeat(40)}`;
             </div>
           )}
         </div>
+        );
+      })()}
+
+      {/* ══ KIOSK MODE OVERLAY ══ */}
+      {kioskMode&&(()=>{
+        const kioskDate=rsDayFilter||new Date().toISOString().slice(0,10);
+        const kioskMtgs=(roadshow.meetings||[]).filter(m=>m.date===kioskDate&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+        const cur=kioskMtgs[kioskIdx]||kioskMtgs[0];
+        const rsCoMap2=new Map((roadshow.companies||[]).map(c=>[c.id,c]));
+        const co=cur?rsCoMap2.get(cur.companyId):null;
+        const clr=cur?(cur.type==="company"?(RS_CLR[co?.sector]||"#1e5ab0"):"#23a29e"):"#1e5ab0";
+        const allC=co?.contacts||[];
+        const selIds=cur?.attendeeIds||[];
+        const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
+        const locStr=!cur?"":cur.location==="ls_office"?(roadshow.trip.officeAddress||"Arenales 707, 6° Piso, CABA"):cur.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(cur.locationCustom||"TBD");
+        const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+        const dayDate=new Date(kioskDate+"T12:00:00");
+        const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+        const isConf=cur?.status==="confirmed";
+        const hasFb=!!(cur?.feedback?.interestLevel);
+        const visitorLine=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(", ")||roadshow.trip.clientName||"";
+        return(
+          <div style={{position:"fixed",inset:0,background:"#000039",zIndex:8000,display:"flex",flexDirection:"column",fontFamily:"'Lora',Georgia,serif"}}>
+            {/* Top bar */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+              <div>
+                <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:".15em"}}>
+                  {DN[dayDate.getDay()]} · {dayDate.toLocaleDateString("es-AR",{day:"numeric",month:"long"})}
+                </div>
+                <div style={{fontFamily:"Playfair Display,serif",fontSize:14,color:"rgba(255,255,255,.85)",marginTop:2}}>
+                  {roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"} · Agenda del día
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                {/* Progress dots */}
+                <div style={{display:"flex",gap:5}}>
+                  {kioskMtgs.map((_,i)=>(
+                    <div key={i} onClick={()=>setKioskIdx(i)} style={{width:8,height:8,borderRadius:"50%",background:i===kioskIdx?"#fff":"rgba(255,255,255,.2)",cursor:"pointer",transition:"background .2s"}}/>
+                  ))}
+                </div>
+                <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"rgba(255,255,255,.4)"}}>
+                  {kioskIdx+1}/{kioskMtgs.length}
+                </div>
+                <button onClick={()=>{setKioskMode(false);setKioskFb(false);}}
+                  style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",borderRadius:6,color:"rgba(255,255,255,.5)",padding:"5px 12px",cursor:"pointer",fontSize:11,fontFamily:"IBM Plex Mono,monospace"}}>
+                  ✕ Salir
+                </button>
+              </div>
+            </div>
+
+            {kioskMtgs.length===0?(
+              <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,.3)"}}>
+                <div style={{fontSize:48,marginBottom:16}}>📅</div>
+                <div style={{fontSize:18,fontFamily:"Playfair Display,serif",marginBottom:8}}>Sin reuniones hoy</div>
+                <div style={{fontSize:12,fontFamily:"IBM Plex Mono,monospace",opacity:.6}}>{kioskDate}</div>
+              </div>
+            ):(
+              <>
+                {/* Main card */}
+                <div style={{flex:1,overflowY:"auto",padding:"20px 20px 0"}}>
+                  {/* Company card */}
+                  <div style={{background:"rgba(255,255,255,.04)",border:`1px solid ${clr}40`,borderRadius:16,padding:"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+                    <div style={{position:"absolute",left:0,top:0,bottom:0,width:5,background:clr}}/>
+                    {/* Time + status */}
+                    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
+                      <div>
+                        <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:42,fontWeight:700,color:"#fff",lineHeight:1,letterSpacing:"-1px"}}>{cur?fmtH(cur.hour):"--:--"}</div>
+                        <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11,color:"rgba(255,255,255,.3)",marginTop:4}}>{roadshow.trip.meetingDuration||60} min</div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+                        <span style={{padding:"5px 13px",borderRadius:6,fontSize:11,fontWeight:700,fontFamily:"IBM Plex Mono,monospace",background:isConf?"rgba(22,101,52,.6)":"rgba(133,77,14,.4)",color:isConf?"#86efac":"#fde68a"}}>
+                          {isConf?"✓ CONF.":"◌ TENT."}
+                        </span>
+                        {hasFb&&<span style={{fontSize:18}}>{["","💤","😐","👍","😃","🔥"][cur.feedback.interestLevel]}</span>}
+                      </div>
+                    </div>
+                    {/* Company */}
+                    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+                      {co&&<div style={{width:48,height:48,borderRadius:10,background:clr,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",fontFamily:"IBM Plex Mono,monospace",flexShrink:0,letterSpacing:".04em"}}>{co.ticker?.slice(0,4)}</div>}
+                      <div>
+                        <div style={{fontFamily:"Playfair Display,serif",fontSize:22,fontWeight:700,color:"#fff",lineHeight:1.2}}>{co?co.name:(cur?.lsType||cur?.title||"Reunión interna")}</div>
+                        {co&&<div style={{fontSize:11,color:clr,fontFamily:"IBM Plex Mono,monospace",marginTop:3}}>{co.sector}</div>}
+                      </div>
+                    </div>
+                    {/* Reps */}
+                    {reps.length>0&&(
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:".12em",marginBottom:6}}>Representantes</div>
+                        {reps.map(r=>(
+                          <div key={r.id||r.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:clr,flexShrink:0}}/>
+                            <span style={{fontSize:13,color:"rgba(255,255,255,.85)"}}>{r.name}</span>
+                            {r.title&&<span style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>{r.title}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Location */}
+                    {locStr&&(
+                      <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:12,padding:"10px 12px",background:"rgba(255,255,255,.04)",borderRadius:8}}>
+                        <span style={{fontSize:16,flexShrink:0}}>📍</span>
+                        <span style={{fontSize:12,color:"rgba(255,255,255,.6)",lineHeight:1.5}}>{locStr}</span>
+                      </div>
+                    )}
+                    {/* Notes */}
+                    {cur?.notes&&(
+                      <div style={{padding:"10px 12px",background:"rgba(255,255,255,.03)",borderRadius:8,borderLeft:`3px solid ${clr}60`,marginBottom:8}}>
+                        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.25)",textTransform:"uppercase",marginBottom:4}}>Notas pre-reunión</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,.55)",lineHeight:1.6}}>{cur.notes}</div>
+                      </div>
+                    )}
+                    {/* Post notes */}
+                    {cur?.postNotes&&(
+                      <div style={{padding:"10px 12px",background:"rgba(22,101,52,.15)",borderRadius:8,borderLeft:"3px solid #4ade80"}}>
+                        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"#4ade80",textTransform:"uppercase",marginBottom:4}}>Notas post-reunión</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,.7)",lineHeight:1.6}}>{cur.postNotes}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Inline feedback section */}
+                  {kioskFb&&cur&&(
+                    <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:16,padding:"20px",marginBottom:16}}>
+                      <div style={{fontSize:11,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:".12em",marginBottom:14}}>Feedback de la reunión</div>
+                      <div style={{filter:"invert(1) hue-rotate(180deg)"}}>
+                        <FeedbackWidget feedback={kioskFbData} onChange={fb=>{
+                          setKioskFbData(fb);
+                          const updated={...cur,feedback:fb};
+                          saveMtg(updated);
+                        }}/>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom action bar */}
+                <div style={{padding:"16px 20px 24px",borderTop:"1px solid rgba(255,255,255,.06)",display:"flex",flexDirection:"column",gap:10}}>
+                  {/* Feedback button */}
+                  {!kioskFb?(
+                    <button onClick={()=>{setKioskFbData(cur?.feedback||{});setKioskFb(true);}}
+                      style={{width:"100%",padding:"16px",borderRadius:12,border:"none",background:hasFb?"rgba(22,101,52,.4)":"rgba(30,90,176,.5)",color:"#fff",fontSize:16,fontWeight:700,fontFamily:"Playfair Display,serif",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                      {hasFb?`${["","💤","😐","👍","😃","🔥"][cur.feedback.interestLevel]} Editar feedback`:"📊 Completar feedback"}
+                    </button>
+                  ):(
+                    <button onClick={()=>setKioskFb(false)}
+                      style={{width:"100%",padding:"14px",borderRadius:12,border:"1px solid rgba(255,255,255,.15)",background:"transparent",color:"rgba(255,255,255,.6)",fontSize:14,cursor:"pointer"}}>
+                      ✓ Listo — cerrar feedback
+                    </button>
+                  )}
+                  {/* Prev / Next */}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>{setKioskIdx(i=>Math.max(0,i-1));setKioskFb(false);}}
+                      disabled={kioskIdx===0}
+                      style={{flex:1,padding:"12px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"transparent",color:kioskIdx===0?"rgba(255,255,255,.2)":"rgba(255,255,255,.6)",fontSize:14,cursor:kioskIdx===0?"default":"pointer"}}>
+                      ← Anterior
+                    </button>
+                    <button onClick={()=>{setKioskIdx(i=>Math.min(kioskMtgs.length-1,i+1));setKioskFb(false);}}
+                      disabled={kioskIdx===kioskMtgs.length-1}
+                      style={{flex:1,padding:"12px",borderRadius:10,border:`1px solid ${kioskIdx===kioskMtgs.length-1?"rgba(255,255,255,.1)":clr+"60"}`,background:kioskIdx===kioskMtgs.length-1?"transparent":`${clr}20`,color:kioskIdx===kioskMtgs.length-1?"rgba(255,255,255,.2)":"#fff",fontSize:14,fontWeight:kioskIdx===kioskMtgs.length-1?400:600,cursor:kioskIdx===kioskMtgs.length-1?"default":"pointer"}}>
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         );
       })()}
 
