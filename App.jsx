@@ -1361,6 +1361,8 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
   const [postNotes,setPostNotes]=useState(meeting?.postNotes||"");
+  const [actualReps,setActualReps]=useState(meeting?.actualAttendees||null); // null=not set, []|[ids]=checked
+  const [changeNotif,setChangeNotif]=useState(null); // {msg,contact} after save
   const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
   const [participants,setParticipants]=useState(meeting?.participants||"");
   const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
@@ -1377,7 +1379,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
     const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,postNotes,meetingFormat,
+      location:loc,locationCustom:locCustom,status,notes,postNotes,actualAttendees:actualReps,meetingFormat,
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
@@ -1388,11 +1390,40 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
         chk('status',status);chk('companyId',type==="company"?coId:'');
         return log;
       })()};
-    onSave(m);
+    // Detect time/date change for notification
+    const dateChanged=String(prevM.date||'')!==String(m.date);
+    const hourChanged=String(prevM.hour??'')!==String(m.hour);
+    if(mode==='edit'&&(dateChanged||hourChanged)){
+      const co=m.type==='company'?(companies||[]).find(c=>c.id===m.companyId):null;
+      const contacts=(co?.contacts||[]).filter(c=>c.name);
+      const selIds=m.attendeeIds||[];
+      const mtgContacts=selIds.length?contacts.filter(c=>selIds.includes(c.id)):contacts.slice(0,1);
+      const primaryContact=mtgContacts[0]||contacts[0];
+      const fmtH=hv=>{const hh=Math.floor(hv);const mm=Math.round((hv-hh)*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');};
+      const newDate=new Date(m.date+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+      const locStr=m.location==='ls_office'?(trip.officeAddress||'Arenales 707, 6° Piso, CABA'):m.location==='hq'?(co?co.hqAddress||co.name+' HQ':'HQ'):(m.locationCustom||'TBD');
+      const fund=trip.fund||trip.clientName||'nuestro cliente';
+      const visitorNames=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(' ')[0]).join(' y ')||fund;
+      const coName=co?co.name:(m.lsType||m.title||'la reunión');
+      const greeting=primaryContact?`Hola ${primaryContact.name.split(' ')[0]},`:'Hola,';
+      const waMsg=`${greeting}
+
+Les informamos que la reunión de ${visitorNames} (${fund}) con ${coName} ha sido *reprogramada*.
+
+📅 *Nueva fecha:* ${newDate}
+⏰ *Horario:* ${fmtH(m.hour)} hs
+📍 *Lugar:* ${locStr}
+
+Por favor confirmar recepción. Muchas gracias.
+
+Saludos,
+Latin Securities`;
+      setChangeNotif({msg:waMsg,contact:primaryContact,coName});
+    }
     onSave(m);
   }
   const actCos=(companies||[]).filter(c=>c.active);
-  return(
+  return(<>
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal" style={{maxWidth:460}}>
         <div className="modal-hdr"><div className="modal-title">{mode==="edit"?"Editar Reunión":"Nueva Reunión"}</div></div>
@@ -1492,6 +1523,40 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
               value={postNotes} onChange={e=>setPostNotes(e.target.value)}
               placeholder="Puntos clave discutidos, intereses del inversor, próximos pasos..."/>
           </div>
+          {/* Attendees check — who actually went */}
+          {mode==="edit"&&type==="company"&&coId&&(()=>{
+            const allContacts=(actCos.find(c=>c.id===coId)?.contacts||[]).filter(c=>c.name);
+            if(!allContacts.length) return null;
+            const checked=actualReps||(selReps.length?selReps:allContacts.map(c=>c.id));
+            return(
+              <div style={{background:"rgba(58,140,92,.04)",border:"1px solid rgba(58,140,92,.2)",borderRadius:7,padding:"10px 12px"}}>
+                <div className="lbl" style={{marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                  ✅ ¿Quién fue realmente?
+                  <span style={{fontSize:9,color:"var(--dim)",fontWeight:400}}>— marcar después de la reunión</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {allContacts.map(rep=>{
+                    const isChecked=checked.includes(rep.id);
+                    return(
+                      <label key={rep.id} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:11,color:"var(--txt)"}}>
+                        <input type="checkbox" checked={isChecked}
+                          onChange={()=>{
+                            const next=isChecked?checked.filter(id=>id!==rep.id):[...checked,rep.id];
+                            setActualReps(next);
+                          }}
+                          style={{width:14,height:14,accentColor:"#3a8c5c",flexShrink:0}}/>
+                        <span style={{fontWeight:isChecked?600:400}}>{rep.name}</span>
+                        {rep.title&&<span style={{fontSize:10,color:"var(--dim)"}}>· {rep.title}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+                {actualReps!==null&&actualReps.length===0&&(
+                  <div style={{fontSize:10,color:"#b45309",marginTop:6}}>⚠ Ningún representante marcado como presente</div>
+                )}
+              </div>
+            );
+          })()}
           {type!=="company"&&(
             <div style={{marginBottom:12}}><div className="lbl">👥 Participantes</div>
               <input className="inp" value={participants} onChange={e=>setParticipants(e.target.value)}
@@ -1535,7 +1600,52 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
         </div>
       </div>
     </div>
-  );
+
+    {changeNotif&&(
+      <div className="overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} style={{zIndex:9999}} onClick={e=>{if(e.target===e.currentTarget)setChangeNotif(null);}}>
+        <div className="modal" style={{maxWidth:480}}>
+          <div className="modal-hdr">
+            <div className="modal-title">📨 Notificar cambio de horario</div>
+          </div>
+          <div className="modal-body">
+            <p style={{fontSize:12,color:"var(--dim)",marginBottom:12,lineHeight:1.6}}>
+              La reunión con <strong style={{color:"var(--cream)"}}>{changeNotif.coName}</strong> cambió de horario.
+              {changeNotif.contact&&<> Contacto principal: <strong style={{color:"var(--gold)"}}>{changeNotif.contact.name}</strong></>}
+            </p>
+            <div style={{background:"var(--ink3)",borderRadius:7,padding:"12px 14px",marginBottom:12}}>
+              <pre style={{fontFamily:"inherit",fontSize:12,color:"var(--txt)",whiteSpace:"pre-wrap",lineHeight:1.7,margin:0}}>
+                {changeNotif.msg}
+              </pre>
+            </div>
+            {changeNotif.contact?.email&&(
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:8}}>
+                📧 {changeNotif.contact.email}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer" style={{gap:7}}>
+            <button className="btn bo bs" onClick={()=>setChangeNotif(null)}>Cerrar</button>
+            {changeNotif.contact?.email&&(
+              <button className="btn bo bs" onClick={()=>{
+                const subject=`Cambio de horario — reunión con ${changeNotif.coName}`;
+                window.open(`mailto:${changeNotif.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(changeNotif.msg)}`);
+              }}>✉️ Abrir en Mail</button>
+            )}
+            <button className="btn bg bs" onClick={()=>{
+              navigator.clipboard.writeText(changeNotif.msg).then(()=>{
+                alert("✅ Mensaje copiado al portapapeles");
+                setChangeNotif(null);
+              }).catch(()=>{
+                const w=window.open("","_blank","width=520,height=420");
+                w.document.write("<pre style='font:13px sans-serif;padding:20px;white-space:pre-wrap'>"+changeNotif.msg.replace(/</g,"&lt;")+"</pre>");
+                w.document.close();
+              });
+            }}>📋 Copiar para WhatsApp</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 }
 function RoadshowEmailModal({company,emailData,onClose}){
   const [copied,setCopied]=useState(false);
@@ -2574,6 +2684,122 @@ export default function App(){
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
   function saveRoadshow(rs){setRoadshow(rs);saveCurrentEvent({roadshow:rs});}
+  function exportRoadshowSummary(){
+    const {trip,meetings,companies}=roadshow;
+    const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
+    const allMtgs=(meetings||[]).filter(m=>m.status!=="cancelled");
+    const conf=allMtgs.filter(m=>m.status==="confirmed");
+    const tent=allMtgs.filter(m=>m.status==="tentative");
+    const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+    const fmtDate=iso=>new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
+    // Group by sector
+    const bySector={};
+    allMtgs.forEach(m=>{
+      const co=m.type==="company"?rsCoMap.get(m.companyId):null;
+      const sec=co?.sector||"LS Internal";
+      if(!bySector[sec])bySector[sec]={total:0,conf:0};
+      bySector[sec].total++;
+      if(m.status==="confirmed")bySector[sec].conf++;
+    });
+    // Group by day
+    const byDay={};
+    allMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
+    Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+    const days=Object.keys(byDay).sort();
+    const visitorLine=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(", ")||trip.clientName||"—";
+    const fund=trip.fund||trip.clientName||"Roadshow";
+    const pct=allMtgs.length?Math.round(conf.length/allMtgs.length*100):0;
+    const RS_CLR_MAP={"Financials":"#1e5ab0","Energy":"#e8850a","Utilities":"#23a29e","TMT":"#7c3aed","Infra":"#059669","Industry":"#b45309","Consumer":"#dc2626","Agro":"#65a30d","Exchange":"#0891b2","Real Estate":"#d97706","Other":"#6b7280","LS Internal":"#374151"};
+    const sectorRows=Object.entries(bySector).sort((a,b)=>b[1].total-a[1].total).map(([sec,d])=>{
+      const pctS=d.total?Math.round(d.conf/d.total*100):0;
+      const clr=RS_CLR_MAP[sec]||"#6b7280";
+      return `<tr><td style="padding:6px 12px;font-weight:600;color:${clr}">${sec}</td><td style="padding:6px 12px;text-align:center">${d.total}</td><td style="padding:6px 12px;text-align:center;color:#166534">${d.conf}</td><td style="padding:6px 12px;text-align:center"><div style="background:#f3f4f6;border-radius:3px;height:6px;overflow:hidden"><div style="background:${clr};height:100%;width:${pctS}%"></div></div></td></tr>`;
+    }).join("");
+    const dayRows=days.map(date=>{
+      const mtgs=byDay[date];
+      const rows=mtgs.map(m=>{
+        const co=m.type==="company"?rsCoMap.get(m.companyId):null;
+        const name=co?`${co.name}${co.ticker?" ("+co.ticker+")":""}`: (m.lsType||m.title||"Interno");
+        const locStr=m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
+        const hasPost=m.postNotes?`<div style="color:#166534;font-size:9pt;margin-top:2px">✅ ${m.postNotes.slice(0,100)}${m.postNotes.length>100?"…":""}</div>`:"";
+        // Who actually went
+        const allC=co?.contacts||[];
+        const actIds=m.actualAttendees;
+        const actReps=actIds!=null?(actIds.length?allC.filter(c=>actIds.includes(c.id)).map(c=>c.name).join(", "):"Nadie marcado"):"";
+        const statusBadge=m.status==="confirmed"?`<span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:3px;font-size:8.5pt;font-weight:600">✓ Confirmed</span>`:`<span style="background:#fef9c3;color:#854d0e;padding:2px 7px;border-radius:3px;font-size:8.5pt">◌ Tentative</span>`;
+        return `<tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:9pt;color:#6b7280;white-space:nowrap">${fmtH(m.hour)}</td>
+          <td style="padding:6px 10px"><div style="font-weight:600;color:#000039">${name}</div>${hasPost}${actReps?`<div style="font-size:9pt;color:#6b7280;margin-top:2px">👤 ${actReps}</div>`:""}</td>
+          <td style="padding:6px 10px;font-size:9.5pt;color:#374151">${locStr}</td>
+          <td style="padding:6px 10px">${statusBadge}</td>
+        </tr>`;
+      }).join("");
+      return `<div style="margin-bottom:20px">
+        <div style="background:#000039;color:#fff;padding:8px 14px;border-radius:6px 6px 0 0;font-family:'IBM Plex Mono',monospace;font-size:9pt;letter-spacing:.08em;text-transform:uppercase">${fmtDate(date)}</div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e9eef5;border-top:none;border-radius:0 0 6px 6px;overflow:hidden">
+          <colgroup><col width="60"><col><col width="200"><col width="110"></colgroup>
+          ${rows}
+        </table>
+      </div>`;
+    }).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Resumen — ${fund}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{margin:15mm 18mm;size:A4}
+body{font-family:'Segoe UI',Calibri,sans-serif;font-size:10.5pt;color:#111827;background:#fff;padding:20px 24px}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;margin-bottom:20px;border-bottom:2.5px solid #000039}
+.ls1{font-size:13pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase}
+.ls2{font-size:6.5pt;color:#6b7280;letter-spacing:.2em;text-transform:uppercase;margin-top:2px}
+.kpi-row{display:flex;gap:12px;margin-bottom:20px}
+.kpi{flex:1;padding:14px 16px;border:1px solid #e9eef5;border-radius:8px;background:#f9fafb;text-align:center}
+.kpi-num{font-family:'Georgia',serif;font-size:26pt;font-weight:700;color:#000039;line-height:1}
+.kpi-lbl{font-size:8pt;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-top:4px;font-family:'IBM Plex Mono',monospace}
+.sec-title{font-size:10pt;font-weight:700;color:#000039;margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;padding-bottom:4px;border-bottom:2px solid #e9eef5}
+table.sec-tbl{width:100%;border-collapse:collapse;border:1px solid #e9eef5;border-radius:6px;overflow:hidden;margin-bottom:20px}
+table.sec-tbl th{background:#f3f4f6;padding:6px 12px;text-align:left;font-size:8.5pt;color:#6b7280;text-transform:uppercase;letter-spacing:.08em;font-weight:600;border-bottom:1px solid #e9eef5}
+.footer{margin-top:20px;padding-top:8px;border-top:1px solid #e9eef5;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af}
+@media print{body{padding:0}.kpi{break-inside:avoid}}
+</style></head><body>
+<div class="hdr">
+  <div><div class="ls1">Latin Securities</div><div class="ls2">Roadshow · Post-Trip Summary</div></div>
+  <div style="text-align:right;font-size:9pt;color:#6b7280">
+    <div style="font-weight:700;color:#000039;font-size:11pt">${fund}</div>
+    <div>${trip.arrivalDate?new Date(trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):""}${trip.departureDate?" – "+new Date(trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"}):""}</div>
+    <div>${visitorLine}</div>
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-num">${allMtgs.length}</div><div class="kpi-lbl">Total Meetings</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:#166534">${conf.length}</div><div class="kpi-lbl">Confirmed</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:#854d0e">${tent.length}</div><div class="kpi-lbl">Tentative</div></div>
+  <div class="kpi"><div class="kpi-num">${pct}%</div><div class="kpi-lbl">Conf. Rate</div></div>
+  <div class="kpi"><div class="kpi-num">${days.length}</div><div class="kpi-lbl">Days</div></div>
+</div>
+
+<div class="sec-title">Coverage by Sector</div>
+<table class="sec-tbl">
+  <tr><th>Sector</th><th style="text-align:center">Total</th><th style="text-align:center">Confirmed</th><th>% Confirmed</th></tr>
+  ${sectorRows}
+</table>
+
+<div class="sec-title">Meeting Schedule</div>
+${dayRows}
+
+${days.some(d=>byDay[d].some(m=>m.postNotes))?`
+<div class="sec-title">Post-Meeting Notes</div>
+${days.flatMap(d=>byDay[d].filter(m=>m.postNotes).map(m=>{
+  const co=m.type==="company"?rsCoMap.get(m.companyId):null;
+  return `<div style="margin-bottom:12px;padding:10px 14px;border-left:3px solid #166534;background:#f0fdf4;border-radius:0 6px 6px 0">
+    <div style="font-weight:600;color:#000039;margin-bottom:4px">${co?co.name:(m.lsType||m.title||"Interno")} · ${fmtDate(m.date)} ${fmtH(m.hour)}</div>
+    <div style="font-size:10pt;color:#166534;line-height:1.6">${m.postNotes}</div>
+  </div>`;
+})).join("")}`:""}
+
+<div class="footer"><span>Latin Securities · Confidential</span><span>${fund} · Post-Trip Summary</span></div>
+</body></html>`;
+    openPrint(html);
+  }
   function exportCompanyBrief(co){
     // Build a meeting brief one-pager for a roadshow company
     const mtg=(roadshow.meetings||[]).find(m=>m.type==="company"&&m.companyId===co.id);
@@ -5984,6 +6210,11 @@ Daily Summary — ${dayLabel}
                   <div className="ex-card-ico">📄</div>
                   <div className="ex-card-t">PDF — Agenda completa</div>
                   <div className="ex-card-s">Formato LS, English. Para compartir con el cliente.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowSummary} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary();}}>
+                  <div className="ex-card-ico">📊</div>
+                  <div className="ex-card-t">Resumen post-roadshow</div>
+                  <div className="ex-card-s">Métricas, cobertura por sector y notas del viaje.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowWord} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowWord();}}>
                   <div className="ex-card-ico">📝</div>
