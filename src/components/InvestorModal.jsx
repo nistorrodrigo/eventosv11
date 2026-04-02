@@ -1,7 +1,8 @@
 // ── InvestorModal.jsx ──
-import { useState } from 'react';
+import { useState } from "react";
+import { COMPANIES_INIT, DEFAULT_CONFIG, SEC_CLR, capitalizeName, effectiveSlots, getDayIds, getDayShort, hourLabel, slotDay, slotHour, slotLabel } from "../constants.jsx";
 
-export function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,config:invCfg,onUpdateInv,onToggleFundGroup,onExport,onClose}){
+export function InvestorModal({inv,investors,meetings,companies,fundGrouping,allSlots,config:invCfg,onUpdateInv,onToggleFundGroup,onExport,onClose,coById}){
   const cfg=invCfg||DEFAULT_CONFIG;
   const [activeTab,setActiveTab]=useState("profile");
   const [editField,setEditField]=useState({});

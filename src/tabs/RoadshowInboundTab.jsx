@@ -1,12 +1,12 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef } from "react";
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, genRSEmail, RoadshowAgendaEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
-import { getMeetingAddress, cleanAddr, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict } from "../travel.js";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
+import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict } from "../travel.js";
+import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { KioskModal } from "../components/KioskModal.jsx";
 import { RoadshowEmailModal } from "../components/RoadshowEmailModal.jsx";
-import { downloadBlob } from "../storage.jsx";
 import * as XLSX from "xlsx";
 
 export function RoadshowInboundTab({
@@ -29,6 +29,7 @@ export function RoadshowInboundTab({
   search, setSearch,
   exportBookingPage, exportRoadshowICS, exportRoadshowPDF, exportRoadshowWord,
   handleRsEmailParse, openPrint,
+  calcAllTravel, calcDayTravel,
 }){
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Helper to patch a company field inline (used in meeting modal)

@@ -1,11 +1,13 @@
 // ── DashboardView.jsx — Landing page / auth / dashboard ─────────────────
 import { useState } from "react";
+import { downloadBlob, saveEvents } from "../storage.jsx";
 import { CSS } from "../styles.js";
 
 export function DashboardView({
   events, dashEvents, setEvents, saveEvents,
   hasEvents, cloudSaveEvent, hashPwd,
   createEvent, duplicateEvent, setEvPassword,
+  cloudDeleteEvent, handleOpenEvent,
   activeEv, setActiveEv, config,
   authUser, authView, setAuthView,
   authEmail, setAuthEmail, authPwd, setAuthPwd,

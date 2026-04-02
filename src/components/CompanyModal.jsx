@@ -1,7 +1,8 @@
 // ── CompanyModal.jsx ──
-import { useState } from 'react';
+import { useState } from "react";
+import { SEC_CLR, getDayIds, getDayShort, slotDay, slotLabel } from "../constants.jsx";
 
-export function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,onClose}){
+export function CompanyModal({co,meetings,investors,allSlots,onUpdateCo,onExport,invById,onClose}){
   const [activeTab,setActiveTab]=useState("info");
   const [newName,setNewName]=useState("");const [newTitle,setNewTitle]=useState("");
   const coMeetings=meetings.filter(m=>m.coId===co.id).sort((a,b)=>allSlots.indexOf(a.slotId)-allSlots.indexOf(b.slotId));

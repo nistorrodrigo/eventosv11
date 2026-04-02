@@ -1777,6 +1777,7 @@ Daily Summary — ${dayLabel}
       events={events} dashEvents={dashEvents} setEvents={setEvents} saveEvents={saveEvents}
       hasEvents={hasEvents} cloudSaveEvent={cloudSaveEvent} hashPwd={hashPwd}
       createEvent={createEvent} duplicateEvent={duplicateEvent} setEvPassword={setEvPassword}
+      cloudDeleteEvent={cloudDeleteEvent} handleOpenEvent={handleOpenEvent}
       activeEv={activeEv} setActiveEv={setActiveEv} config={config}
       authUser={authUser} authView={authView} setAuthView={setAuthView}
       authEmail={authEmail} setAuthEmail={setAuthEmail}
@@ -1815,10 +1816,10 @@ Daily Summary — ${dayLabel}
       fundGrouping={fundGrouping} allSlots={allSlots}
       onUpdateInv={u=>{setInvestors(prev=>prev.map(i=>i.id===u.id?u:i));setInvProfile(u);}}
       onToggleFundGroup={(fund,val)=>setFundGrouping(p=>({...p,[fund]:val}))}
-      onExport={exportInvestor} onClose={()=>setInvProfile(null)}/>}
+      onExport={exportInvestor} coById={coById} onClose={()=>setInvProfile(null)}/>}
     {coProfile&&<CompanyModal co={coProfile} meetings={meetings} investors={investors} allSlots={allSlots}
       onUpdateCo={u=>{setCompanies(prev=>prev.map(c=>c.id===u.id?u:c));setCoProfile(u);}}
-      onExport={exportCompany} onClose={()=>setCoProfile(null)}/>}
+      onExport={exportCompany} invById={invById} onClose={()=>setCoProfile(null)}/>}
     {modal&&<MeetingModal mode={modal.mode} meeting={modal.meeting} investors={investors} meetings={meetings}
       companies={companies} allSlots={allSlots} rooms={rooms} config={config}
       onSave={handleMeetingSave} onDelete={()=>{setMeetings(prev=>prev.filter(m=>m.id!==modal.meeting.id));setModal(null);}}
@@ -3321,6 +3322,8 @@ Daily Summary — ${dayLabel}
         exportRoadshowWord={exportRoadshowWord}
         handleRsEmailParse={handleRsEmailParse}
         openPrint={openPrint}
+        calcAllTravel={calcAllTravel}
+        calcDayTravel={calcDayTravel}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
       />}

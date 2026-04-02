@@ -1,5 +1,6 @@
 // ── MeetingModal.jsx ──
 import { useMemo, useState } from "react";
+import { DEFAULT_CONFIG, getDayIds, getDayShort, hourLabel, slotHour } from "../constants.jsx";
 
 export function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,config:modalConfig,onSave,onDelete,onClose}){
   const cfg = modalConfig||DEFAULT_CONFIG;
