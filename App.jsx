@@ -1772,7 +1772,29 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
   const timeColor=minsUntil===null?"":minsUntil<=0?"#4ade80":minsUntil<=30?"#fbbf24":"rgba(255,255,255,.3)";
 
   return(
-    <div style={{position:"fixed",inset:0,background:"#000039",zIndex:8000,display:"flex",flexDirection:"column",fontFamily:"'Lora',Georgia,serif"}}>
+    <div
+      style={{position:"fixed",inset:0,background:"#000039",zIndex:8000,display:"flex",flexDirection:"column",fontFamily:"'Lora',Georgia,serif",userSelect:"none"}}
+      onTouchStart={e=>{
+        // Store touch start position
+        e.currentTarget._touchStartX=e.touches[0].clientX;
+        e.currentTarget._touchStartY=e.touches[0].clientY;
+        e.currentTarget._touchStartT=Date.now();
+      }}
+      onTouchEnd={e=>{
+        const dx=e.changedTouches[0].clientX-(e.currentTarget._touchStartX||0);
+        const dy=e.changedTouches[0].clientY-(e.currentTarget._touchStartY||0);
+        const dt=Date.now()-(e.currentTarget._touchStartT||0);
+        // Swipe: horizontal > 60px, more horizontal than vertical, under 500ms
+        if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5&&dt<500){
+          if(dx<0){
+            // Swipe left → next meeting
+            if(idx<n-1){setKioskIdx(idx+1);setKioskFb(false);}
+          } else {
+            // Swipe right → previous meeting
+            if(idx>0){setKioskIdx(idx-1);setKioskFb(false);}
+          }
+        }
+      }}>
       {/* Top bar */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid rgba(255,255,255,.08)",flexShrink:0}}>
         <div>
@@ -1886,17 +1908,49 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
           </div>
           {/* Bottom bar */}
           <div style={{padding:"12px 16px 20px",borderTop:"1px solid rgba(255,255,255,.06)",display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
-            {!kioskFb?(
-              <button onClick={()=>{setKioskFbData(cur?.feedback||{});setKioskFb(true);}}
-                style={{width:"100%",padding:"14px",borderRadius:11,border:"none",background:hasFb?"rgba(22,101,52,.5)":"rgba(30,90,176,.55)",color:"#fff",fontSize:15,fontWeight:700,fontFamily:"Playfair Display,serif",cursor:"pointer"}}>
-                {hasFb?""+["","💤","😐","👍","😃","🔥"][cur.feedback.interestLevel]+" Editar feedback":"📊 Completar feedback"}
-              </button>
-            ):(
-              <button onClick={()=>setKioskFb(false)}
-                style={{width:"100%",padding:"12px",borderRadius:11,border:"1px solid rgba(255,255,255,.12)",background:"transparent",color:"rgba(255,255,255,.5)",fontSize:13,cursor:"pointer"}}>
-                ✓ Cerrar feedback
-              </button>
-            )}
+            <div style={{display:"flex",gap:8}}>
+              {!kioskFb?(
+                <button onClick={()=>{setKioskFbData(cur?.feedback||{});setKioskFb(true);}}
+                  style={{flex:1,padding:"14px",borderRadius:11,border:"none",background:hasFb?"rgba(22,101,52,.5)":"rgba(30,90,176,.55)",color:"#fff",fontSize:14,fontWeight:700,fontFamily:"Playfair Display,serif",cursor:"pointer"}}>
+                  {hasFb?""+["","💤","😐","👍","😃","🔥"][cur.feedback.interestLevel]+" Editar feedback":"📊 Completar feedback"}
+                </button>
+              ):(
+                <button onClick={()=>setKioskFb(false)}
+                  style={{flex:1,padding:"12px",borderRadius:11,border:"1px solid rgba(255,255,255,.12)",background:"transparent",color:"rgba(255,255,255,.5)",fontSize:13,cursor:"pointer"}}>
+                  ✓ Cerrar feedback
+                </button>
+              )}
+              {/* WhatsApp share */}
+              {cur&&(()=>{
+                const INTEREST_LABELS=["","💤 Sin interés","😐 Bajo","👍 Medio","😃 Interesado","🔥 Muy interesado"];
+                const NEXT_LABELS={"follow_up_call":"📞 Follow-up call","send_materials":"📄 Enviar materiales","meeting_again":"🔁 Repetir reunión","monitor":"👁 Monitorear","no_interest":"❌ Sin interés"};
+                const coName=co?co.name:(cur.lsType||cur.title||"Reunión interna");
+                const fmtDate=kioskDate?new Date(kioskDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):"";
+                const fb=cur.feedback||{};
+                const parts=[
+                  `📅 *${coName}* — ${fmtDate} ${fmtH(cur.hour)}hs`,
+                  isConf?"✅ Confirmada":"◌ Tentativa",
+                  reps.length?`👤 ${reps.map(r=>r.name).join(", ")}`:"",
+                  fb.interestLevel?`📊 Interés: ${INTEREST_LABELS[fb.interestLevel]}`:"",
+                  fb.topics?.length?`🏷 ${fb.topics.join(", ")}`:"",
+                  fb.nextStep?`➡️ ${NEXT_LABELS[fb.nextStep]||fb.nextStep}`:"",
+                  fb.internalNotes?`📝 ${fb.internalNotes}`:"",
+                  cur.postNotes?`✅ Post-reunión: ${cur.postNotes}`:"",
+                ].filter(Boolean).join("\n");
+                const NL="\n";
+                const waUrl="https://wa.me/?text="+encodeURIComponent("*Latin Securities · Feedback interno*"+NL+NL+parts+NL+NL+"_"+fund+"_");
+                return(
+                  <button onClick={()=>window.open(waUrl,"_blank")}
+                    style={{width:50,flexShrink:0,padding:"12px 0",borderRadius:11,border:"1px solid rgba(37,211,102,.25)",background:"rgba(37,211,102,.1)",color:"#25d166",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                    title="Compartir por WhatsApp">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  </button>
+                );
+              })()}
+            </div>
+            {n>1&&<div style={{textAlign:"center",fontFamily:"IBM Plex Mono,monospace",fontSize:8,color:"rgba(255,255,255,.18)",letterSpacing:".1em",marginBottom:2}}>
+              ← deslizá para navegar →
+            </div>}
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{setKioskIdx(Math.max(0,idx-1));setKioskFb(false);}} disabled={idx===0}
                 style={{flex:1,padding:"11px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"transparent",color:idx===0?"rgba(255,255,255,.2)":"rgba(255,255,255,.6)",fontSize:13,cursor:idx===0?"default":"pointer"}}>
