@@ -1,5 +1,5 @@
 // ── MeetingModal.jsx ──
-import { useState } from 'react';
+import { useMemo, useState } from "react";
 
 export function MeetingModal({mode,meeting,investors,meetings,companies,allSlots,rooms,config:modalConfig,onSave,onDelete,onClose}){
   const cfg = modalConfig||DEFAULT_CONFIG;

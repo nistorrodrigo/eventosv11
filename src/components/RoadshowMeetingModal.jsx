@@ -1,5 +1,5 @@
 // ── RoadshowMeetingModal.jsx ──
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onClose}){
   const [type,setType]=useState(meeting?.type||"company");

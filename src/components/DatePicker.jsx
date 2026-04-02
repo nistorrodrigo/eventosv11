@@ -1,5 +1,5 @@
 // ── DatePicker.jsx — DatePicker and DayDateInput components ──
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 /* ═══════════════════════════════════════════════════════════════════
    INVESTOR PROFILE MODAL
