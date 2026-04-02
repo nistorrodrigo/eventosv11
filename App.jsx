@@ -1808,6 +1808,7 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
                 <div>
                   <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:44,fontWeight:700,color:"#fff",lineHeight:1,letterSpacing:"-1px"}}>{cur?fmtH(cur.hour):"--:--"}</div>
                   <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"rgba(255,255,255,.3)",marginTop:3}}>{roadshow.trip.meetingDuration||60} min</div>
+                  {timeStatus&&<div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:timeColor,marginTop:4,fontWeight:600}}>{timeStatus}</div>}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                   <span style={{padding:"4px 12px",borderRadius:5,fontSize:10,fontWeight:700,fontFamily:"IBM Plex Mono,monospace",background:isConf?"rgba(22,101,52,.6)":"rgba(133,77,14,.4)",color:isConf?"#86efac":"#fde68a"}}>
@@ -1850,6 +1851,16 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
                 <div style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:"#4ade80",textTransform:"uppercase",marginBottom:3}}>Post-reunión</div>
                 <div style={{fontSize:11,color:"rgba(255,255,255,.65)",lineHeight:1.6}}>{cur.postNotes}</div>
               </div>}
+              {/* Completion summary bar */}
+              {(cur?.postNotes||hasFb)&&(
+                <div style={{marginTop:10,padding:"6px 10px",background:"rgba(22,101,52,.08)",borderRadius:6,display:"flex",gap:10,alignItems:"center"}}>
+                  {hasFb&&<span style={{fontSize:11}}>{["","💤","😐","👍","😃","🔥"][cur.feedback.interestLevel]} {["","Sin interés","Bajo","Medio","Interesado","Muy interesado"][cur.feedback.interestLevel]}</span>}
+                  {cur?.feedback?.nextStep&&<span style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.4)",background:"rgba(255,255,255,.06)",padding:"2px 6px",borderRadius:3}}>
+                    {{"follow_up_call":"📞 Follow-up","send_materials":"📄 Materiales","meeting_again":"🔁 Repetir","monitor":"👁 Monitor","no_interest":"❌ Sin interés"}[cur.feedback.nextStep]}
+                  </span>}
+                  {cur?.feedback?.topics?.length>0&&<span style={{fontSize:9,color:"rgba(255,255,255,.3)",fontFamily:"IBM Plex Mono,monospace"}}>{cur.feedback.topics.slice(0,3).join(" · ")}</span>}
+                </div>
+              )}
             </div>
             {/* Feedback inline */}
             {kioskFb&&cur&&(
@@ -1857,10 +1868,11 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
                 <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.35)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:12}}>Feedback</div>
                 <FeedbackWidget feedback={kioskFbData} onChange={fb=>{
                 setKioskFbData(fb);
-                // Immediate save for button clicks (interestLevel, topics, nextStep)
-                // Debounced for text (internalNotes)
                 if(cur) onSaveMtg({...cur,feedback:fb});
               }}/>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.3)",fontFamily:"IBM Plex Mono,monospace",marginTop:8,textAlign:"center"}}>
+                ↑ Los cambios se guardan automáticamente
+              </div>
               </div>
             )}
           </div>
@@ -4327,14 +4339,20 @@ Daily Summary — ${dayLabel}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
         <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>setShowSearch(true)}>🔍</button>
-        {evKind==="roadshow"&&<button className="btn bo bs" style={{fontSize:9,borderColor:"rgba(30,90,176,.3)"}} title="Modo día — vista simplificada para celular"
-          onClick={()=>{
-            const today=new Date().toISOString().slice(0,10);
-            const todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-            const targetDate=todayMtgs.length?today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]);
-            if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
-            setRsDayFilter(targetDate);setKioskIdx(0);setKioskFb(false);setKioskMode(true);
-          }}>📱</button>}
+        {evKind==="roadshow"&&(()=>{
+          const _today=new Date().toISOString().slice(0,10);
+          const _todayCount=(roadshow.meetings||[]).filter(m=>m.date===_today&&m.status!=="cancelled").length;
+          return(
+            <button className="btn bo bs" style={{fontSize:9,borderColor:"rgba(30,90,176,.3)",position:"relative"}} title="Modo día — vista simplificada para celular"
+              onClick={()=>{
+                const targetDate=_todayCount>0?_today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]);
+                if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
+                setRsDayFilter(targetDate);setKioskIdx(0);setKioskFb(false);setKioskMode(true);
+              }}>
+              📱{_todayCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#e8850a",color:"#fff",borderRadius:"50%",width:13,height:13,fontSize:7,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"IBM Plex Mono,monospace",fontWeight:700,lineHeight:1}}>{_todayCount}</span>}
+            </button>
+          );
+        })()}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
