@@ -1762,6 +1762,14 @@ function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx
   const fund=roadshow.trip.fund||roadshow.trip.clientName||"Roadshow";
   const n=kioskMtgs.length;
   const idx=Math.min(kioskIdx,n-1);
+  // Time remaining until current meeting
+  const now=new Date();
+  const _mh=cur?Math.floor(cur.hour):0;
+  const _mm=cur?Math.round((cur.hour%1)*60):0;
+  const mtgStart=cur?new Date(kioskDate+"T"+String(_mh).padStart(2,"0")+":"+String(_mm).padStart(2,"0")+":00"):null;
+  const minsUntil=mtgStart?Math.round((mtgStart-now)/60000):null;
+  const timeStatus=minsUntil===null?"":minsUntil>120?`en ${Math.floor(minsUntil/60)}h ${minsUntil%60}m`:minsUntil>0?`en ${minsUntil} min`:minsUntil>-90?"En curso":"Finalizada";
+  const timeColor=minsUntil===null?"":minsUntil<=0?"#4ade80":minsUntil<=30?"#fbbf24":"rgba(255,255,255,.3)";
 
   return(
     <div style={{position:"fixed",inset:0,background:"#000039",zIndex:8000,display:"flex",flexDirection:"column",fontFamily:"'Lora',Georgia,serif"}}>
