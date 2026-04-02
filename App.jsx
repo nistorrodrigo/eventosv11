@@ -1348,7 +1348,7 @@ function checkTravelConflict(m1, m2, travelSec, durationMin){
   return gap<travelMin?{conflict:true,gapMin:gap,travelMin}:gap<travelMin+10?{warning:true,gapMin:gap,travelMin}:null;
 }
 
-function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onClose}){
+function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onClose}){
   const [type,setType]=useState(meeting?.type||"company");
   const [coId,setCoId]=useState(meeting?.companyId||"");
   const [lsType,setLsType]=useState(meeting?.lsType||LS_INT_TYPES[0]);
@@ -1518,6 +1518,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
         </div>
         <div className="modal-footer" style={{gap:7}}>
           {mode==="edit"&&<button className="btn bd bs" onClick={onDelete}>🗑 Eliminar</button>}
+          {mode==="edit"&&onDuplicate&&<button className="btn bo bs" title="Clonar reunión en otro horario" onClick={onDuplicate}>⧉ Clonar</button>}
           <button className="btn bo bs" onClick={onClose}>Cancelar</button>
           <button className="btn bg bs" onClick={save}>Guardar</button>
         </div>
@@ -3496,6 +3497,40 @@ Daily Summary — ${dayLabel}
             });
           })()}
 
+          {/* ── Archived section ── */}
+          {hasEvents&&dashEvents.some(e=>e.archived)&&(()=>{
+            const archived=dashEvents.filter(e=>e.archived);
+            return(
+              <div style={{marginBottom:24,opacity:.65}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <span>🗄</span>
+                  <span style={{fontSize:10,fontWeight:700,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".18em"}}>Archivados</span>
+                  <span style={{fontSize:10,color:"#cbd5e1",fontFamily:"IBM Plex Mono,monospace"}}>({archived.length})</span>
+                  <div style={{flex:1,height:1,background:"linear-gradient(90deg,#9ca3af33,transparent)"}}/>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:8}}>
+                  {archived.map(ev=>{
+                    const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
+                    return(
+                      <div key={ev.id} style={{background:"#f9fafb",border:"1px solid #e9eef5",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}
+                        onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}>
+                        <span style={{fontSize:15,opacity:.4}}>{kindIcon}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,color:"#9ca3af",fontFamily:"Playfair Display,serif",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.name}</div>
+                          {ev.dates&&<div style={{fontSize:9,color:"#d1d5db",fontFamily:"IBM Plex Mono,monospace"}}>{ev.dates}</div>}
+                        </div>
+                        <button style={{fontSize:9,padding:"2px 7px",border:"1px solid #e5e7eb",borderRadius:4,background:"#fff",color:"#1e5ab0",cursor:"pointer",flexShrink:0}}
+                          title="Desarchivar" onClick={e=>{e.stopPropagation();const next=events.map(x=>x.id===ev.id?{...x,archived:false}:x);setEvents(next);saveEvents(next);cloudSaveEvent({...ev,archived:false});}}>
+                          📂
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Create first event */}
           {!hasEvents&&(
           <div style={{marginBottom:48}}>
@@ -3722,7 +3757,7 @@ Daily Summary — ${dayLabel}
         <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
           onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
-          {events.map(e=><option key={e.id} value={e.id}>{e.kind==="roadshow"?"🗺️":e.kind==="outbound"?"✈️":"🏛"} {e.name}</option>)}
+          {events.filter(e=>!e.archived||e.id===activeEv).map(e=><option key={e.id} value={e.id}>{e.archived?"🗄 ":e.kind==="roadshow"?"🗺️ ":e.kind==="outbound"?"✈️ ":"🏛 "}{e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
         <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>setShowSearch(true)}>🔍</button>
@@ -5315,7 +5350,17 @@ Daily Summary — ${dayLabel}
                                     onMouseLeave={e=>e.currentTarget.style.filter=""}>
                                     <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
                                       <span>{lbl}</span>
-                                      {mtg.status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
+                                      <span 
+                                        style={{fontSize:7,cursor:"pointer",padding:"1px 3px",borderRadius:2,background:mtg.status==="confirmed"?"rgba(0,0,0,.2)":"transparent"}}
+                                        title={mtg.status==="confirmed"?"Click para marcar tentativa":"Click para confirmar"}
+                                        onClick={e=>{
+                                          e.stopPropagation();
+                                          const next=mtg.status==="confirmed"?"tentative":"confirmed";
+                                          const updated=(roadshow.meetings||[]).map(m=>m.id===mtg.id?{...m,status:next}:m);
+                                          saveRoadshow({...roadshow,meetings:updated});
+                                        }}>
+                                        {mtg.status==="confirmed"?"✓":"○"}
+                                      </span>
                                       {mtg.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
                                     </div>
                                     {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
@@ -5891,6 +5936,25 @@ Daily Summary — ${dayLabel}
             trip={roadshow.trip}
             onSave={saveMtg}
             onDelete={()=>delMtg(rsMtgModal.meeting?.id)}
+            onDuplicate={()=>{
+              const orig=rsMtgModal.meeting;
+              if(!orig) return;
+              // Find next free slot (same day, next hour block)
+              const busySet=new Set((roadshow.meetings||[]).map(m=>`${m.date}-${m.hour}`));
+              const HOURS=ROADSHOW_HOURS;
+              let newH=orig.hour+1;
+              let newD=orig.date;
+              // try to find a free slot on the same day
+              const dayHours=HOURS.filter(h=>h>orig.hour);
+              const freeH=dayHours.find(h=>!busySet.has(`${newD}-${h}`));
+              if(freeH) newH=freeH;
+              const cloned={...orig,id:`rs-${Date.now()}`,hour:newH,
+                status:"tentative",
+                changeLog:[{at:new Date().toISOString(),field:"created",from:"clone",to:`clone of ${orig.id}`}]};
+              saveMtg(cloned);
+              // Open the cloned meeting for editing
+              setTimeout(()=>setRsMtgModal({date:newD,hour:newH,meeting:cloned}),80);
+            }}
             onClose={()=>setRsMtgModal(null)}
           />}
           {rsEmailModal&&<RoadshowEmailModal
