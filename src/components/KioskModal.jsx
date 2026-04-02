@@ -71,7 +71,7 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
                 style={{width:8,height:8,borderRadius:"50%",background:i===idx?"#fff":"rgba(255,255,255,.2)",cursor:"pointer",transition:"background .2s"}}/>
             ))}
           </div>
-          <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"rgba(255,255,255,.35)"}}>{idx+1}/{n}</div>
+          <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,color:"rgba(255,255,255,.35)"}}>{`${idx+1}/${n}`}</div>
           <button onClick={onClose}
             style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",borderRadius:6,color:"rgba(255,255,255,.45)",padding:"5px 12px",cursor:"pointer",fontSize:11,fontFamily:"IBM Plex Mono,monospace"}}>
             ✕ Salir
