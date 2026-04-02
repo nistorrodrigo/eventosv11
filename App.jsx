@@ -1,4 +1,4 @@
-// Build: 2026-04-02 02:38 UTC
+/* build:2026-04-02 02:39 UTC */
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { supabase } from "./supabase.js";
 import * as XLSX from "xlsx";
@@ -3592,9 +3592,6 @@ Daily Summary — ${dayLabel}
         </div>
       )}
 
-
-    </div>
-
     {/* NEW EVENT MODAL */}
     {showEvMgr&&(
       <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}>
@@ -3686,8 +3683,8 @@ Daily Summary — ${dayLabel}
     )}
 
     {/* ── Global Search Modal ── */}
+    </div>
   );
-
 
   return(
     <div className="app"><style>{CSS}</style>
