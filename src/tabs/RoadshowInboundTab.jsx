@@ -21,6 +21,7 @@ export function RoadshowInboundTab({
   rsCoById, rsCoMapForTravel, tripDays,
   exportCompanyBrief, exportRoadshowSummary,
   // lsCont is computed internally from config + roadshow.trip.lsContactIdx
+  currentEvent,
 }){
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Helper to patch a company field inline (used in meeting modal)

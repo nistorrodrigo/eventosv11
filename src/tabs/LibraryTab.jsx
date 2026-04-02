@@ -1,6 +1,8 @@
 // ── LibraryTab.jsx — Librería Global (companies, investors, CRM Fondos) ─
 import { useState } from "react";
-import { downloadBlob } from "../storage.jsx";
+import { RS_CLR } from "../roadshow.jsx";
+import { esc, downloadBlob } from "../storage.jsx";
+import { SEC_CLR } from "../constants.jsx";
 import * as XLSX from "xlsx";
 
 export function LibraryTab({

@@ -3307,6 +3307,7 @@ Daily Summary — ${dayLabel}
         rsMtgsExcelRef={rsMtgsExcelRef} rsExcelRef={rsExcelRef}
         rsShowParser={rsShowParser} setRsShowParser={setRsShowParser}
         rsCoById={rsCoById} rsCoMapForTravel={rsCoMapForTravel} tripDays={tripDays}
+        currentEvent={currentEvent}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
       />}
@@ -3315,6 +3316,7 @@ Daily Summary — ${dayLabel}
       {tab==="outbound"&&<RoadshowOutboundTab
         outbound={outbound} saveOutbound={saveOutbound}
         config={config} events={events} globalDB={globalDB}
+        currentEvent={currentEvent}
       />}
 
       {tab==="activitylog"&&(()=>{

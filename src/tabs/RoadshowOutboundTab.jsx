@@ -1,5 +1,7 @@
 // ── RoadshowOutboundTab.jsx — Outbound Roadshow view ─────────────────
 import { useState, useRef } from "react";
+import { ROADSHOW_HOURS, fmtHour } from "../roadshow.jsx";
+import { esc } from "../storage.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { DayDateInput } from "../components/DatePicker.jsx";
 import { downloadBlob } from "../storage.jsx";
@@ -7,6 +9,7 @@ import * as XLSX from "xlsx";
 
 export function RoadshowOutboundTab({
   outbound, saveOutbound, config, events, globalDB,
+  currentEvent,
 }){
         const RS_HOURS=ROADSHOW_HOURS;
         function addDest(){
