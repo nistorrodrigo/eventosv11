@@ -1360,6 +1360,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
   const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
+  const [postNotes,setPostNotes]=useState(meeting?.postNotes||"");
   const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
   const [participants,setParticipants]=useState(meeting?.participants||"");
   const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
@@ -1376,7 +1377,7 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
     const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,meetingFormat,
+      location:loc,locationCustom:locCustom,status,notes,postNotes,meetingFormat,
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
@@ -1481,6 +1482,16 @@ function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDe
           )}
           <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
+          {/* Post-meeting notes */}
+          <div>
+            <div className="lbl" style={{marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+              📝 Notas post-reunión
+              <span style={{fontSize:9,color:"var(--dim)",fontWeight:400}}>— completar después del encuentro</span>
+            </div>
+            <textarea className="inp" style={{minHeight:60,resize:"vertical",borderColor:postNotes?"rgba(58,140,92,.4)":"",background:postNotes?"rgba(58,140,92,.03)":""}}
+              value={postNotes} onChange={e=>setPostNotes(e.target.value)}
+              placeholder="Puntos clave discutidos, intereses del inversor, próximos pasos..."/>
+          </div>
           {type!=="company"&&(
             <div style={{marginBottom:12}}><div className="lbl">👥 Participantes</div>
               <input className="inp" value={participants} onChange={e=>setParticipants(e.target.value)}
@@ -2563,6 +2574,83 @@ export default function App(){
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
   function saveRoadshow(rs){setRoadshow(rs);saveCurrentEvent({roadshow:rs});}
+  function exportCompanyBrief(co){
+    // Build a meeting brief one-pager for a roadshow company
+    const mtg=(roadshow.meetings||[]).find(m=>m.type==="company"&&m.companyId===co.id);
+    const trip=roadshow.trip;
+    const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+    const locStr=!mtg?"TBD":mtg.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):mtg.location==="hq"?(co.hqAddress||co.name+" HQ"):(mtg.locationCustom||"TBD");
+    const dateStr=mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"Sin fecha";
+    const contacts=(co.contacts||[]).filter(c=>c.name);
+    const selIds=mtg?.attendeeIds||[];
+    const mtgContacts=selIds.length?contacts.filter(c=>selIds.includes(c.id)):contacts;
+    const visitorLine=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name+(v.title?" – "+v.title:"")).join(" · ") || trip.clientName||"";
+    // logo_b64 intentionally unused — brief uses text wordmark
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Brief – ${co.name}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{margin:18mm 20mm;size:A4}
+body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:11pt;color:#111827;background:#fff;padding:24px 28px}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:20px;border-bottom:2.5px solid #000039}
+.ls-wm1{font-size:13pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase}
+.ls-wm2{font-size:6.5pt;color:#6b7280;letter-spacing:.2em;text-transform:uppercase;margin-top:2px}
+.co-header{margin-bottom:20px}
+.co-name{font-size:22pt;font-weight:700;color:#000039;font-family:'Georgia',serif;line-height:1.15}
+.co-meta{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap}
+.badge{font-size:9pt;padding:3px 10px;border-radius:20px;font-weight:600;background:#f0f4ff;color:#1e5ab0;border:1px solid #c7d7f7}
+.section{margin-bottom:18px;padding:14px 16px;border-radius:8px;border:1px solid #e9eef5;background:#f9fafb}
+.sec-label{font-size:8.5pt;text-transform:uppercase;letter-spacing:.15em;color:#9ca3af;font-weight:700;margin-bottom:8px}
+.meeting-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-bottom:18px}
+.meet-row{display:flex;gap:8px;margin-bottom:5px;font-size:10.5pt}
+.meet-label{color:#6b7280;min-width:80px;font-size:9.5pt}
+.contact-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:10pt}
+.contact-row:last-child{border-bottom:none}
+.notes-box{background:#fff;border:1px solid #e9eef5;border-radius:6px;padding:12px;min-height:60px;font-size:10pt;color:#374151;line-height:1.6;white-space:pre-wrap}
+.post-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;min-height:60px;font-size:10pt;color:#166534;line-height:1.6;white-space:pre-wrap}
+.footer{margin-top:24px;padding-top:10px;border-top:1px solid #e9eef5;display:flex;justify-content:space-between;font-size:8pt;color:#9ca3af}
+@media print{body{padding:0}.section,.meeting-box{break-inside:avoid}}
+</style></head><body>
+<div class="hdr">
+  <div><div class="ls-wm1">Latin Securities</div><div class="ls-wm2">Investment Banking · Buenos Aires</div></div>
+  <div style="text-align:right;font-size:9pt;color:#6b7280">${trip.fund||trip.clientName||"Roadshow"}<br/>${dateStr}</div>
+</div>
+<div class="co-header">
+  <div class="co-name">${co.name}</div>
+  <div class="co-meta">
+    ${co.ticker?`<span class="badge">${co.ticker}</span>`:""}
+    ${co.sector?`<span class="badge" style="background:#f9fafb;color:#374151;border-color:#e5e7eb">${co.sector}</span>`:""}
+    ${mtg?.status==="confirmed"?`<span class="badge" style="background:#dcfce7;color:#166534;border-color:#86efac">✓ Confirmed</span>`:
+      mtg?.status==="tentative"?`<span class="badge" style="background:#fef9c3;color:#854d0e;border-color:#fde68a">◌ Tentative</span>`:""}
+  </div>
+</div>
+<div class="meeting-box">
+  <div class="sec-label">Meeting Details</div>
+  <div class="meet-row"><span class="meet-label">📅 Date</span><strong>${dateStr}</strong></div>
+  ${mtg?`<div class="meet-row"><span class="meet-label">⏰ Time</span><strong>${fmtH(mtg.hour)} – ${fmtH(mtg.hour+(trip.meetingDuration||60)/60)} (${trip.meetingDuration||60} min)</strong></div>`:""}
+  <div class="meet-row"><span class="meet-label">📍 Location</span>${locStr}</div>
+  ${visitorLine?`<div class="meet-row"><span class="meet-label">👤 Investor</span>${visitorLine}</div>`:""}
+  ${mtg?.meetingFormat&&mtg.meetingFormat!=="Meeting"?`<div class="meet-row"><span class="meet-label">🍽 Format</span>${mtg.meetingFormat}</div>`:""}
+</div>
+${mtgContacts.length?`
+<div class="section">
+  <div class="sec-label">Company Representatives</div>
+  ${mtgContacts.map(c=>`<div class="contact-row"><span style="font-weight:600">${c.name}</span><span style="color:#6b7280">${c.title||""}</span><span style="color:#374151;font-size:9.5pt">${c.email||""}</span></div>`).join("")}
+</div>`:""}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+  <div>
+    <div class="sec-label" style="margin-bottom:6px">📋 Pre-meeting notes</div>
+    <div class="notes-box">${(mtg?.notes||co.notes||"—").replace(/</g,"&lt;")}</div>
+  </div>
+  <div>
+    <div class="sec-label" style="margin-bottom:6px">✅ Post-meeting notes</div>
+    <div class="post-box">${(mtg?.postNotes||"").replace(/</g,"&lt;")||"<span style='color:#9ca3af;font-style:italic'>Complete after the meeting</span>"}</div>
+  </div>
+</div>
+${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div><div style="font-size:10.5pt">${co.hqAddress}</div></div>`:""}
+<div class="footer"><span>Latin Securities · Confidential</span><span>${co.name} · ${trip.fund||trip.clientName||""}</span></div>
+</body></html>`;
+    openPrint(html);
+  }
   function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
   function exportRoadshowICS(){
     const ics=buildICS(roadshow.meetings,roadshow.companies,roadshow.trip);
@@ -5349,6 +5437,7 @@ Daily Summary — ${dayLabel}
                                     onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.15)"}
                                     onMouseLeave={e=>e.currentTarget.style.filter=""}>
                                     <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                                      {mtg.postNotes&&<span title="Tiene notas post-reunión" style={{fontSize:6,opacity:.8}}>📝</span>}
                                       <span>{lbl}</span>
                                       <span 
                                         style={{fontSize:7,cursor:"pointer",padding:"1px 3px",borderRadius:2,background:mtg.status==="confirmed"?"rgba(0,0,0,.2)":"transparent"}}
@@ -5653,7 +5742,8 @@ Daily Summary — ${dayLabel}
                             </div>
                           </div>
                           <div style={{display:"flex",gap:5}}>
-                            <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>✉️ Ver email</button>
+                            <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>✉️ Email</button>
+                            <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} title="Brief PDF para imprimir antes de la reunión" onClick={()=>exportCompanyBrief(co)}>📄 Brief</button>
                             <button className="btn bg bs" style={{fontSize:9,gap:3,flex:1}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null,preCoId:co.id});}}>+ Reunión</button>
                             <button aria-label={`Eliminar ${co.name}`} className="btn bd bs" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>{if(confirm(`Eliminar ${co.name}?`))saveRoadshow({...roadshow,companies:roadshow.companies.filter((_,j)=>j!==ci)});}}> ✕</button>
                           </div>
