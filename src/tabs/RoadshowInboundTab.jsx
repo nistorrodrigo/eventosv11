@@ -36,7 +36,14 @@ export function RoadshowInboundTab({
         // Helper to patch a company field inline (used in meeting modal)
         window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
-        function saveMtg(m){const ex=roadshow.meetings.find(x=>x.id===m.id);const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);}
+        function saveMtg(m){
+          const ex=roadshow.meetings.find(x=>x.id===m.id);
+          // Increment icsVersion when date or hour changes so Outlook updates instead of duplicating
+          const timeChanged=ex&&(ex.date!==m.date||ex.hour!==m.hour);
+          const updated={...m,icsVersion:(timeChanged?(m.icsVersion||0)+1:(m.icsVersion||0))};
+          const ms=ex?roadshow.meetings.map(x=>x.id===m.id?updated:x):[...roadshow.meetings,updated];
+          saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);
+        }
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
         const confirmed=roadshow.meetings.filter(m=>m.status==="confirmed").length;
         const tentative=roadshow.meetings.filter(m=>m.status==="tentative").length;
@@ -1001,6 +1008,7 @@ export function RoadshowInboundTab({
               // Open the cloned meeting for editing
               setTimeout(()=>setRsMtgModal({date:newD,hour:newH,meeting:cloned}),80);
             }}
+            onExportICS={exportRoadshowICS}
             onClose={()=>setRsMtgModal(null)}
           />}
           {rsEmailModal&&<RoadshowEmailModal

@@ -338,7 +338,8 @@ export function buildICS(meetings, companies, trip){
     const mtgReps=selIds.length>0?allCoContacts.filter(r=>selIds.includes(r.id)):allCoContacts;
     const coContactLines=mtgReps.filter(r=>r.email).map(r=>`ATTENDEE;CN="${esc(r.name)}":mailto:${r.email}`).join("\r\n");
     const coContact=coContactLines||( co?.contact?.email?`ATTENDEE;CN="${esc(co.contact?.name||co.name)}":mailto:${co.contact.email}`:"");
-    return `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${fmtDT(new Date().toISOString().slice(0,10),new Date().getUTCHours())}\r\nDTSTART:${start}\r\nDTEND:${endDT}\r\nSUMMARY:${esc(title)}\r\nLOCATION:${esc(locL)}\r\nDESCRIPTION:${esc((co?.notes||"")+( m.notes?("\n"+m.notes):""))}\r\n${attendees?attendees+"\r\n":""}${coContact?coContact+"\r\n":""}END:VEVENT`;
+    const seq=m.icsVersion||0;
+    return `BEGIN:VEVENT\r\nUID:${uid}\r\nSEQUENCE:${seq}\r\nDTSTAMP:${fmtNow()}\r\nLAST-MODIFIED:${fmtNow()}\r\nDTSTART:${start}\r\nDTEND:${endDT}\r\nSUMMARY:${esc(title)}\r\nLOCATION:${esc(locL)}\r\nDESCRIPTION:${esc((co?.notes||"")+( m.notes?("\n"+m.notes):""))}\r\n${attendees?attendees+"\r\n":""}${coContact?coContact+"\r\n":""}END:VEVENT`;
   });
   return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Latin Securities//Roadshow//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\n${events.join("\r\n")}\r\nEND:VCALENDAR`;
 }

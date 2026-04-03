@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 
-export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onClose}){
+export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onExportICS,onClose}){
   const [type,setType]=useState(meeting?.type||"company");
   const [coId,setCoId]=useState(meeting?.companyId||"");
   const [lsType,setLsType]=useState(meeting?.lsType||LS_INT_TYPES[0]);
@@ -264,6 +264,7 @@ Latin Securities`;
         <div className="modal-footer" style={{gap:7}}>
           {mode==="edit"&&<button className="btn bd bs" onClick={onDelete}>🗑 Eliminar</button>}
           {mode==="edit"&&onDuplicate&&<button className="btn bo bs" title="Clonar reunión en otro horario" onClick={onDuplicate}>⧉ Clonar</button>}
+          {mode==="edit"&&onExportICS&&<button className="btn bo bs" title="Exportar este evento al calendario (.ics)" onClick={()=>onExportICS(meeting?.id)}>📅 .ics</button>}
           <button className="btn bo bs" onClick={onClose}>Cancelar</button>
           <button className="btn bg bs" onClick={save}>Guardar</button>
         </div>
