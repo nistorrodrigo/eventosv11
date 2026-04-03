@@ -1,6 +1,6 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef } from "react";
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -17,6 +17,7 @@ export function RoadshowInboundTab({
   kioskFb, setKioskFb, kioskFbData, setKioskFbData,
   rsMtgModal, setRsMtgModal, rsEmailModal, setRsEmailModal,
   rsAgendaEmailModal, setRsAgendaEmailModal,
+  rsDailyEmailModal, setRsDailyEmailModal,
   icsImportModal, setIcsImportModal, rsMtgsExcelRef, rsExcelRef,
   rsShowParser, setRsShowParser,
   rsCoById, rsCoMapForTravel, tripDays,
@@ -38,10 +39,8 @@ export function RoadshowInboundTab({
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){
           const ex=roadshow.meetings.find(x=>x.id===m.id);
-          // Increment icsVersion when date or hour changes so Outlook updates instead of duplicating
-          const timeChanged=ex&&(ex.date!==m.date||ex.hour!==m.hour);
-          const updated={...m,icsVersion:(timeChanged?(m.icsVersion||0)+1:(m.icsVersion||0))};
-          const ms=ex?roadshow.meetings.map(x=>x.id===m.id?updated:x):[...roadshow.meetings,updated];
+          // icsVersion is already incremented by RoadshowMeetingModal when time/location changes
+          const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];
           saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);
         }
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
@@ -877,6 +876,16 @@ export function RoadshowInboundTab({
                   📧 Ver email con agenda
                 </button>
               </div>
+              {/* Daily briefing email */}
+              <div className="card" style={{marginBottom:16,borderLeft:"3px solid #059669",background:"rgba(5,150,105,.03)"}}>
+                <div className="card-t" style={{marginBottom:6}}>🌅 Agenda del día (para el cliente)</div>
+                <p style={{fontSize:12,color:"var(--dim)",marginBottom:10,lineHeight:1.6}}>
+                  Generá el email <em>de mañana por la mañana</em> con el itinerario del día — solo las reuniones de ese día, con ubicaciones y contactos. Ideal para mandar antes de cada jornada.
+                </p>
+                <button className="btn bs" style={{gap:6,background:"rgba(5,150,105,.18)",border:"1px solid rgba(5,150,105,.35)",color:"#6ee7b7"}} onClick={()=>setRsDailyEmailModal(true)}>
+                  🌅 Ver agenda del día
+                </button>
+              </div>
               <div className="sec-hdr" style={{marginBottom:8}}>📄 Agenda del Roadshow (English · formato LS)</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowPDF} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowPDF();}}>
@@ -1081,6 +1090,13 @@ export function RoadshowInboundTab({
             tripDays={tripDays}
             lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
             onClose={()=>setRsAgendaEmailModal(false)}
+          />}
+          {rsDailyEmailModal&&<DailyBriefingEmailModal
+            roadshow={roadshow}
+            rsCos={roadshow.companies}
+            tripDays={tripDays}
+            lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
+            onClose={()=>setRsDailyEmailModal(false)}
           />}
           {kioskMode&&<KioskModal
             roadshow={roadshow}

@@ -38,6 +38,14 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
+      icsVersion:(()=>{
+        const prev=prevM.icsVersion||0;
+        const dateChg=String(prevM.date||'')!==(selectedDate||date);
+        const hourChg=String(prevM.hour??'')!==String(parseFloat(h));
+        const durChg=String(prevM.duration||60)!==String(parseInt(dur));
+        const locChg=(prevM.location||'')!==loc||(prevM.locationCustom||'')!==locCustom;
+        return (dateChg||hourChg||durChg||locChg)?prev+1:prev;
+      })(),
       changeLog:(()=>{
         const now=new Date().toISOString(); const log=[...(prevM.changeLog||[])];
         const chk=(f,nv)=>{if(String(prevM[f]??'')!==String(nv??'')) log.push({at:now,field:f,from:prevM[f],to:nv});};

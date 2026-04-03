@@ -315,6 +315,7 @@ export function parseICS(icsText){
 export function buildICS(meetings, companies, trip){
   const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
   const pad=n=>String(n).padStart(2,"0");
+  const fmtNow=()=>{const n=new Date();return n.getUTCFullYear()+pad(n.getUTCMonth()+1)+pad(n.getUTCDate())+"T"+pad(n.getUTCHours())+pad(n.getUTCMinutes())+pad(n.getUTCSeconds())+"Z";};
   const fmtDT=(dateStr,hour)=>{
     const d=new Date(dateStr+"T"+pad(hour)+":00:00");
     return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+"T"+pad(d.getUTCHours())+pad(d.getUTCMinutes())+"00Z";
@@ -450,5 +451,196 @@ render();
 </script></body></html>`;
 }
 
+
+
+/* ─── Daily Briefing Email Modal ─────────────────────────────────── */
+export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, onClose}){
+  const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
+  const{trip,meetings}=roadshow;
+  const activeDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+  // default: first day that has meetings, or first workday
+  const daysWithMtgs=activeDays.filter(d=>(meetings||[]).some(m=>m.date===d&&m.status!=="cancelled"));
+  const[selDay,setSelDay]=useState(daysWithMtgs[0]||activeDays[0]||"");
+  const[copied,setCopied]=useState(false);
+  const[fmt,setFmt]=useState("text");
+  const[sending,setSending]=useState(false);
+  const[sendResult,setSendResult]=useState(null);
+
+  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+
+  const dayMtgs=(meetings||[]).filter(m=>m.date===selDay&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+  const visitors=(trip.visitors||[]).filter(v=>v.name);
+  const firstNames=visitors.map(v=>v.name.split(" ")[0]);
+  const greeting=firstNames.length>0?`Good morning ${firstNames.join(" and ")},`:"Good morning,";
+  const fund=trip.fund||(trip.clientName||"[Client]");
+  const hotel=trip.hotel;
+
+  // Plain text
+  const lines=[
+    greeting,"",
+    `Here is your schedule for ${selDay?fmtLong(selDay):"today"}${hotel?`, as a reminder you are staying at ${hotel}`:""}.`,""
+  ];
+  dayMtgs.forEach(m=>{
+    const co=m.type==="company"?rm.get(m.companyId):null;
+    const name=co?co.name:(m.lsType||m.title||"Meeting");
+    const ticker=co?.ticker?` (${co.ticker})`:"";
+    const dur=m.duration||trip.meetingDuration||60;
+    const endH=m.hour+dur/60;
+    const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const locL=stripNeighborhood(rawLoc);
+    const reps=(()=>{
+      if(m.type!=="company") return m.participants||"";
+      const allR=rm.get(m.companyId)?.contacts||[];
+      const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+      return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")+( r.phone?` · ${r.phone}`:"")+( r.email?` · ${r.email}`:"")).join("\n              ");
+    })();
+    lines.push(`  ${fmtH(m.hour)} – ${fmtH(endH)}   ${name}${ticker}`);
+    lines.push(`                📍 ${locL}`);
+    if(reps) lines.push(`                👤 ${reps}`);
+    if(m.notes) lines.push(`                📝 ${m.notes}`);
+    lines.push("");
+  });
+  if(!dayMtgs.length) lines.push("  No meetings scheduled for this day.","");
+  lines.push(
+    "Should you have any questions, please don't hesitate to reach out.",
+    "",
+    "Best regards,","",
+    lsContact?.name||"[LS Contact]",
+    lsContact?.role||"Institutional Sales",
+    "Latin Securities",
+    lsContact?.email||"",lsContact?.phone||""
+  );
+  const textBody=lines.filter(l=>l!==undefined).join("\n");
+
+  // HTML
+  const mtgRows=dayMtgs.map(m=>{
+    const co=m.type==="company"?rm.get(m.companyId):null;
+    const name=co?co.name:(m.lsType||m.title||"Meeting");
+    const dur=m.duration||trip.meetingDuration||60;
+    const endH=m.hour+dur/60;
+    const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const locL=stripNeighborhood(rawLoc);
+    const reps=(()=>{
+      if(m.type!=="company") return m.participants||"";
+      const allR=rm.get(m.companyId)?.contacts||[];
+      const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+      return sel.filter(r=>r.name).map(r=>`${r.name}${r.title?` <span style="color:#7a8fa8;font-size:11px">(${r.title})</span>`:""}`).join(", ");
+    })();
+    return `<tr style="border-bottom:1px solid #eef2f8">
+      <td style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1e5ab0;white-space:nowrap;vertical-align:top;font-weight:700">${fmtH(m.hour)}<br/><span style="font-size:10px;color:#aaa;font-weight:400">${fmtH(endH)}</span></td>
+      <td style="padding:10px 14px;vertical-align:top">
+        <div style="font-weight:700;color:#000039;font-size:14px">${name}${co?` <span style="background:#dde8f8;color:#1e5ab0;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}</div>
+        <div style="font-size:12px;color:#555;margin-top:3px">📍 ${locL}</div>
+        ${reps?`<div style="font-size:12px;color:#555;margin-top:2px">👤 ${reps}</div>`:""}
+        ${m.notes?`<div style="font-size:12px;color:#888;margin-top:2px;font-style:italic">📝 ${m.notes}</div>`:""}
+      </td>
+    </tr>`;
+  }).join("");
+
+  const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a;line-height:1.6">
+<p style="margin-bottom:12px">${greeting}</p>
+<p style="margin-bottom:20px">Here is your schedule for <strong>${selDay?fmtLong(selDay):"today"}</strong>${hotel?`, as a reminder you are staying at <strong>${hotel}</strong>`:""}.${!dayMtgs.length?" No meetings scheduled.":""}</p>
+${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #dde8f8;border-radius:8px;overflow:hidden">
+  <tr><td colspan="2" style="background:#000039;color:#fff;padding:10px 14px;font-weight:700;letter-spacing:.04em">${selDay?fmtLong(selDay):""}</td></tr>
+  ${mtgRows}
+</table>`:""}
+<p>Should you have any questions, please don't hesitate to reach out.</p>
+<p style="margin-top:20px">Best regards,<br/><strong>${lsContact?.name||"[LS Contact]"}</strong><br/>${lsContact?.role||"Institutional Sales"}<br/>Latin Securities${lsContact?.email?`<br/>${lsContact.email}`:""}${lsContact?.phone?`<br/>${lsContact.phone}`:""}</p>
+</div>`;
+
+  const toAddrs=visitors.filter(v=>v.email).map(v=>v.email).join(", ");
+  const subject=`${fund} · Buenos Aires – Daily Schedule – ${selDay?fmtShort(selDay):""}`;
+  const resendKey=trip?.resendKey||"";
+
+  function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
+  function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}
+
+  async function sendEmail(){
+    if(!resendKey||!toAddrs) return;
+    setSending(true);setSendResult(null);
+    try{
+      const senderName=lsContact?.name||"Latin Securities";
+      const senderEmail=lsContact?.email||"onboarding@resend.dev";
+      const from=`${senderName} <${senderEmail}>`;
+      const res=await fetch("https://api.resend.com/emails",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},
+        body:JSON.stringify({from,to:toAddrs.split(",").map(s=>s.trim()).filter(Boolean),reply_to:lsContact?.email||undefined,subject,html:htmlBody,text:textBody})
+      });
+      const data=await res.json();
+      if(res.ok) setSendResult("ok");
+      else setSendResult("err:"+(data?.message||data?.error||"Error"));
+    }catch(e){setSendResult("err:"+e.message);}
+    setSending(false);
+  }
+
+  return(
+    <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal" style={{maxWidth:680,maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
+        <div className="modal-hdr"><div className="modal-title">🌅 Agenda del día</div></div>
+        <div className="modal-body" style={{flex:1,overflowY:"auto"}}>
+          {/* Day selector */}
+          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:180}}>
+              <div className="lbl">Día</div>
+              <select className="sel" value={selDay} onChange={e=>setSelDay(e.target.value)}>
+                {activeDays.map(d=>{
+                  const n=(meetings||[]).filter(m=>m.date===d&&m.status!=="cancelled").length;
+                  const label=new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
+                  return <option key={d} value={d}>{label}{n?` · ${n} mtg${n>1?"s":""}`:""}</option>;
+                })}
+              </select>
+            </div>
+            <div style={{flex:2,minWidth:220}}>
+              <div className="lbl">Para</div>
+              <div style={{fontSize:12,color:toAddrs?"var(--txt)":"var(--red)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontFamily:"IBM Plex Mono,monospace"}}>
+                {toAddrs||"⚠ Agregá emails en Datos del Viaje → Visitantes"}
+              </div>
+            </div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div className="lbl">Asunto</div>
+            <div style={{fontSize:12,color:"var(--cream)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontWeight:600}}>{subject}</div>
+          </div>
+          {/* Format toggle */}
+          <div style={{display:"flex",gap:5,marginBottom:10}}>
+            {[["text","📄 Texto plano"],["html","🌐 Vista HTML"]].map(([v,l])=>(
+              <button key={v} className={`btn bs ${fmt===v?"bg":"bo"}`} style={{fontSize:10}} onClick={()=>setFmt(v)}>{l}</button>
+            ))}
+          </div>
+          {fmt==="text"&&(
+            <pre style={{fontFamily:"Calibri,Georgia,serif",fontSize:12,color:"var(--txt)",background:"var(--ink3)",padding:"12px 14px",borderRadius:6,whiteSpace:"pre-wrap",maxHeight:360,overflowY:"auto",lineHeight:1.75}}>{textBody}</pre>
+          )}
+          {fmt==="html"&&(
+            <div style={{background:"#fff",padding:"16px",borderRadius:6,border:"1px solid rgba(30,90,176,.12)",maxHeight:360,overflowY:"auto"}} dangerouslySetInnerHTML={{__html:htmlBody}}/>
+          )}
+          {!hotel&&<div style={{fontSize:11,color:"var(--gold)",marginTop:8,padding:"4px 10px",background:"rgba(234,179,8,.08)",borderRadius:4}}>⚠ Hotel vacío — completalo en 🧳 Datos del Viaje para incluirlo en el email.</div>}
+          {!toAddrs&&<div style={{fontSize:11,color:"var(--red)",marginTop:8}}>⚠ Sin emails de visitantes. Agregalos en 🧳 Datos del Viaje → Visitantes.</div>}
+        </div>
+        {sendResult&&(
+          <div style={{padding:"6px 20px",fontSize:12,color:sendResult==="ok"?"#166534":"#991b1b",background:sendResult==="ok"?"#dcfce7":"#fee2e2",borderTop:"1px solid",borderColor:sendResult==="ok"?"#86efac":"#fca5a5"}}>
+            {sendResult==="ok"?"✅ Email enviado correctamente.":"❌ "+sendResult.replace("err:","")}
+          </div>
+        )}
+        <div className="modal-footer" style={{gap:7}}>
+          <button className="btn bo bs" onClick={onClose}>Cerrar</button>
+          <button className="btn bo bs" onClick={openMail} disabled={!toAddrs}>📧 Abrir en Mail</button>
+          <button className={`btn bs ${copied?"bo":"bg"}`} onClick={copyText}>{copied?"✅ ¡Copiado!":"📋 Copiar texto"}</button>
+          {resendKey?(
+            <button className="btn bg bs" style={{gap:5,background:sending?"#555":undefined}} onClick={sendEmail} disabled={sending||!toAddrs}>
+              {sending?"⏳ Enviando...":"🚀 Enviar email"}
+            </button>
+          ):(
+            <button className="btn bo bs" style={{opacity:.5,cursor:"default"}} title="Configurá la Resend API Key en 🧳 Datos del Viaje">
+              🚀 Enviar (sin key)
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ─── Travel Time & Maps Helpers ────────────────────────────────── */

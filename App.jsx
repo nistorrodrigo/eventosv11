@@ -27,7 +27,7 @@ import { CSS } from "./src/styles.js";
 // ── Roadshow: constants, email, ICS, booking ──────────────────────
 import {
   ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, RS_TRIP_DEF, RS_COS_DEF,
-  genRSEmail, rsToEntity, RoadshowAgendaEmailModal,
+  genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal,
   parseICS, buildICS, buildBookingPage,
 } from "./src/roadshow.jsx";
 
@@ -141,6 +141,7 @@ export default function App(){
   const [rsSubTab,setRsSubTab]=useState("schedule");
   const [rsEmailParser,setRsEmailParser]=useState("");
   const [rsAgendaEmailModal,setRsAgendaEmailModal]=useState(false);
+  const [rsDailyEmailModal,setRsDailyEmailModal]=useState(false);
   const [icsImportModal,setIcsImportModal]=useState(null); // null | {events:[], pending:[]}  
   const [travelCache,setTravelCache]=useState({});
   const [travelLoading,setTravelLoading]=useState(false);
@@ -1023,9 +1024,12 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
     openPrint(html);
   }
   function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
-  function exportRoadshowICS(){
-    const ics=buildICS(roadshow.meetings,roadshow.companies,roadshow.trip);
-    const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.ics`;
+  function exportRoadshowICS(mtgId){
+    // If mtgId provided (from modal 📅 button): export only that meeting (Outlook in-place update)
+    const meetings=mtgId?roadshow.meetings.filter(m=>m.id===mtgId):roadshow.meetings;
+    const ics=buildICS(meetings,roadshow.companies,roadshow.trip);
+    const base=mtgId?(()=>{const co=roadshow.companies.find(c=>c.id===(roadshow.meetings.find(m=>m.id===mtgId)||{}).companyId);return co?co.name.replace(/[^a-zA-Z0-9]/g,"_"):"Meeting";})():`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}`;
+    const fn=`${base}.ics`;
     downloadBlob(fn,ics,"text/calendar;charset=utf-8");
   }
   function exportBookingPage(){
@@ -3335,6 +3339,7 @@ Daily Summary — ${dayLabel}
         rsMtgModal={rsMtgModal} setRsMtgModal={setRsMtgModal}
         rsEmailModal={rsEmailModal} setRsEmailModal={setRsEmailModal}
         rsAgendaEmailModal={rsAgendaEmailModal} setRsAgendaEmailModal={setRsAgendaEmailModal}
+        rsDailyEmailModal={rsDailyEmailModal} setRsDailyEmailModal={setRsDailyEmailModal}
         icsImportModal={icsImportModal} setIcsImportModal={setIcsImportModal}
         rsMtgsExcelRef={rsMtgsExcelRef} rsExcelRef={rsExcelRef}
         rsShowParser={rsShowParser} setRsShowParser={setRsShowParser}
