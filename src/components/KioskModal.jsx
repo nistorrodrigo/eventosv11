@@ -1,5 +1,6 @@
 // ── KioskModal.jsx ──
 import { useState, useRef } from 'react';
+import { FeedbackWidget } from "./FeedbackWidget.jsx";
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
   const today=new Date().toISOString().slice(0,10);

@@ -1,6 +1,7 @@
 // ── RoadshowMeetingModal.jsx ──
 import { useEffect, useRef, useState } from "react";
 import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour } from "../roadshow.jsx";
+import { FeedbackWidget } from "./FeedbackWidget.jsx";
 
 export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onClose}){
   const [type,setType]=useState(meeting?.type||"company");
