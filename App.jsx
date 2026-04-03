@@ -358,7 +358,15 @@ export default function App(){
   }
 
   // ── Export ───────────────────────────────────────────────────
-  function openPrint(html){const w=window.open("","_blank");w.document.write(html);w.document.close();w.focus();}
+  function openPrint(html){
+    // Use blob URL to bypass popup blockers
+    const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.target="_blank";a.rel="noopener noreferrer";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }
 
   // ── Export historical stats as styled HTML report ─────────────
   function exportHistoricalHTML(histYears, currInvestors, currCompanies, currMeetings){
