@@ -359,11 +359,13 @@ export default function App(){
 
   // ── Export ───────────────────────────────────────────────────
   function openPrint(html){
-    // Use blob URL to bypass popup blockers
+    const w=window.open("","_blank");
+    if(w){w.document.write(html);w.document.close();w.focus();return;}
+    // Fallback if popup was blocked: download as HTML file
     const blob=new Blob([html],{type:"text/html;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url;a.target="_blank";a.rel="noopener noreferrer";
+    a.href=url;a.download="LS_Schedule.html";
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),10000);
   }
