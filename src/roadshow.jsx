@@ -1,5 +1,7 @@
 // ── roadshow.js — roadshow constants, email generators, ICS ──
 import { useState, useRef } from 'react';
+import { stripNeighborhood } from './travel.js';
+import { esc } from './storage.jsx';
 
 /* ═══════════════════════════════════════════════════════════════════
    ROADSHOW SCHEDULER
