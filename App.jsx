@@ -35,6 +35,7 @@ import {
 import {
   getMeetingAddress, cleanAddr,
   openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict,
+  geocodeAll, osrmRoute,
 } from "./src/travel.js";
 
 // ── UI Components ──────────────────────────────────────────────────
@@ -1036,6 +1037,178 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
     const html=buildBookingPage(roadshow.trip,roadshow.companies,roadshow.meetings,roadshow.trip.officeAddress);
     const fn=`BookingPage_${(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow").replace(/[^a-zA-Z0-9]/g,"_")}.html`;
     downloadBlob(fn,html,"text/html");
+  }
+
+  function exportDriverItinerary(filterDate){
+    const {trip,meetings,companies}=roadshow;
+    const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
+    const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+    const addMinutes=(h,min)=>h+min/60;
+    const subMinutes=(h,min)=>Math.max(0,h-min/60);
+    const dur=trip.meetingDuration||60;
+    const hotel=trip.hotel||"Hotel";
+    const fund=trip.fund||trip.clientName||"Roadshow";
+    const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
+    const days=filterDate?[filterDate]:workDays;
+
+    const dayBlocks=days.map(date=>{
+      const dayMtgs=(meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+      if(!dayMtgs.length) return null;
+      const dayT=travelCache[date]||{};
+      const fmtDate=new Date(date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+      // Header block
+      const firstAddr=getMeetingAddress(dayMtgs[0],rsCoMap.get(dayMtgs[0].companyId),trip.officeAddress);
+      const leg0=dayT[`${date}-0`]; // hotel→first meeting not in cache, but first inter-meeting is
+      // Estimate hotel pickup: first meeting - (first travel if known as proxy) - 15min buffer
+      // Since we don't geocode hotel, use the first OSRM leg as a rough proxy if available
+      const hotelTravelMin=leg0?.durationSec?Math.ceil(leg0.durationSec/60)+5:20; // fallback 20 min
+      const pickupH=subMinutes(dayMtgs[0].hour, hotelTravelMin+10);
+
+      let rows="";
+      // Hotel departure row
+      rows+=`<tr class="hotel-row">
+        <td class="time-cell">${fmtH(pickupH)}</td>
+        <td class="event-cell">
+          <div class="event-title">🏨 Salida del hotel</div>
+          <div class="event-sub">${hotel}</div>
+        </td>
+        <td class="info-cell"><span class="badge badge-hotel">~${hotelTravelMin} min al destino</span></td>
+      </tr>
+      <tr class="gap-row"><td></td><td colspan="2"><div class="gap-line">🚗 traslado ≈ ${hotelTravelMin} min</div></td></tr>`;
+
+      dayMtgs.forEach((m,mi)=>{
+        const co=m.type==="company"?rsCoMap.get(m.companyId):null;
+        const name=co?co.name:(m.lsType||m.title||"Reunión");
+        const ticker=co?.ticker||"";
+        const addr=getMeetingAddress(m,co,trip.officeAddress);
+        const endH=m.hour+dur/60;
+        const sector=co?.sector||"";
+        const clrMap={"Financials":"#1e5ab0","Energy":"#e8850a","Utilities":"#23a29e","TMT":"#7c3aed","Infra":"#059669","Industry":"#b45309","Consumer":"#dc2626","Agro":"#65a30d","Exchange":"#0891b2","Real Estate":"#d97706","Other":"#6b7280","LS Internal":"#374151"};
+        const clr=clrMap[sector]||"#374151";
+        // Contacts for this meeting
+        const allC=co?.contacts||[];
+        const selIds=m.attendeeIds||[];
+        const reps=selIds.length?allC.filter(c=>selIds.includes(c.id)):allC;
+        const repHTML=reps.filter(r=>r.name).map(r=>{
+          const ph=r.phone?`<a href="tel:${r.phone.replace(/\s/g,'')}" style="color:#1e5ab0;text-decoration:none">📞 ${r.phone}</a>`:"";
+          const wa=r.phone?`<a href="https://wa.me/${r.phone.replace(/[^\d]/g,'')}" style="color:#25d166;text-decoration:none;margin-left:6px">💬</a>`:"";
+          return `<div style="margin-top:3px"><strong>${r.name}</strong>${r.title?` <span style="color:#6b7280;font-size:9pt">(${r.title})</span>`:""} ${ph}${wa}</div>`;
+        }).join("");
+        const statusBadge=m.status==="confirmed"
+          ?`<span class="badge badge-conf">✓ Confirmada</span>`
+          :`<span class="badge badge-tent">◌ Tentativa</span>`;
+        rows+=`<tr class="mtg-row">
+          <td class="time-cell">
+            <div style="font-weight:800;color:${clr}">${fmtH(m.hour)}</div>
+            <div style="font-size:8.5pt;color:#9ca3af;margin-top:1px">${fmtH(endH)}</div>
+          </td>
+          <td class="event-cell">
+            <div class="event-title" style="color:${clr}">${name}${ticker?` <span class="ticker">${ticker}</span>`:""}</div>
+            <div class="event-sub">📍 ${addr}</div>
+            ${repHTML?`<div class="reps">${repHTML}</div>`:""}
+          </td>
+          <td class="info-cell">
+            ${statusBadge}
+            <div style="font-size:9pt;color:#6b7280;margin-top:5px">⏱ ${dur} min</div>
+            ${m.notes?`<div style="font-size:9pt;color:#374151;margin-top:5px;font-style:italic">📝 ${m.notes}</div>`:""}
+          </td>
+        </tr>`;
+
+        // Travel gap to next meeting
+        if(mi<dayMtgs.length-1){
+          const tData=dayT[`${date}-${mi}`];
+          const nextM=dayMtgs[mi+1];
+          const gapMin=Math.round((nextM.hour-m.hour)*60-dur);
+          const tMin=tData?Math.ceil(tData.durationSec/60):null;
+          const conflict=tMin!=null&&gapMin<tMin;
+          const warn=tMin!=null&&!conflict&&gapMin<tMin+10;
+          const gapColor=conflict?"#dc2626":warn?"#d97706":"#059669";
+          const travelTxt=tData?`🚗 ${tData.durationText} · ${tData.distanceText}`:"🚗 traslado (tiempo no calculado)";
+          const marginTxt=tMin!=null?` · ${gapMin-tMin} min de margen`:`${gapMin} min entre reuniones`;
+          rows+=`<tr class="gap-row">
+            <td></td>
+            <td colspan="2">
+              <div class="gap-line" style="color:${gapColor}">
+                ${travelTxt}<span style="font-size:9pt;color:${gapColor};margin-left:8px">${conflict?"⚠ CONFLICTO":warn?"⚡ justo":""} ${marginTxt}</span>
+              </div>
+            </td>
+          </tr>`;
+        }
+      });
+
+      // Return to hotel
+      const lastM=dayMtgs[dayMtgs.length-1];
+      const returnH=addMinutes(lastM.hour,dur);
+      const lastLeg=dayT[`${date}-${dayMtgs.length-2}`]; // last inter-meeting leg
+      const returnMin=lastLeg?Math.ceil(lastLeg.durationSec/60)+5:20;
+      rows+=`<tr class="gap-row"><td></td><td colspan="2"><div class="gap-line">🚗 traslado ≈ ${returnMin} min</div></td></tr>
+      <tr class="hotel-row">
+        <td class="time-cell">${fmtH(addMinutes(returnH,returnMin))}</td>
+        <td class="event-cell"><div class="event-title">🏨 Regreso al hotel</div><div class="event-sub">${hotel}</div></td>
+        <td class="info-cell"></td>
+      </tr>`;
+
+      return `<div class="day-block">
+        <div class="day-hdr">
+          <div class="day-label">${fmtDate.charAt(0).toUpperCase()+fmtDate.slice(1)}</div>
+          <div class="day-meta">${dayMtgs.length} reunión${dayMtgs.length!==1?"es":""} · ${dur} min c/u</div>
+        </div>
+        <table class="day-table"><tbody>${rows}</tbody></table>
+      </div>`;
+    }).filter(Boolean).join("");
+
+    if(!dayBlocks){alert("No hay reuniones para el itinerario.");return;}
+
+    const travelNote=Object.keys(travelCache).length?
+      "✓ Tiempos de traslado calculados (OSRM)" :
+      "⚠ Tiempos de traslado no calculados — calculalos en el tab 🗺️ Recorrido para mayor precisión.";
+
+    const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Itinerario del chofer — ${fund}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{margin:12mm 15mm;size:A4}
+body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10pt;color:#111827;background:#fff;padding:20px 24px}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;margin-bottom:20px;border-bottom:3px solid #000039}
+.ls1{font-size:13pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase}
+.ls2{font-size:6.5pt;color:#6b7280;letter-spacing:.2em;text-transform:uppercase;margin-top:2px}
+.day-block{margin-bottom:24px;break-inside:avoid}
+.day-hdr{background:#000039;color:#fff;padding:9px 14px;border-radius:7px 7px 0 0;display:flex;align-items:center;justify-content:space-between}
+.day-label{font-size:12pt;font-weight:700;text-transform:capitalize;letter-spacing:.03em}
+.day-meta{font-size:9pt;opacity:.6;font-family:'IBM Plex Mono',monospace}
+.day-table{width:100%;border-collapse:collapse;border:1px solid #e9eef5;border-top:none;border-radius:0 0 7px 7px;overflow:hidden}
+.time-cell{width:58px;padding:8px 10px;vertical-align:top;font-family:'IBM Plex Mono',monospace;font-size:11pt;font-weight:700;color:#000039;white-space:nowrap;border-bottom:1px solid #f3f4f6}
+.event-cell{padding:8px 12px;vertical-align:top;border-bottom:1px solid #f3f4f6}
+.info-cell{width:140px;padding:8px 10px;vertical-align:top;border-bottom:1px solid #f3f4f6}
+.event-title{font-size:12pt;font-weight:700;margin-bottom:2px}
+.event-sub{font-size:9.5pt;color:#6b7280;margin-top:2px}
+.reps{margin-top:5px;padding-top:5px;border-top:1px solid #f3f4f6;font-size:9.5pt}
+.ticker{background:#e8eef8;color:#1e5ab0;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:8.5pt;font-weight:700;margin-left:3px}
+.gap-row td{padding:0;border:none}
+.gap-line{font-size:9pt;color:#6b7280;padding:4px 12px 4px 14px;font-family:'IBM Plex Mono',monospace;border-left:2px dashed #e9eef5;margin-left:29px}
+.hotel-row .time-cell{color:#374151;font-size:10pt}
+.hotel-row .event-title{font-size:11pt;color:#374151}
+.hotel-row{background:#f9fafb}
+.badge{display:inline-block;font-size:8.5pt;padding:2px 7px;border-radius:4px;font-weight:600}
+.badge-conf{background:#dcfce7;color:#166534}
+.badge-tent{background:#fef9c3;color:#854d0e}
+.badge-hotel{background:#eff6ff;color:#1e5ab0}
+.note{font-size:8pt;color:#9ca3af;margin-top:14px;padding-top:8px;border-top:1px solid #f3f4f6}
+.footer{margin-top:16px;padding-top:8px;border-top:1px solid #e9eef5;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af}
+@media print{body{padding:0}.day-block{break-inside:avoid}}
+</style></head><body>
+<div class="hdr">
+  <div><div class="ls1">Latin Securities</div><div class="ls2">Roadshow · Driver Itinerary</div></div>
+  <div style="text-align:right;font-size:9pt;color:#6b7280">
+    <div style="font-weight:700;color:#000039;font-size:11pt">${fund}</div>
+    <div>${hotel}</div>
+  </div>
+</div>
+${dayBlocks}
+<div class="note">⚠ Los horarios de salida/regreso al hotel son estimativos. ${travelNote}</div>
+<div class="footer"><span>Latin Securities · Confidential</span><span>${fund} · Driver Itinerary</span></div>
+</body></html>`;
+    openPrint(html);
   }
   function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
   function handleRsExcel(e){
@@ -3361,6 +3534,7 @@ Daily Summary — ${dayLabel}
         calcDayTravel={calcDayTravel}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
+        exportDriverItinerary={exportDriverItinerary}
       />}
 
 

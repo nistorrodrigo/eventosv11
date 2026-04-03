@@ -21,7 +21,7 @@ export function RoadshowInboundTab({
   icsImportModal, setIcsImportModal, rsMtgsExcelRef, rsExcelRef,
   rsShowParser, setRsShowParser,
   rsCoById, rsCoMapForTravel, tripDays,
-  exportCompanyBrief, exportRoadshowSummary,
+  exportCompanyBrief, exportRoadshowSummary, exportDriverItinerary,
   // lsCont is computed internally from config + roadshow.trip.lsContactIdx
   currentEvent,
   dragMtg, setDragMtg,
@@ -754,6 +754,10 @@ export function RoadshowInboundTab({
                           onClick={()=>{const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,roadshow.trip.officeAddress);});openGoogleMapsRoute(addrs);}}>
                           🗺️ Abrir ruta
                         </button>}
+                        <button className="btn bo bs" style={{fontSize:9,gap:4}}
+                          onClick={()=>exportDriverItinerary(date)}>
+                          🚗 Itinerario
+                        </button>
                       </div>
                     </div>
 
@@ -897,6 +901,11 @@ export function RoadshowInboundTab({
                   <div className="ex-card-ico">📊</div>
                   <div className="ex-card-t">Resumen post-roadshow</div>
                   <div className="ex-card-s">Métricas, cobertura por sector y notas del viaje.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportDriverItinerary(null)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportDriverItinerary(null);}}>
+                  <div className="ex-card-ico">🚗</div>
+                  <div className="ex-card-t">Itinerario del chofer</div>
+                  <div className="ex-card-s">Ruta día a día con horarios de salida, traslados y contactos.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowWord} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowWord();}}>
                   <div className="ex-card-ico">📝</div>

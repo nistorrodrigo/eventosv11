@@ -28,7 +28,7 @@ export function cleanAddr(addr){
   return addr.replace(/,?\s*(\d+°?\s*)?(Piso|Planta|Floor|Level|Oficina|PB)(\s*\d+°?)?/gi,'').replace(/,?\s*\d+°(\s|,|$)/g,'$1').replace(/\s{2,}/g,' ').replace(/,\s*,/g,',').trim();
 }
 // geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim
-async function geocodeAll(addresses){
+export async function geocodeAll(addresses){
   const unique=[...new Set(addresses)];
   const coords={};
   for(const addr of unique){
@@ -46,7 +46,7 @@ async function geocodeAll(addresses){
   }
   return coords;
 }
-async function osrmRoute(o,d){
+export async function osrmRoute(o,d){
   try{
     const url=`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`;
     const ctrl=new AbortController();
