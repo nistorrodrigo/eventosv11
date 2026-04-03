@@ -7,6 +7,7 @@ import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { KioskModal } from "../components/KioskModal.jsx";
 import { RoadshowEmailModal } from "../components/RoadshowEmailModal.jsx";
+import { RoadshowMeetingModal } from "../components/RoadshowMeetingModal.jsx";
 import * as XLSX from "xlsx";
 
 export function RoadshowInboundTab({
