@@ -48,9 +48,14 @@ export function RoadshowInboundTab({
         const [agendaView,setAgendaView]=useState("table"); // "table" | "calendar"
         const [waBulkModal,setWaBulkModal]=useState(null);
         const [libPicker,setLibPicker]=useState(false); // library company picker modal
-        const [libSelected,setLibSelected]=useState(new Set()); // selected company IDs
-        const [libSearch,setLibSearch]=useState(""); // { date, items:[{contact,company,meeting,message,waUrl}] }
+        const [libSelected,setLibSelected]=useState(new Set());
+        const [libSearch,setLibSearch]=useState("");
         const [bookings,setBookings]=useState([]);
+        // Expense tracker state (must be at top level, not inside IIFE)
+        const EXPENSE_CATS=["🚗 Transfer","🍽 Comida","🏨 Hotel","✈️ Vuelo","📱 Comunicaciones","🎫 Entretenimiento","📦 Otros"];
+        const EXPENSE_CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
+        const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:""});
+        const [expEdit,setExpEdit]=useState(null);
         const [bookingsLoading,setBookingsLoading]=useState(false);
         const [pendingCount,setPendingCount]=useState(0);
         // Fetch pending count every 30s
@@ -1062,10 +1067,8 @@ export function RoadshowInboundTab({
           {/* GASTOS / EXPENSES */}
           {rsSubTab==="expenses"&&(()=>{
             const expenses=roadshow.expenses||[];
-            const CATS=["🚗 Transfer","🍽 Comida","🏨 Hotel","✈️ Vuelo","📱 Comunicaciones","🎫 Entretenimiento","📦 Otros"];
-            const CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
-            const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:CATS[0],description:"",amount:"",currency:"USD",paidBy:lsCont.name||"",notes:""});
-            const [expEdit,setExpEdit]=useState(null);
+            const CATS=EXPENSE_CATS;
+            const CURRENCIES=EXPENSE_CURRENCIES;
             const addExpense=()=>{
               if(!expForm.amount||!expForm.description.trim())return;
               const exp={id:"exp-"+Date.now(),date:expForm.date,category:expForm.category,description:expForm.description.trim(),amount:parseFloat(expForm.amount),currency:expForm.currency,paidBy:expForm.paidBy.trim(),notes:expForm.notes.trim(),createdAt:new Date().toISOString()};
