@@ -129,7 +129,9 @@ export function LibraryTab({
                       ):(
                         <div>
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
-                            <div><div className="lbl" style={{marginBottom:2}}>Nombre *</div><input className="inp" style={{fontSize:11}} value={co.name} placeholder="Banco Macro" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,name:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
+                            <div><div className="lbl" style={{marginBottom:2}}>Nombre *</div><input className="inp" style={{fontSize:11}} value={co.name} placeholder="Banco Macro" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,name:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}/>
+                            {co.name.length>=3&&(()=>{const n=(co.name||"").toLowerCase().replace(/[^a-záéíóúñ0-9]/g,"");const dups=dbCos.filter(c=>c.id!==co.id&&n.length>=3&&((c.name||"").toLowerCase().replace(/[^a-záéíóúñ0-9]/g,"").includes(n)||n.includes((c.name||"").toLowerCase().replace(/[^a-záéíóúñ0-9]/g,"")))).slice(0,3);return dups.length?<div style={{fontSize:9,color:"#b45309",background:"#fef3c7",padding:"3px 8px",borderRadius:4,marginTop:3}}>⚠ Posible duplicado: {dups.map(d=>d.name).join(", ")}</div>:null;})()}
+                            </div>
                             <div><div className="lbl" style={{marginBottom:2}}>Ticker</div><input className="inp" style={{fontSize:11,fontFamily:"IBM Plex Mono,monospace"}} value={co.ticker} placeholder="BMA" onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,ticker:e.target.value.toUpperCase()}:c);saveGlobalDB({...globalDB,companies:nc});}}/></div>
                             <div><div className="lbl" style={{marginBottom:2}}>Sector</div>
                               <select className="sel" style={{fontSize:11}} value={co.sector} onChange={e=>{const nc=globalDB.companies.map(c=>c.id===co.id?{...c,sector:e.target.value}:c);saveGlobalDB({...globalDB,companies:nc});}}>
