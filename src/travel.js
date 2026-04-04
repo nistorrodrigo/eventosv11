@@ -62,6 +62,44 @@ export async function osrmRoute(o,d){
   }catch(e){return null;}
 }
 
+
+/* ── Google Maps Distance Matrix — traffic-aware, returns a range ──
+   Requires an API key with Distance Matrix API enabled.
+   departure_time = actual day + hour → Buenos Aires UTC-3.
+   Returns { durationText:"12–18 min", durationSec, durationSecMin, distanceText, source:"google" }
+   durationSec = pessimistic (with traffic) — used for conflict detection.
+*/
+export async function googleMapsRoute(origin, dest, dateStr, hour, apiKey){
+  try{
+    // Build departure timestamp: meeting date + hour in Buenos Aires (UTC-3)
+    const hh=Math.floor(hour); const mm=Math.round((hour-hh)*60);
+    const pad=n=>String(n).padStart(2,"0");
+    // Construct ISO with explicit -03:00 offset (BA winter, no DST in April)
+    const iso=`${dateStr}T${pad(hh)}:${pad(mm)}:00-03:00`;
+    const departureUnix=Math.floor(new Date(iso).getTime()/1000);
+    // Must be in the future for traffic data; Google accepts past dates but returns duration only
+    const url=`https://maps.googleapis.com/maps/api/distancematrix/json`+
+      `?origins=${encodeURIComponent(origin+", Buenos Aires, Argentina")}`+
+      `&destinations=${encodeURIComponent(dest+", Buenos Aires, Argentina")}`+
+      `&mode=driving&departure_time=${departureUnix}&traffic_model=best_guess`+
+      `&language=es&key=${encodeURIComponent(apiKey)}`;
+    const ctrl=new AbortController(); setTimeout(()=>ctrl.abort(),10000);
+    const r=await fetch(url,{signal:ctrl.signal});
+    if(!r.ok) return null;
+    const j=await r.json();
+    if(j.status!=="OK") return null;
+    const el=j.rows?.[0]?.elements?.[0];
+    if(!el||el.status!=="OK") return null;
+    const secFree=el.duration.value;
+    const secTraffic=el.duration_in_traffic?.value??secFree;
+    const km=Math.round(el.distance.value/1000*10)/10;
+    const minFree=Math.round(secFree/60);
+    const minTraffic=Math.round(secTraffic/60);
+    // Build range: if traffic adds >2 min show range, else ~X
+    const durationText=minTraffic>minFree+2?`${minFree}–${minTraffic} min`:`~${minFree} min`;
+    return{durationText,durationSec:secTraffic,durationSecMin:secFree,distanceText:`${km} km`,source:"google"};
+  }catch(e){return null;}
+}
 export function openGoogleMapsRoute(stops){
   if(!stops.length) return;
   const origin=encodeURIComponent(stops[0]);

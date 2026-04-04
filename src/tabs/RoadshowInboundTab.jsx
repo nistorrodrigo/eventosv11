@@ -92,6 +92,20 @@ export function RoadshowInboundTab({
                 <a href="https://resend.com/api-keys" target="_blank" style={{color:"var(--gold)"}}>Obtener key →</a>
               </div>
             </div>
+            {/* Google Maps API key */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
+              <div>
+                <div className="lbl" style={{marginBottom:3}}>🗺 Google Maps API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(traslados con tráfico real · opcional)</span></div>
+                <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
+                  value={roadshow.trip.mapsApiKey||""} onChange={e=>upTrip("mapsApiKey",e.target.value)}
+                  placeholder="AIza..."/>
+              </div>
+              <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:180}}>
+                Sin key: usa OpenStreetMap (sin tráfico).<br/>
+                Con key: Google Maps Distance Matrix → rango con tráfico estimado para ese día/hora.<br/>
+                <a href="https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com" target="_blank" style={{color:"var(--gold)"}}>Activar API →</a>
+              </div>
+            </div>
 
             {/* Visitors */}
             <div style={{marginBottom:10}}>
@@ -725,9 +739,14 @@ export function RoadshowInboundTab({
                   <p style={{fontSize:12,color:"var(--dim)"}}>Verificá que haya tiempo suficiente entre reuniones considerando el traslado.</p>
                 </div>
                               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <div style={{fontSize:11,background:"rgba(58,140,92,.07)",border:"1px solid rgba(58,140,92,.2)",borderRadius:6,padding:"5px 10px",color:"var(--dim)"}}>
-                    🆓 OpenStreetMap — sin API key
-                  </div>
+                  {roadshow.trip.mapsApiKey
+                    ?<div style={{fontSize:11,background:"rgba(30,90,176,.07)",border:"1px solid rgba(30,90,176,.2)",borderRadius:6,padding:"5px 10px",color:"#93c5fd"}}>
+                      🗺 Google Maps — con tráfico real
+                    </div>
+                    :<div style={{fontSize:11,background:"rgba(58,140,92,.07)",border:"1px solid rgba(58,140,92,.2)",borderRadius:6,padding:"5px 10px",color:"var(--dim)"}}>
+                      🆓 OpenStreetMap — sin API key (sin tráfico)
+                    </div>
+                  }
                   <button className="btn bg bs" style={{fontSize:10,gap:5}} disabled={travelLoading} onClick={calcAllTravel}>
                     {travelLoading?"⏳ Calculando...":"🔄 Calcular todos los traslados"}
                   </button>
@@ -810,6 +829,7 @@ export function RoadshowInboundTab({
                                     <>
                                       <span style={{fontFamily:"IBM Plex Mono,monospace",color:conflict?.conflict?"var(--red)":conflict?.warning?"#e8850a":"var(--grn)",fontWeight:700}}>🚗 {travelData.durationText}</span>
                                       <span style={{color:"var(--dim)"}}>· {travelData.distanceText}</span>
+                                      {travelData.source==="google"&&<span style={{fontSize:8,color:"#60a5fa",fontFamily:"IBM Plex Mono,monospace",padding:"1px 4px",border:"1px solid rgba(96,165,250,.3)",borderRadius:3}}>con tráfico</span>}
                                       {conflict?.conflict&&<span style={{color:"var(--red)",fontWeight:700}}>⚠ CONFLICTO — solo {conflict.gapMin} min entre reuniones</span>}
                                       {conflict?.warning&&!conflict.conflict&&<span style={{color:"#e8850a"}}>⚡ Justo — {conflict.gapMin} min de margen</span>}
                                       {!conflict&&<span style={{color:"var(--grn)"}}>✓ OK ({Math.floor((nextM.hour*60)-(m.hour*60+dur)-travelData.durationSec/60)} min de margen)</span>}
