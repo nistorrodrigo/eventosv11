@@ -1,5 +1,5 @@
 /* LS Event Manager — modular build 2026 */
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
@@ -57,10 +57,11 @@ import { RoadshowEmailModal } from "./src/components/RoadshowEmailModal.jsx";
 import { InvestorModal } from "./src/components/InvestorModal.jsx";
 import { CompanyModal } from "./src/components/CompanyModal.jsx";
 import { MeetingModal } from "./src/components/MeetingModal.jsx";
-import { DashboardView } from "./src/tabs/DashboardView.jsx";
-import { RoadshowInboundTab } from "./src/tabs/RoadshowInboundTab.jsx";
-import { RoadshowOutboundTab } from "./src/tabs/RoadshowOutboundTab.jsx";
-import { LibraryTab } from "./src/tabs/LibraryTab.jsx";
+// Lazy-loaded tabs for bundle splitting
+const DashboardView = lazy(() => import("./src/tabs/DashboardView.jsx").then(m=>({default:m.DashboardView})));
+const RoadshowInboundTab = lazy(() => import("./src/tabs/RoadshowInboundTab.jsx").then(m=>({default:m.RoadshowInboundTab})));
+const RoadshowOutboundTab = lazy(() => import("./src/tabs/RoadshowOutboundTab.jsx").then(m=>({default:m.RoadshowOutboundTab})));
+const LibraryTab = lazy(() => import("./src/tabs/LibraryTab.jsx").then(m=>({default:m.LibraryTab})));
 
 export default function App(){
   // ── Events (persistence) ──────────────────────────────────────
@@ -1233,6 +1234,7 @@ Daily Summary — ${dayLabel}
   );
 
   if(!currentEvent||dashboardView) return(
+    <Suspense fallback={<div style={{minHeight:"100vh",background:"#f2f5fb"}}/>}>
     <DashboardView
       events={events} dashEvents={dashEvents} setEvents={setEvents} saveEvents={saveEvents}
       hasEvents={hasEvents} cloudSaveEvent={cloudSaveEvent} hashPwd={hashPwd}
@@ -1255,6 +1257,7 @@ Daily Summary — ${dayLabel}
       setKioskFb={setKioskFb} setRsDayFilter={setRsDayFilter}
       setTab={setTab} setRsSubTab={setRsSubTab}
     />
+    </Suspense>
   );
 
   return(
@@ -1557,6 +1560,7 @@ Daily Summary — ${dayLabel}
       </div>
     )}
 
+    <Suspense fallback={<div style={{padding:"40px 20px",textAlign:"center",color:"var(--dim)"}}><div style={{width:24,height:24,border:"2px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin .6s linear infinite",margin:"0 auto 12px"}}/></div>}>
     <main className="body tab-enter" key={tab}>
 
       {/* ════ CONFIG ════ */}
@@ -2910,6 +2914,7 @@ Daily Summary — ${dayLabel}
 
 
     </main>
+    </Suspense>
   </div>
   );
 }
