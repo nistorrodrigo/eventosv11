@@ -14,19 +14,17 @@ document.addEventListener("keydown",_preloadXLSX,{once:true});
 
 // ── Constants & pure utils ─────────────────────────────────────────
 import {
-  ALL_HOURS, DEFAULT_DAYS, DAYS_STATIC, DAY_LONG_S, DAY_SHORT_S,
-  DEFAULT_CONFIG, COMPANIES_INIT, CO_MAP, SEC_CLR, FUND_NOISE, TITLE_MAP,
-  getDays, getDayIds, getDayLong, getDayShort,
-  slotDay, slotHour, hourLabel, slotLabel, makeRooms, getRooms, makeSlots,
-  parseAvail, capitalizeName, normalizeFund, buildFundAliasMap,
-  normalizePosition, normalizeFundName, normalizeAUM,
-  effectiveSlots, buildRoomMap, runSchedule,
+  ALL_HOURS, DEFAULT_DAYS, DEFAULT_CONFIG, COMPANIES_INIT, SEC_CLR,
+  getDayIds, getDayLong, getDayShort,
+  slotDay, slotHour, hourLabel, getRooms, makeSlots,
+  capitalizeName, normalizeFund, normalizePosition,
+  effectiveSlots, runSchedule,
 } from "./src/constants.jsx";
 
 // ── Storage, zip, HTML export ──────────────────────────────────────
 import {
-  LS_KEY, LS_DB_KEY, loadEvents, saveEvents, loadDB, saveDB,
-  buildZip, downloadBlob, esc,
+  loadEvents, saveEvents, loadDB, saveDB,
+  buildZip, downloadBlob, openPrint,
   buildWordHTML, buildPrintHTML, companyToEntity, investorToEntity,
 } from "./src/storage.jsx";
 
@@ -298,17 +296,7 @@ export default function App(){
   }
 
   // ── Export ───────────────────────────────────────────────────
-  function openPrint(html){
-    const w=window.open("","_blank");
-    if(w){w.document.write(html);w.document.close();w.focus();return;}
-    // Fallback if popup was blocked: download as HTML file
-    const blob=new Blob([html],{type:"text/html;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download="LS_Schedule.html";
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),10000);
-  }
+  // openPrint → moved to src/storage.jsx
 
   // exportHistoricalHTML → moved to src/utils/exporters.js
 

@@ -38,6 +38,17 @@ export function downloadBlob(name,content,type){const blob=new Blob([content],{t
 ═══════════════════════════════════════════════════════════════════ */
 export const esc =s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
+export function openPrint(html){
+  const w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();w.focus();return;}
+  const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="LS_Schedule.html";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
 export function buildWordHTML(name,sub,sections,meta={}){
   return `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
