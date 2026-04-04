@@ -77,3 +77,60 @@ export function parseHistoricalInvestorFile(arrayBuffer, XLSX, year, fileName){
   if(!parsed.length) return null;
   return {year, fileName, investors:parsed};
 }
+
+// Parse roadshow companies Excel → returns array of company objects
+export function parseRoadshowCompaniesFile(arrayBuffer, XLSX){
+  const wb=XLSX.read(arrayBuffer,{type:"array"});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  if(rows.length<2) return null;
+  const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
+  const col=k=>hdr.findIndex(h=>h.includes(k));
+  const nc=col("name"),tc=col("ticker"),sc=col("sector"),lc=col("location"),cc=col("contact"),ec=col("email"),pc=col("phone"),ac=col("address"),oc=col("notes");
+  const newCos=rows.slice(1).filter(r=>r[nc]).map((r,i)=>({
+    id:`rc_xl_${Date.now()}_${i}`,name:String(r[nc]||"").trim(),ticker:String(r[tc]||"").trim().toUpperCase(),
+    sector:String(r[sc]||"Custom").trim(),location:String(r[lc]||"ls_office").trim().includes("hq")?"hq":"ls_office",
+    locationCustom:String(r[ac]||"").trim(),
+    contacts:[{id:`rep_${Date.now()}_${i}`,name:String(r[cc]||"").trim(),email:String(r[ec]||"").trim(),phone:String(r[pc]||"").trim(),title:""}].filter(c=>c.name),
+    notes:String(r[oc]||"").trim(),active:true
+  }));
+  return newCos.length?newCos:null;
+}
+
+// Parse global DB companies Excel → returns array of company objects with contacts
+export function parseDBCompaniesFile(arrayBuffer, XLSX){
+  const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  if(rows.length<2) return null;
+  const hdr=rows[0].map(h=>String(h).toLowerCase().trim());const ci=k=>hdr.findIndex(h=>h.includes(k));
+  const nc=ci("name"),tc=ci("ticker"),sc=ci("sector"),wc=ci("website"),ac=ci("address"),hc=ci("hq"),
+    r1c=ci("contact 1"),e1c=ci("email 1"),p1c=ci("phone 1"),t1c=ci("title 1"),
+    r2c=ci("contact 2"),e2c=ci("email 2"),p2c=ci("phone 2"),t2c=ci("title 2"),
+    r3c=ci("contact 3"),e3c=ci("email 3"),p3c=ci("phone 3"),t3c=ci("title 3");
+  const imported=[];
+  rows.slice(1).filter(r=>r[nc]).forEach(r=>{
+    const name=String(r[nc]).trim();const contacts=[];
+    [[r1c,e1c,p1c,t1c],[r2c,e2c,p2c,t2c],[r3c,e3c,p3c,t3c]].forEach(([rc,ec,pc,tc2])=>{
+      if(rc>=0&&r[rc]) contacts.push({id:`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:String(r[rc]||"").trim(),email:String(r[ec>=0?ec:""]||"").trim(),phone:String(r[pc>=0?pc:""]||"").trim(),title:String(r[tc2>=0?tc2:""]||"").trim()});
+    });
+    imported.push({id:`dbc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name,ticker:String(r[tc>=0?tc:""]||"").trim().toUpperCase(),sector:String(r[sc>=0?sc:""]||"Other").trim(),hqAddress:String(r[ac>=0?ac:hc>=0?hc:""]||"").trim(),contacts});
+  });
+  return imported.length?imported:null;
+}
+
+// Parse global DB investors Excel → returns array of investor objects
+export function parseDBInvestorsFile(arrayBuffer, XLSX){
+  const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  if(rows.length<2) return null;
+  const hdr=rows[0].map(h=>String(h).toLowerCase().trim());const ci=k=>hdr.findIndex(h=>h.includes(k));
+  const nc=ci("name"),fc=ci("fund"),pc=ci("position"),ec=ci("email"),phc=ci("phone"),ac=ci("aum"),cc=ci("companies"),lc=ci("linkedin"),notc=ci("notes");
+  const imported=rows.slice(1).filter(r=>r[nc]).map(r=>({
+    id:`dbi_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:String(r[nc]||"").trim(),
+    fund:String(r[fc>=0?fc:""]||"").trim(),position:String(r[pc>=0?pc:""]||"").trim(),
+    email:String(r[ec>=0?ec:""]||"").trim().toLowerCase(),phone:String(r[phc>=0?phc:""]||"").trim(),
+    aum:String(r[ac>=0?ac:""]||"").trim(),companies:String(r[cc>=0?cc:""]||"").split(";").map(s=>s.trim()).filter(Boolean),
+    linkedin:String(r[lc>=0?lc:""]||"").trim(),notes:String(r[notc>=0?notc:""]||"").trim(),
+  }));
+  return imported.length?imported:null;
+}

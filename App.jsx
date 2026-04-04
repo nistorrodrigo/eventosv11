@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } fro
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
-import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
+import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
@@ -401,38 +401,18 @@ export default function App(){
   // exportDriverItinerary → moved to src/utils/exporters.js
   function exportDriverItinerary(filterDate){ _exportDriverItinerary({filterDate, roadshow, travelCache, tripDays, config, openPrint, toast}); }
   function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
+  // handleRsExcel → parsing in src/utils/parsers.js
   function handleRsExcel(e){
-    const file=e.target.files?.[0]; if(!file) return;
+    const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const wb=_XLSX.read(ev.target.result,{type:"array"});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){toast("El archivo no tiene datos.");return;}
-        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-        const col=k=>hdr.findIndex(h=>h.includes(k));
-        const nc=col("name"),tc=col("ticker"),sc=col("sector"),lc=col("location"),cc=col("contact"),ec=col("email"),pc=col("phone"),ac=col("address"),oc=col("notes");
-        const newCos=rows.slice(1).filter(r=>r[nc]).map((r,i)=>({
-          id:`rc_xl_${Date.now()}_${i}`,
-          name:String(r[nc]||"").trim(),
-          ticker:String(r[tc]||"").trim().toUpperCase(),
-          sector:String(r[sc]||"Custom").trim(),
-          location:String(r[lc]||"ls_office").trim().includes("hq")?"hq":"ls_office",
-          locationCustom:String(r[ac]||"").trim(),
-          contacts:[{id:`rep_${Date.now()}_${i}`,name:String(r[cc]||"").trim(),email:String(r[ec]||"").trim(),phone:String(r[pc]||"").trim(),title:""}].filter(c=>c.name),
-          contact:{name:String(r[cc]||"").trim(),email:String(r[ec]||"").trim(),phone:String(r[pc]||"").trim()},
-          notes:String(r[oc]||"").trim(),
-          active:true
-        }));
-        if(!newCos.length){toast("No se encontraron empresas. Verificá que la columna se llame 'Name'.");return;}
-        const merged=[...roadshow.companies,...newCos.filter(nc=>!roadshow.companies.some(ex=>ex.name.toLowerCase()===nc.name.toLowerCase()))];
-        saveRoadshow({...roadshow,companies:merged});
-        toast(`✅ ${newCos.length} empresa(s) importada(s). ${merged.length-roadshow.companies.length} nuevas.`);
-      }catch(err){toastErr("Error leyendo el archivo: "+err.message);}
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value="";
+    reader.onload=ev=>{try{
+      const result=parseRoadshowCompaniesFile(ev.target.result,_XLSX);
+      if(!result){toast("No se encontraron empresas.");return;}
+      const merged=[...roadshow.companies,...result.filter(nc2=>!roadshow.companies.some(ex=>ex.name.toLowerCase()===nc2.name.toLowerCase()))];
+      saveRoadshow({...roadshow,companies:merged});
+      toast(`✅ ${result.length} empresa(s) importada(s). ${merged.length-roadshow.companies.length} nuevas.`);
+    }catch(err){toastErr("Error: "+err.message);}};
+    reader.readAsArrayBuffer(file);e.target.value="";
   }
   function handleRsEmailParse(text){
     // Extract dates
@@ -620,88 +600,37 @@ export default function App(){
     e.target.value="";
   }
   // ─── Global DB: Excel import ──────────────────────────────────────
+  // handleDBCompaniesExcel → parsing in src/utils/parsers.js
   function handleDBCompaniesExcel(e){
-    const file=e.target.files?.[0]; if(!file) return;
+    const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const wb=_XLSX.read(ev.target.result,{type:"array"});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){toast("Archivo vacío.");return;}
-        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-        const ci=k=>hdr.findIndex(h=>h.includes(k));
-        const nc=ci("name"),tc=ci("ticker"),sc=ci("sector"),wc=ci("website"),ac=ci("address"),hc=ci("hq"),
-          r1c=ci("contact 1"),e1c=ci("email 1"),p1c=ci("phone 1"),t1c=ci("title 1"),
-          r2c=ci("contact 2"),e2c=ci("email 2"),p2c=ci("phone 2"),t2c=ci("title 2"),
-          r3c=ci("contact 3"),e3c=ci("email 3"),p3c=ci("phone 3"),t3c=ci("title 3");
-        const imported=[];
-        rows.slice(1).filter(r=>r[nc]).forEach(r=>{
-          const name=String(r[nc]).trim();
-          const contacts=[];
-          [[r1c,e1c,p1c,t1c],[r2c,e2c,p2c,t2c],[r3c,e3c,p3c,t3c]].forEach(([rc,ec,pc,tc])=>{
-            if(rc>=0&&r[rc]) contacts.push({id:`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:String(r[rc]||"").trim(),email:String(r[ec>=0?ec:""]||"").trim(),phone:String(r[pc>=0?pc:""]||"").trim(),title:String(r[tc>=0?tc:""]||"").trim()});
-          });
-          imported.push({id:`dbc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name,ticker:String(r[tc>=0?tc:""]||"").trim().toUpperCase(),sector:String(r[sc>=0?sc:""]||"Other").trim(),website:String(r[wc>=0?wc:""]||"").trim(),hqAddress:String(r[ac>=0?ac:hc>=0?hc:""]||"").trim(),contacts});
-        });
-        if(!imported.length){toast("No se encontraron compañías. Verificá que la primera columna sea 'Name'.");return;}
-        const db={...globalDB};
-        let added=0,updated=0;
-        imported.forEach(ic=>{
-          const idx=db.companies.findIndex(x=>x.name.toLowerCase()===ic.name.toLowerCase()||x.ticker===ic.ticker);
-          if(idx>=0){
-            // Merge contacts
-            const existing=db.companies[idx];
-            const newContacts=[...existing.contacts];
-            ic.contacts.forEach(nc2=>{if(!newContacts.some(x=>x.email&&x.email===nc2.email))newContacts.push(nc2);});
-            db.companies[idx]={...existing,...ic,contacts:newContacts};
-            updated++;
-          } else {db.companies.push(ic);added++;}
-        });
-        saveGlobalDB(db);
-        toast(`✅ ${added} compañía(s) agregada(s), ${updated} actualizada(s).`);
-      }catch(err){toastErr("Error: "+err.message);}
-    };
+    reader.onload=ev=>{try{
+      const imported=parseDBCompaniesFile(ev.target.result,_XLSX);
+      if(!imported){toast("No se encontraron compañías.");return;}
+      const db={...globalDB};let added=0,updated=0;
+      imported.forEach(ic=>{
+        const idx=db.companies.findIndex(x=>x.name.toLowerCase()===ic.name.toLowerCase()||(ic.ticker&&x.ticker===ic.ticker));
+        if(idx>=0){const ex=db.companies[idx];const nc2=[...ex.contacts];ic.contacts.forEach(c=>{if(!nc2.some(x=>x.email&&x.email===c.email))nc2.push(c);});db.companies[idx]={...ex,...ic,contacts:nc2};updated++;}
+        else{db.companies.push(ic);added++;}
+      });
+      saveGlobalDB(db);toast(`✅ ${added} compañía(s) agregada(s), ${updated} actualizada(s).`);
+    }catch(err){toastErr("Error: "+err.message);}};
     reader.readAsArrayBuffer(file);e.target.value="";
   }
-
+  // handleDBInvestorsExcel → parsing in src/utils/parsers.js
   function handleDBInvestorsExcel(e){
-    const file=e.target.files?.[0]; if(!file) return;
+    const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const wb=_XLSX.read(ev.target.result,{type:"array"});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){toast("Archivo vacío.");return;}
-        const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-        const ci=k=>hdr.findIndex(h=>h.includes(k));
-        const nc=ci("name"),fc=ci("fund"),pc=ci("position"),ec=ci("email"),phc=ci("phone"),
-              ac=ci("aum"),cc=ci("companies"),lc=ci("linkedin"),slc=ci("slots"),notc=ci("notes");
-        const imported=rows.slice(1).filter(r=>r[nc]).map(r=>({
-          id:`dbi_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-          name:String(r[nc]||"").trim(),
-          fund:String(r[fc>=0?fc:""]||"").trim(),
-          position:String(r[pc>=0?pc:""]||"").trim(),
-          email:String(r[ec>=0?ec:""]||"").trim().toLowerCase(),
-          phone:String(r[phc>=0?phc:""]||"").trim(),
-          aum:String(r[ac>=0?ac:""]||"").trim(),
-          companies:String(r[cc>=0?cc:""]||"").split(";").map(s=>s.trim()).filter(Boolean),
-          linkedin:String(r[lc>=0?lc:""]||"").trim(),
-          notes:String(r[notc>=0?notc:""]||"").trim(),
-        }));
-        if(!imported.length){toast("No se encontraron inversores.");return;}
-        const db={...globalDB};
-        let added=0,updated=0;
-        imported.forEach(ii=>{
-          const idx=db.investors.findIndex(x=>(x.email&&x.email===ii.email)||(x.name.toLowerCase()===ii.name.toLowerCase()&&x.fund.toLowerCase()===ii.fund.toLowerCase()));
-          if(idx>=0){db.investors[idx]={...db.investors[idx],...ii};updated++;}
-          else{db.investors.push(ii);added++;}
-        });
-        saveGlobalDB(db);
-        toast(`✅ ${added} inversor(es) agregado(s), ${updated} actualizado(s).`);
-      }catch(err){toastErr("Error: "+err.message);}
-    };
+    reader.onload=ev=>{try{
+      const imported=parseDBInvestorsFile(ev.target.result,_XLSX);
+      if(!imported){toast("No se encontraron inversores.");return;}
+      const db={...globalDB};let added=0,updated=0;
+      imported.forEach(ii=>{
+        const idx=db.investors.findIndex(x=>(x.email&&x.email===ii.email)||(x.name.toLowerCase()===ii.name.toLowerCase()&&(x.fund||"").toLowerCase()===(ii.fund||"").toLowerCase()));
+        if(idx>=0){db.investors[idx]={...db.investors[idx],...ii};updated++;}else{db.investors.push(ii);added++;}
+      });
+      saveGlobalDB(db);toast(`✅ ${added} inversor(es) agregado(s), ${updated} actualizado(s).`);
+    }catch(err){toastErr("Error: "+err.message);}};
     reader.readAsArrayBuffer(file);e.target.value="";
   }
 
