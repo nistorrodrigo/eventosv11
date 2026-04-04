@@ -8,7 +8,8 @@ import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
 import { supabaseRetry } from "./src/utils/retry.js";
-import { Settings, Upload, Users, Building2, Calendar, BarChart3, Download, Clock, BookOpen, Map, Plane, ICON_SM } from "./src/components/Icons.jsx";
+import { Settings, Upload, Users, Building2, Calendar, BarChart3, Download, Clock, BookOpen, Map, Plane } from "lucide-react";
+const ICON_SM=14;
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
