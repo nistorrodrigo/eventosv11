@@ -70,7 +70,7 @@ export default function BookingPage({eventId}){
   const btnPrimary={padding:"14px 28px",borderRadius:10,border:"none",background:BLUE,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:FONT,width:"100%"};
 
   // ── Loading / Error ──
-  if(loading) return <div style={page}><div style={container}><div style={hdr}><div style={{fontSize:28,marginBottom:8}}>⏳</div><div>Cargando horarios...</div></div></div></div>;
+  if(loading) return <div style={page}><div style={container}><div style={hdr}><div style={{fontSize:28,marginBottom:8}}>⏳</div><div>Cargando horarios...</div></div><div style={card}>{[1,2,3].map(i=><div key={i} style={{display:"flex",gap:8,marginBottom:12}}>{[1,2,3,4].map(j=><div key={j} style={{...{background:"linear-gradient(90deg,#f0f3f8 25%,#e4e9f2 37%,#f0f3f8 63%)",backgroundSize:"800px 100%",animation:"shimmer 1.4s ease-in-out infinite",borderRadius:8},width:54,height:38}}/>)}</div>)}<style>{"@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}"}</style></div></div></div>;
   if(error) return <div style={page}><div style={container}><div style={hdr}><div style={{fontSize:28,marginBottom:8}}>⚠️</div><div>{error}</div></div></div></div>;
   if(!slots.length&&!done) return <div style={page}><div style={container}><div style={hdr}><div style={{fontSize:28,marginBottom:8}}>📅</div><div style={{fontFamily:"Playfair Display,serif",fontSize:20,marginBottom:8}}>No hay horarios disponibles</div><div style={{fontSize:13,opacity:.7}}>Todos los horarios fueron reservados o aún no se publicaron.</div></div></div></div>;
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
+import { SkeletonCard } from "../components/Skeleton.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -528,7 +529,7 @@ export function RoadshowInboundTab({
           {rsSubTab==="bookings"&&(
             <div>
               <div className="sec-hdr" style={{marginBottom:10}}>📬 Reservas online</div>
-              {bookingsLoading?<div style={{textAlign:"center",padding:20,color:"var(--dim)"}}>Cargando reservas...</div>:(
+              {bookingsLoading?<div style={{display:"flex",flexDirection:"column",gap:10}}>{[1,2,3].map(i=><SkeletonCard key={i} lines={2}/>)}</div>:(
                 bookings.length===0?<div className="card" style={{textAlign:"center",padding:"30px 20px",color:"var(--dim)"}}><div style={{fontSize:28,marginBottom:8}}>📭</div><div style={{fontSize:13}}>No hay reservas todavía.</div><div style={{fontSize:11,marginTop:6}}>Publicá el link de reserva desde la pestaña Exportar.</div></div>:(
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {["pending","approved","rejected"].map(status=>{
