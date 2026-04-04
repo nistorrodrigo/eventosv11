@@ -54,7 +54,7 @@ export function RoadshowInboundTab({
         // Expense tracker state (must be at top level, not inside IIFE)
         const EXPENSE_CATS=["🚗 Transfer","🍽 Comida","🏨 Hotel","✈️ Vuelo","📱 Comunicaciones","🎫 Entretenimiento","📦 Otros"];
         const EXPENSE_CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
-        const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:""});
+        const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:"",receipt:null,receiptName:null});
         const [expEdit,setExpEdit]=useState(null);
         const [bookingsLoading,setBookingsLoading]=useState(false);
         const [pendingCount,setPendingCount]=useState(0);
@@ -1071,13 +1071,13 @@ export function RoadshowInboundTab({
             const CURRENCIES=EXPENSE_CURRENCIES;
             const addExpense=()=>{
               if(!expForm.amount||!expForm.description.trim())return;
-              const exp={id:"exp-"+Date.now(),date:expForm.date,category:expForm.category,description:expForm.description.trim(),amount:parseFloat(expForm.amount),currency:expForm.currency,paidBy:expForm.paidBy.trim(),notes:expForm.notes.trim(),createdAt:new Date().toISOString()};
+              const exp={id:"exp-"+Date.now(),date:expForm.date,category:expForm.category,description:expForm.description.trim(),amount:parseFloat(expForm.amount),currency:expForm.currency,paidBy:expForm.paidBy.trim(),notes:expForm.notes.trim(),receipt:expForm.receipt||null,receiptName:expForm.receiptName||null,createdAt:new Date().toISOString()};
               if(expEdit){
                 saveRoadshow({...roadshow,expenses:expenses.map(e=>e.id===expEdit?{...exp,id:expEdit}:e)});setExpEdit(null);
               }else{
                 saveRoadshow({...roadshow,expenses:[...expenses,exp]});
               }
-              setExpForm({...expForm,description:"",amount:"",notes:""});
+              setExpForm({...expForm,description:"",amount:"",notes:"",receipt:null,receiptName:null});
             };
             const delExpense=id=>{saveRoadshow({...roadshow,expenses:expenses.filter(e=>e.id!==id)});};
             const byCurrency={};expenses.forEach(e=>{byCurrency[e.currency]=(byCurrency[e.currency]||0)+e.amount;});
@@ -1106,6 +1106,20 @@ export function RoadshowInboundTab({
                     <div><div className="lbl">Monto *</div><div style={{display:"flex",gap:4}}><input className="inp" type="number" step="0.01" style={{width:100}} placeholder="0.00" value={expForm.amount} onChange={e=>setExpForm({...expForm,amount:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addExpense()}/><select className="sel" style={{width:70}} value={expForm.currency} onChange={e=>setExpForm({...expForm,currency:e.target.value})}>{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
                     <div><button className="btn bg bs" style={{marginBottom:1}} onClick={addExpense}>{expEdit?"✓ Guardar":"+ Agregar"}</button></div>
                   </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
+                    <label style={{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",fontSize:10,color:"var(--gold)",fontFamily:"IBM Plex Mono,monospace",padding:"4px 10px",border:"1px solid rgba(30,90,176,.2)",borderRadius:5,background:"rgba(30,90,176,.04)"}}>
+                      📎 {expForm.receipt?"Cambiar":"Adjuntar"} comprobante
+                      <input type="file" accept="image/*,.pdf" style={{display:"none"}} onChange={e=>{
+                        const file=e.target.files?.[0];if(!file)return;
+                        if(file.size>2*1024*1024){toast("El archivo es muy grande (máx 2 MB).");return;}
+                        const reader=new FileReader();
+                        reader.onload=ev=>setExpForm({...expForm,receipt:ev.target.result,receiptName:file.name});
+                        reader.readAsDataURL(file);
+                        e.target.value="";
+                      }}/>
+                    </label>
+                    {expForm.receipt&&<span style={{fontSize:10,color:"var(--dim)"}}>{expForm.receiptName} <button style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:10}} onClick={()=>setExpForm({...expForm,receipt:null,receiptName:null})}>✕</button></span>}
+                  </div>
                 </div>
                 {/* List */}
                 {expenses.length===0?<div className="card"><EmptyState icon="money" title="Sin gastos registrados" subtitle="Usá el formulario de arriba para registrar transfers, comidas, hotel y más."/></div>:(
@@ -1117,11 +1131,11 @@ export function RoadshowInboundTab({
                           <tr key={e.id}>
                             <td style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,whiteSpace:"nowrap"}}>{new Date(e.date+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</td>
                             <td style={{fontSize:11}}>{e.category}</td>
-                            <td style={{fontSize:11}}>{e.description}{e.notes?<span style={{color:"var(--dim)",fontSize:10}}> — {e.notes}</span>:""}</td>
+                            <td style={{fontSize:11}}>{e.description}{e.notes?<span style={{color:"var(--dim)",fontSize:10}}> — {e.notes}</span>:""}{e.receipt?<a href={e.receipt} target="_blank" rel="noopener noreferrer" style={{marginLeft:6,fontSize:9,color:"#1e5ab0",textDecoration:"none"}} title={e.receiptName||"Comprobante"}>📎</a>:""}</td>
                             <td style={{textAlign:"right",fontWeight:700,fontFamily:"IBM Plex Mono,monospace",fontSize:11}}>{fmtAmt(e.amount,e.currency)}</td>
                             <td style={{fontSize:10,color:"var(--dim)"}}>{e.paidBy||"—"}</td>
                             <td style={{whiteSpace:"nowrap"}}>
-                              <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"2px 4px"}} onClick={()=>{setExpForm({date:e.date,category:e.category,description:e.description,amount:String(e.amount),currency:e.currency,paidBy:e.paidBy||"",notes:e.notes||""});setExpEdit(e.id);}}>✏️</button>
+                              <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"2px 4px"}} onClick={()=>{setExpForm({date:e.date,category:e.category,description:e.description,amount:String(e.amount),currency:e.currency,paidBy:e.paidBy||"",notes:e.notes||"",receipt:e.receipt||null,receiptName:e.receiptName||null});setExpEdit(e.id);}}>✏️</button>
                               <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"#dc2626",padding:"2px 4px"}} onClick={()=>delExpense(e.id)}>🗑</button>
                             </td>
                           </tr>
