@@ -1,6 +1,7 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../supabase.js";
+import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -9,7 +10,9 @@ import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { KioskModal } from "../components/KioskModal.jsx";
 import { RoadshowEmailModal } from "../components/RoadshowEmailModal.jsx";
 import { RoadshowMeetingModal } from "../components/RoadshowMeetingModal.jsx";
-import * as XLSX from "xlsx";
+// XLSX lazy-loaded on demand
+let _XLSX_TAB=null;
+async function getXLSX(){if(!_XLSX_TAB)_XLSX_TAB=await import("xlsx");return _XLSX_TAB;}
 
 export function RoadshowInboundTab({
   roadshow, saveRoadshow, config, events, globalDB,
@@ -156,7 +159,7 @@ export function RoadshowInboundTab({
                     if(matchedCos.length) msg+=`✅ ${matchedCos.length} empresa(s) encontrada(s): ${matchedCos.map(c=>c.name).join(", ")}`;
                     const newCos=[...roadshow.companies,...matchedCos];
                     saveRoadshow({...roadshow,trip:newTrip,companies:newCos});
-                    alert(msg||"No se encontraron datos para extraer. Verificá el formato del email.");
+                    toast(msg||"No se encontraron datos para extraer. Verificá el formato del email.");
                     if(msg){setRsShowParser(false);setRsEmailParser("");}
                   }}>🔍 Extraer fechas, hotel y empresas</button>
                 </div>
@@ -182,7 +185,7 @@ export function RoadshowInboundTab({
               <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
                 <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginRight:4}} onClick={()=>{
                   const tent=(roadshow.meetings||[]).filter(m=>m.status==="tentative").length;
-                  if(!tent){alert("No hay reuniones tentativas.");return;}
+                  if(!tent){toast("No hay reuniones tentativas.");return;}
                   if(!confirm(`¿Confirmar ${tent} reunión(es) tentativa(s)?`)) return;
                   const now=new Date().toISOString();
                   const updated=(roadshow.meetings||[]).map(m=>m.status==="tentative"?{...m,status:"confirmed",changeLog:[...(m.changeLog||[]),{at:now,field:"status",from:"tentative",to:"confirmed"}]}:m);
@@ -224,19 +227,20 @@ export function RoadshowInboundTab({
                       const today=new Date().toISOString().slice(0,10);
                       const todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
                       const targetDate=todayMtgs.length?today:(rsDayFilter||(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]));
-                      if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
+                      if(!targetDate){toast("Configurá las fechas del viaje primero.");return;}
                       setRsDayFilter(targetDate);setKioskIdx(0);setKioskMode(true);
                     }}>📱 Modo día</button>
-                  <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
+                  <button className="btn bg bs" style={{fontSize:9,gap:4}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){toast("Configurá las fechas del viaje primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null});}}>+ Nueva reunión</button>
                   <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>rsMtgsExcelRef.current?.click()}>📥 Importar Excel</button>
                   {roadshow.meetings.length>0&&<button className="btn bd bs" style={{fontSize:9,gap:4}} onClick={()=>{if(confirm(`¿Borrar las ${roadshow.meetings.length} reunión(es) del roadshow? Esta acción no se puede deshacer.`))saveRoadshow({...roadshow,meetings:[]});}}>🗑 Borrar todo</button>}
-                  <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Fecha | Día | Hora | Compañía | Tipo | Dirección/Lugar | Estado | Notas" onClick={()=>{
+                  <button className="btn bo bs" style={{fontSize:9,gap:4,opacity:.7}} title="Columnas: Fecha | Día | Hora | Compañía | Tipo | Dirección/Lugar | Estado | Notas" onClick={async()=>{
                     const header=["Fecha","Día","Hora","Compañía","Tipo","Dirección / Lugar","Estado","Notas"];
                     const rows=[
                       ["20/04/2026","Lun",9,"TGS","Company Visit","Cecilia Grierson 355, Piso 26, CABA","✅ Confirmado","Rodrigo Nistor"],
                       ["20/04/2026","Lun",10.5,"Pampa Energía","Company Visit","Maipú 1, CABA","✅ Confirmado","Rodrigo Nistor"],
                       ["21/04/2026","Mar",9,"YPF","Company Visit","Macacha Güemes 515, CABA","✅ Confirmado","Rodrigo Nistor"],
                     ];
+                    const XLSX=await getXLSX();
                     const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
                     // Add data validation dropdown for Hora column (col C = index 2)
                     // Hours 8-20 in 30min intervals as numbers (9, 9.5, 10, 10.5...)
@@ -593,7 +597,7 @@ export function RoadshowInboundTab({
             return(
             <div>
               <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
               </div>
               {/* Header card */}
               <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>
@@ -693,7 +697,7 @@ export function RoadshowInboundTab({
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const ns={id:`rc_${Date.now()}`,name:"Nueva empresa",ticker:"",sector:"Custom",location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true};saveRoadshow({...roadshow,companies:[...roadshow.companies,ns]});}}>+ Agregar empresa</button>
                 <button className="btn bg bs" style={{fontSize:10,gap:4}} onClick={()=>{
                   const dbCos=(globalDB.companies||[]);
-                  if(!dbCos.length){alert("La Librería no tiene empresas. Agregá empresas en la tab 📚 Librería primero.");return;}
+                  if(!dbCos.length){toast("La Librería no tiene empresas. Agregá empresas en la tab 📚 Librería primero.");return;}
                   // Import all from library, skip duplicates by name
                   // Map library contact to roadshow contact format
                   const mapContact=ct=>({
@@ -722,12 +726,12 @@ export function RoadshowInboundTab({
                       location:"ls_office",contacts:(c.contacts||[]).map(mapContact),
                       hqAddress:c.hqAddress||"",notes:c.notes||"",active:true};
                   });
-                  if(!updated&&!toAdd.length){alert("No hay datos nuevos en la Librería para importar.");return;}
+                  if(!updated&&!toAdd.length){toast("No hay datos nuevos en la Librería para importar.");return;}
                   saveRoadshow({...roadshow,companies:[...updatedCos,...toAdd]});
                   const parts=[];
                   if(updated) parts.push(`${updated} empresa(s) actualizadas con datos de la Librería`);
                   if(added) parts.push(`${added} empresa(s) nuevas agregadas`);
-                  alert("✅ "+parts.join(" · "));
+                  toastOk("✅ "+parts.join(" · "));
                 }}>📚 Importar desde Librería</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:false}))})}>Desactivar todas</button>
@@ -823,7 +827,7 @@ export function RoadshowInboundTab({
                             })()}
                             <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} onClick={()=>{const email=genRSEmail(co,roadshow.trip,roadshow.meetings,lsCont,tripDays);setRsEmailModal({company:co,emailData:email});}}>✉️ Email</button>
                             <button className="btn bo bs" style={{fontSize:9,flex:1,gap:3}} title="Brief PDF para imprimir antes de la reunión" onClick={()=>exportCompanyBrief(co)}>📄 Brief</button>
-                            <button className="btn bg bs" style={{fontSize:9,gap:3,flex:1}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){alert("Configurá las fechas primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null,preCoId:co.id});}}>+ Reunión</button>
+                            <button className="btn bg bs" style={{fontSize:9,gap:3,flex:1}} onClick={()=>{const firstWork=tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0];if(!firstWork){toast("Configurá las fechas primero.");return;}setRsMtgModal({date:firstWork,hour:9,meeting:null,preCoId:co.id});}}>+ Reunión</button>
                             <button aria-label={`Eliminar ${co.name}`} className="btn bd bs" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>{if(confirm(`Eliminar ${co.name}?`))saveRoadshow({...roadshow,companies:roadshow.companies.filter((_,j)=>j!==ci)});}}> ✕</button>
                           </div>
                         </>
@@ -1097,7 +1101,7 @@ export function RoadshowInboundTab({
                   <div className="ex-card-s">Todas las reuniones confirmadas como invitaciones de calendario.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0}
-                  onClick={()=>{const inp=document.createElement("input");inp.type="file";inp.accept=".ics,.ical,text/calendar";inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;const txt=await f.text();const evs=parseICS(txt);if(!evs.length){alert("No se encontraron eventos en el archivo .ics.");return;}setIcsImportModal({events:evs,selected:new Set(evs.map((_,i)=>i))});};inp.click();}}>
+                  onClick={()=>{const inp=document.createElement("input");inp.type="file";inp.accept=".ics,.ical,text/calendar";inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;const txt=await f.text();const evs=parseICS(txt);if(!evs.length){toast("No se encontraron eventos en el archivo .ics.");return;}setIcsImportModal({events:evs,selected:new Set(evs.map((_,i)=>i))});};inp.click();}}>
                   <div className="ex-card-ico">📥</div>
                   <div className="ex-card-t">Importar .ICS (Outlook → App)</div>
                   <div className="ex-card-s">Cargá un archivo .ics exportado de Outlook o Google Calendar para importar reuniones.</div>
@@ -1129,7 +1133,7 @@ export function RoadshowInboundTab({
                   const d1=roadshow.trip.arrivalDate?new Date(roadshow.trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):"";
                   const d2=roadshow.trip.departureDate?new Date(roadshow.trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"}):"";
                   const txt=`Horarios disponibles${roadshow.trip.clientName?" — "+roadshow.trip.clientName:""}\nBuenos Aires${d1?" · "+d1+" – "+d2:""}\n\n${lines.join("\n\n")||"Sin horarios disponibles"}\n\nLugar: ${roadshow.trip.officeAddress||"Arenales 707, 6° Piso, CABA"} (o en la sede de la empresa, según preferencia).`;
-                  navigator.clipboard.writeText(txt).then(()=>alert("✅ Horarios copiados al portapapeles.")).catch(()=>{const w=window.open("","_blank","width=580,height=480");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+txt.replace(/</g,"&lt;")+"</pre>");w.document.close();});
+                  navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Horarios copiados al portapapeles.")).catch(()=>{const w=window.open("","_blank","width=580,height=480");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+txt.replace(/</g,"&lt;")+"</pre>");w.document.close();});
                 }}>📋 Copiar horarios disponibles</button>
               </div>
             </div>

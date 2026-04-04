@@ -1,7 +1,14 @@
 /* LS Event Manager — modular build 2026 */
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { supabase } from "./supabase.js";
-import * as XLSX from "xlsx";
+import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
+// XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
+let _XLSX=null;
+async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
+// Preload on first user interaction (click/keydown)
+const _preloadXLSX=()=>{getXLSX();document.removeEventListener("click",_preloadXLSX);document.removeEventListener("keydown",_preloadXLSX);};
+document.addEventListener("click",_preloadXLSX,{once:true});
+document.addEventListener("keydown",_preloadXLSX,{once:true});
 
 // ── Constants & pure utils ─────────────────────────────────────────
 import {
@@ -183,7 +190,7 @@ export default function App(){
     hashPwd(pwd).then(hash=>{
       const next=events.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined}:e);
       setEvents(next); saveEvents(next);
-      alert(pwd?"🔒 Contraseña configurada.":"🔓 Contraseña eliminada.");
+      toast(pwd?"🔒 Contraseña configurada.":"🔓 Contraseña eliminada.");
     });
   }
   async function checkEvPassword(evId){
@@ -220,7 +227,7 @@ export default function App(){
   // ── Create new event ─────────────────────────────────────────
   function createEvent(name, kind="conference"){
     if(events.some(e=>e.name.trim().toLowerCase()===name.trim().toLowerCase())){
-      alert(`Ya existe un evento con el nombre "${name}". Usá un nombre diferente.`);
+      toast(`Ya existe un evento con el nombre "${name}". Usá un nombre diferente.`);
       return;
     }
     const id=`ev-${Date.now()}`;
@@ -237,9 +244,9 @@ export default function App(){
     setFileName(file.name);
     const reader=new FileReader();
     reader.onload=ev=>{
-      const wb=XLSX.read(ev.target.result,{type:"array"});
+      const wb=_XLSX.read(ev.target.result,{type:"array"});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+      const rows=_XLSX.utils.sheet_to_json(ws,{header:1});
       if(rows.length<2) return;
       const hdrs=rows[0].map(String);
       const ci=pred=>hdrs.findIndex(h=>pred(h.toLowerCase().replace(/[\s\n]+/g," ").trim()));
@@ -285,10 +292,10 @@ export default function App(){
     const file=e.target.files?.[0]; if(!file) return;
     const reader=new FileReader();
     reader.onload=ev=>{
-      const wb=XLSX.read(ev.target.result,{type:"array"});
+      const wb=_XLSX.read(ev.target.result,{type:"array"});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-      if(rows.length<2){alert("Archivo vacío o inválido.");return;}
+      const rows=_XLSX.utils.sheet_to_json(ws,{header:1});
+      if(rows.length<2){toast("Archivo vacío o inválido.");return;}
       const hdrs=rows[0].map(String);
       const ci=pred=>hdrs.findIndex(h=>pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
       const fi=ci(h=>h==="fund"),ni=ci(h=>h==="name"),si=ci(h=>h.startsWith("surname")),ei=ci(h=>h==="email");
@@ -317,10 +324,10 @@ export default function App(){
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const wb = XLSX.read(ev.target.result, {type:"array"});
+        const wb = _XLSX.read(ev.target.result, {type:"array"});
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, {header:1});
-        if (rows.length < 2) { alert("Archivo vacío o inválido."); return; }
+        const rows = _XLSX.utils.sheet_to_json(ws, {header:1});
+        if (rows.length < 2) { toast("Archivo vacío o inválido."); return; }
         const hdrs = rows[0].map(String);
         const ci = pred => hdrs.findIndex(h => pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
         const fi=ci(h=>h==="fund"), ni=ci(h=>h==="name"), si=ci(h=>h.startsWith("surname")), ei=ci(h=>h==="email");
@@ -332,13 +339,13 @@ export default function App(){
           email: g(row,ei).toLowerCase().trim(),
           companies: coi>=0 ? [...new Set(g(row,coi).split(";").map(s=>s.trim()).filter(Boolean).map(resolveCo).filter(Boolean))] : [],
         }));
-        if (parsed.length === 0) { alert(`No se encontraron inversores en el archivo. Verificá que tenga columnas Name/Fund.`); return; }
+        if (parsed.length === 0) { toast(`No se encontraron inversores en el archivo. Verificá que tenga columnas Name/Fund.`); return; }
         setHistoricalYears(prev => {
           const filtered = prev.filter(y => y.year !== year);
           return [...filtered, {year, fileName: file.name, investors: parsed}].sort((a,b)=>a.year.localeCompare(b.year));
         });
       } catch(err) {
-        alert("Error al procesar el archivo: " + err.message);
+        toastErr("Error al procesar el archivo: " + err.message);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -593,7 +600,7 @@ export default function App(){
     const LIGHT_BG  = "00EAF1FB"; // soft blue tint for alternating rows
     const TEAL_LIGHT= "00E0F4F3";
 
-    const wb = XLSX.utils.book_new();
+    const wb = _XLSX.utils.book_new();
 
     // Helper: set column widths
     const setCols = (ws, widths) => { ws['!cols'] = widths.map(w=>({wch:w})); };
@@ -659,14 +666,14 @@ export default function App(){
         rows.push([day?.long||d.day, d.time||"", d.name, "Event", d.restaurant||"","","Event",d.address||""]);
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const ws = _XLSX.utils.aoa_to_sheet(rows);
       setCols(ws,[14,9,22,12,22,22,9,10]);
       ws['!rows'] = [{hpt:22},...rows.slice(1).map(()=>({hpt:18}))];
       // Title row (insert before)
-      XLSX.utils.sheet_add_aoa(ws,[["ARGENTINA IN NEW YORK 2026 — AGENDA COMPLETA"]],{origin:"A1",sheetStubs:true});
+      _XLSX.utils.sheet_add_aoa(ws,[["ARGENTINA IN NEW YORK 2026 — AGENDA COMPLETA"]],{origin:"A1",sheetStubs:true});
       // Style header
       headerRow.forEach((_,ci)=>{
-        const addr = XLSX.utils.encode_cell({r:1,c:ci});
+        const addr = _XLSX.utils.encode_cell({r:1,c:ci});
         styleCell(ws, addr, headerStyle());
       });
       // Style data rows
@@ -674,14 +681,14 @@ export default function App(){
         const isEven = r%2===0;
         const isEvent = rows[r][3]==="Event";
         for(let c=0;c<8;c++){
-          const addr = XLSX.utils.encode_cell({r:r+1,c});
+          const addr = _XLSX.utils.encode_cell({r:r+1,c});
           if(!ws[addr]) ws[addr]={v:"",t:"s"};
           ws[addr].s = c===0||c===1||c===2 ? boldCell(isEven) : rowStyle(isEven, isEvent);
         }
       }
       ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
       styleCell(ws,"A1",titleStyle);
-      XLSX.utils.book_append_sheet(wb, ws, "Agenda Completa");
+      _XLSX.utils.book_append_sheet(wb, ws, "Agenda Completa");
     }
 
     // ── Sheet 2: Por Compañía ──────────────────────────────────────
@@ -732,16 +739,16 @@ export default function App(){
         rowIdx++;
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const ws = _XLSX.utils.aoa_to_sheet(aoa);
       setCols(ws,[16,9,24,22,9,10]);
       ws['!merges'] = merges;
       Object.entries(styleMap).forEach(([key,style])=>{
         const [r,c]=key.split(":").map(Number);
-        const addr=XLSX.utils.encode_cell({r,c});
+        const addr=_XLSX.utils.encode_cell({r,c});
         if(!ws[addr]) ws[addr]={v:"",t:"s"};
         ws[addr].s=style;
       });
-      XLSX.utils.book_append_sheet(wb, ws, "Por Compañía");
+      _XLSX.utils.book_append_sheet(wb, ws, "Por Compañía");
     }
 
     // ── Sheet 3: Por Inversor ─────────────────────────────────────
@@ -777,16 +784,16 @@ export default function App(){
         rowIdx++;
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const ws = _XLSX.utils.aoa_to_sheet(aoa);
       setCols(ws,[14,9,26,9,10]);
       ws['!merges']=merges;
       Object.entries(styleMap).forEach(([key,style])=>{
         const [r,c]=key.split(":").map(Number);
-        const addr=XLSX.utils.encode_cell({r,c});
+        const addr=_XLSX.utils.encode_cell({r,c});
         if(!ws[addr]) ws[addr]={v:"",t:"s"};
         ws[addr].s=style;
       });
-      XLSX.utils.book_append_sheet(wb, ws, "Por Inversor");
+      _XLSX.utils.book_append_sheet(wb, ws, "Por Inversor");
     }
 
     // ── Sheet 4: Lista de Inversores ──────────────────────────────
@@ -796,37 +803,37 @@ export default function App(){
         const nMtgs = meetings.filter(m=>(m.invIds||[]).includes(inv.id)).length;
         return [inv.name, inv.fund||"", inv.email||"", inv.phone||"", inv.position||"", inv.aum||"", nMtgs, (inv.companies||[]).map(cid=>{const co=coById.get(cid);return co?.ticker||cid;}).join(", ")];
       })];
-      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const ws = _XLSX.utils.aoa_to_sheet(rows);
       setCols(ws,[24,22,28,16,18,10,10,34]);
       ws['!rows']=[{hpt:22},...investors.map(()=>({hpt:16}))];
       header.forEach((_,ci)=>{
-        const addr=XLSX.utils.encode_cell({r:0,c:ci});
+        const addr=_XLSX.utils.encode_cell({r:0,c:ci});
         if(!ws[addr]) ws[addr]={v:"",t:"s"};
         ws[addr].s=headerStyle();
       });
       for(let r=1;r<rows.length;r++){
         const isEven=r%2===0;
         for(let c=0;c<8;c++){
-          const addr=XLSX.utils.encode_cell({r,c});
+          const addr=_XLSX.utils.encode_cell({r,c});
           if(!ws[addr]) ws[addr]={v:"",t:"s"};
           ws[addr].s=(c===0?boldCell(isEven):rowStyle(isEven));
         }
       }
-      XLSX.utils.book_append_sheet(wb, ws, "Inversores");
+      _XLSX.utils.book_append_sheet(wb, ws, "Inversores");
     }
 
-    const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array", cellStyles:true});
+    const wbout = _XLSX.write(wb, {bookType:"xlsx", type:"array", cellStyles:true});
     downloadBlob("ArgentinaInNY2026_LatinSecurities.xlsx", new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
 
   function exportInvestor(inv,format){
-    const data=investorToEntity(inv,meetings,companies,config,investors); if(!data){alert("Sin reuniones.");return;}
+    const data=investorToEntity(inv,meetings,companies,config,investors); if(!data){toast("Sin reuniones.");return;}
     const fname=`${inv.fund||inv.name}_${inv.name}`.replace(/[^a-zA-Z0-9_\-]/g,"_").replace(/_+/g,"_");
     if(format==="word") downloadBlob(`${fname}.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([data],config));
   }
   function exportCompany(co,format){
-    const data=companyToEntity(co,meetings,investors,config); if(!data){alert("Sin reuniones.");return;}
+    const data=companyToEntity(co,meetings,investors,config); if(!data){toast("Sin reuniones.");return;}
     if(format==="word") downloadBlob(`${co.ticker}_schedule.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
@@ -1024,7 +1031,7 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
 </body></html>`;
     openPrint(html);
   }
-  function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
+  function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
   function exportRoadshowICS(mtgId){
     // If mtgId provided (from modal 📅 button): export only that meeting (Outlook in-place update)
     const meetings=mtgId?roadshow.meetings.filter(m=>m.id===mtgId):roadshow.meetings;
@@ -1040,8 +1047,8 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
   }
 
   async function publishBookingSlots(){
-    if(!authUser){alert("Necesitás estar logueado para publicar slots.");return;}
-    if(!roadshow?.trip?.arrivalDate||!roadshow?.trip?.departureDate){alert("Configurá las fechas del viaje primero.");return;}
+    if(!authUser){toast("Necesitás estar logueado para publicar slots.");return;}
+    if(!roadshow?.trip?.arrivalDate||!roadshow?.trip?.departureDate){toast("Configurá las fechas del viaje primero.");return;}
     const trip=roadshow.trip;
     const busyMtgs=new Set((roadshow.meetings||[]).map(m=>`${m.date}-${m.hour}`));
     // Also exclude existing pending/approved bookings
@@ -1061,10 +1068,10 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
     // Delete old slots for this event
     await supabase.from("roadshow_slots").delete().eq("event_id",activeEv);
     // Insert new
-    if(newSlots.length){const {error:insErr}=await supabase.from("roadshow_slots").insert(newSlots);if(insErr){alert("Error publicando slots: "+insErr.message);return;}}
+    if(newSlots.length){const {error:insErr}=await supabase.from("roadshow_slots").insert(newSlots);if(insErr){toastErr("Error publicando slots: "+insErr.message);return;}}
     const url=`${window.location.origin}/#/book/${activeEv}`;
     try{await navigator.clipboard.writeText(url);}catch{}
-    alert(`✅ ${newSlots.length} horarios publicados.\n\nLink copiado al portapapeles:\n${url}`);
+    toast(`✅ ${newSlots.length} horarios publicados.\n\nLink copiado al portapapeles:\n${url}`);
   }
 
   function exportDriverItinerary(filterDate){
@@ -1192,7 +1199,7 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
       </div>`;
     }).filter(Boolean).join("");
 
-    if(!dayBlocks){alert("No hay reuniones para el itinerario.");return;}
+    if(!dayBlocks){toast("No hay reuniones para el itinerario.");return;}
 
     const travelNote=Object.keys(travelCache).length?
       "✓ Rango de traslado estimado con tráfico típico de CABA por hora del día (OpenStreetMap + OSRM, sin API key)." :
@@ -1245,16 +1252,16 @@ ${dayBlocks}
 </body></html>`;
     openPrint(html);
   }
-  function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){alert("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
+  function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
   function handleRsExcel(e){
     const file=e.target.files?.[0]; if(!file) return;
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const wb=_XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){alert("El archivo no tiene datos.");return;}
+        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(rows.length<2){toast("El archivo no tiene datos.");return;}
         const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
         const col=k=>hdr.findIndex(h=>h.includes(k));
         const nc=col("name"),tc=col("ticker"),sc=col("sector"),lc=col("location"),cc=col("contact"),ec=col("email"),pc=col("phone"),ac=col("address"),oc=col("notes");
@@ -1270,11 +1277,11 @@ ${dayBlocks}
           notes:String(r[oc]||"").trim(),
           active:true
         }));
-        if(!newCos.length){alert("No se encontraron empresas. Verificá que la columna se llame 'Name'.");return;}
+        if(!newCos.length){toast("No se encontraron empresas. Verificá que la columna se llame 'Name'.");return;}
         const merged=[...roadshow.companies,...newCos.filter(nc=>!roadshow.companies.some(ex=>ex.name.toLowerCase()===nc.name.toLowerCase()))];
         saveRoadshow({...roadshow,companies:merged});
-        alert(`✅ ${newCos.length} empresa(s) importada(s). ${merged.length-roadshow.companies.length} nuevas.`);
-      }catch(err){alert("Error leyendo el archivo: "+err.message);}
+        toast(`✅ ${newCos.length} empresa(s) importada(s). ${merged.length-roadshow.companies.length} nuevas.`);
+      }catch(err){toastErr("Error leyendo el archivo: "+err.message);}
     };
     reader.readAsArrayBuffer(file);
     e.target.value="";
@@ -1337,9 +1344,9 @@ ${dayBlocks}
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const wb=_XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
         // Smart header detection: find the row that has AT LEAST 3 column-like keywords
         // This avoids false positives from subtitle rows like "agenda de compañías"
         const COL_KEYS=["fecha","date","hora","hour","time","compañ","company","empresa",
@@ -1351,7 +1358,7 @@ ${dayBlocks}
           if(hits>=3){hdrRowIdx=i;break;}
         }
         const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c||"").trim()));
-        if(!dataRows.length){alert("Archivo vacío o sin filas de datos.");return;}
+        if(!dataRows.length){toast("Archivo vacío o sin filas de datos.");return;}
         const hdr=rows[hdrRowIdx].map(h=>String(h||"").toLowerCase().trim());
         // Flexible column matching — accepts Spanish OR English headers
         const ci=(...keys)=>{const idx=hdr.findIndex(h=>keys.some(k=>h.includes(k)));return idx;};
@@ -1429,7 +1436,7 @@ ${dayBlocks}
             attendeeIds:[]
           });
         });
-        if(!newMtgs.length){alert("No se pudieron importar reuniones. Revisá el formato."+(skipped?" ("+skipped+" filas sin fecha)":""));return;}
+        if(!newMtgs.length){toast("No se pudieron importar reuniones. Revisá el formato."+(skipped?" ("+skipped+" filas sin fecha)":""));return;}
         // Find companies that already have meetings
         const existingCos=new Set(roadshow.meetings.filter(m=>m.companyId).map(m=>m.companyId));
         const newCosInFile=new Set(newMtgs.filter(m=>m.companyId).map(m=>m.companyId));
@@ -1458,8 +1465,8 @@ ${dayBlocks}
           skipped?`${skipped} filas sin fecha ignoradas.`:"",
           skippedConflict?`${skippedConflict} omitidas por conflicto de horario.`:"",
         ].filter(Boolean).join(" ");
-        alert(msg);
-      }catch(err){alert("Error leyendo el archivo: "+err.message);}
+        toast(msg);
+      }catch(err){toastErr("Error leyendo el archivo: "+err.message);}
     };
     reader.readAsArrayBuffer(file);
     e.target.value="";
@@ -1470,10 +1477,10 @@ ${dayBlocks}
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const wb=_XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){alert("Archivo vacío.");return;}
+        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(rows.length<2){toast("Archivo vacío.");return;}
         const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
         const ci=k=>hdr.findIndex(h=>h.includes(k));
         const nc=ci("name"),tc=ci("ticker"),sc=ci("sector"),wc=ci("website"),ac=ci("address"),hc=ci("hq"),
@@ -1489,7 +1496,7 @@ ${dayBlocks}
           });
           imported.push({id:`dbc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name,ticker:String(r[tc>=0?tc:""]||"").trim().toUpperCase(),sector:String(r[sc>=0?sc:""]||"Other").trim(),website:String(r[wc>=0?wc:""]||"").trim(),hqAddress:String(r[ac>=0?ac:hc>=0?hc:""]||"").trim(),contacts});
         });
-        if(!imported.length){alert("No se encontraron compañías. Verificá que la primera columna sea 'Name'.");return;}
+        if(!imported.length){toast("No se encontraron compañías. Verificá que la primera columna sea 'Name'.");return;}
         const db={...globalDB};
         let added=0,updated=0;
         imported.forEach(ic=>{
@@ -1504,8 +1511,8 @@ ${dayBlocks}
           } else {db.companies.push(ic);added++;}
         });
         saveGlobalDB(db);
-        alert(`✅ ${added} compañía(s) agregada(s), ${updated} actualizada(s).`);
-      }catch(err){alert("Error: "+err.message);}
+        toast(`✅ ${added} compañía(s) agregada(s), ${updated} actualizada(s).`);
+      }catch(err){toastErr("Error: "+err.message);}
     };
     reader.readAsArrayBuffer(file);e.target.value="";
   }
@@ -1515,10 +1522,10 @@ ${dayBlocks}
     const reader=new FileReader();
     reader.onload=ev=>{
       try{
-        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const wb=_XLSX.read(ev.target.result,{type:"array"});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        if(rows.length<2){alert("Archivo vacío.");return;}
+        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        if(rows.length<2){toast("Archivo vacío.");return;}
         const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
         const ci=k=>hdr.findIndex(h=>h.includes(k));
         const nc=ci("name"),fc=ci("fund"),pc=ci("position"),ec=ci("email"),phc=ci("phone"),
@@ -1535,7 +1542,7 @@ ${dayBlocks}
           linkedin:String(r[lc>=0?lc:""]||"").trim(),
           notes:String(r[notc>=0?notc:""]||"").trim(),
         }));
-        if(!imported.length){alert("No se encontraron inversores.");return;}
+        if(!imported.length){toast("No se encontraron inversores.");return;}
         const db={...globalDB};
         let added=0,updated=0;
         imported.forEach(ii=>{
@@ -1544,8 +1551,8 @@ ${dayBlocks}
           else{db.investors.push(ii);added++;}
         });
         saveGlobalDB(db);
-        alert(`✅ ${added} inversor(es) agregado(s), ${updated} actualizado(s).`);
-      }catch(err){alert("Error: "+err.message);}
+        toast(`✅ ${added} inversor(es) agregado(s), ${updated} actualizado(s).`);
+      }catch(err){toastErr("Error: "+err.message);}
     };
     reader.readAsArrayBuffer(file);e.target.value="";
   }
@@ -1553,22 +1560,22 @@ ${dayBlocks}
   function downloadDBTemplate(type){
     let ws,name;
     if(type==="companies"){
-      ws=XLSX.utils.aoa_to_sheet([
+      ws=_XLSX.utils.aoa_to_sheet([
         ["Name","Ticker","Sector","HQ Address","Contact 1","Title 1","Email 1","Phone 1 (opcional)","Contact 2","Title 2","Email 2","Phone 2 (opcional)","Contact 3","Title 3","Email 3","Phone 3 (opcional)"],
         ["Banco Macro","BMA","Financials","www.macro.com.ar","Av. Eduardo Madero 1182, CABA","Juan Pérez","IR Manager","jperez@macro.com.ar","+54 11 5222 6500","María López","CFO","mlopez@macro.com.ar","","","","",""],
         ["YPF","YPFD","Energy","www.ypf.com","Macacha Güemes 515, CABA","Carlos Rodríguez","Head of IR","crodriguez@ypf.com","+54 11 5441 2000","","","","","","","",""],
       ]);
       name="Plantilla_Compañías.xlsx";
     } else {
-      ws=XLSX.utils.aoa_to_sheet([
+      ws=_XLSX.utils.aoa_to_sheet([
         ["Name","Fund","Position","Email","Phone","AUM","Companies (separadas por ;)","LinkedIn","Notes"],
         ["John Smith","BlackRock","Portfolio Manager","john.smith@blackrock.com","+1 212 810 5000","$5B","YPF;Pampa;Galicia","linkedin.com/in/johnsmith","Focused on energy and financials"],
         ["María García","Templeton","Analyst","mgarcia@templeton.com","+1 650 312 2000","","Banco Macro;BBVA","",""],
       ]);
       name="Plantilla_Inversores.xlsx";
     }
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,type==="companies"?"Compañías":"Inversores");
-    XLSX.writeFile(wb,name);
+    const wb=_XLSX.utils.book_new();_XLSX.utils.book_append_sheet(wb,ws,type==="companies"?"Compañías":"Inversores");
+    _XLSX.writeFile(wb,name);
   }
   function saveMoverStocks(arr){setMoverStocks(arr);localStorage.setItem("ls_movers",JSON.stringify(arr));}
   async function fetchCCL(){
@@ -1591,7 +1598,7 @@ ${dayBlocks}
   }
   function exportMoverPrompt(){
     const ccl=parseFloat(moverCCLManual)||moverCCL;
-    if(!moverStocks.length){alert("Agregá acciones primero.");return;}
+    if(!moverStocks.length){toast("Agregá acciones primero.");return;}
     const sorted=[...moverStocks].sort((a,b)=>parseFloat(b.varPct||0)-parseFloat(a.varPct||0));
     const gainers=sorted.filter(s=>parseFloat(s.varPct||0)>0).slice(0,5);
     const losers=[...sorted].reverse().filter(s=>parseFloat(s.varPct||0)<0).slice(0,5);
@@ -1622,7 +1629,7 @@ Por favor escribí un párrafo de 3-4 oraciones para el "Top Movers" del daily s
 Formato:
 Top Movers — [fecha]
 [Párrafo aquí]`;
-    navigator.clipboard.writeText(prompt).then(()=>alert("✅ Prompt copiado. Pegalo en Claude.")).catch(()=>{
+    navigator.clipboard.writeText(prompt).then(()=>toastOk("✅ Prompt copiado. Pegalo en Claude.")).catch(()=>{
       const w=window.open("","_blank","width=720,height=540");
       w.document.write("<pre style='font:13px monospace;padding:20px;'>"+prompt.replace(/</g,"&lt;")+"</pre>");w.document.close();
     });
@@ -1632,7 +1639,7 @@ Top Movers — [fecha]
     const dayLong=getDayLong(config);
     const allSlots=makeSlots(config.hours,config);
     const dayMeetings=meetings.filter(m=>slotDay(m.slotId)===dayId).sort((a,b)=>allSlots.indexOf(a.slotId)-allSlots.indexOf(b.slotId));
-    if(!dayMeetings.length){alert("No hay reuniones para ese día.");return;}
+    if(!dayMeetings.length){toast("No hay reuniones para ese día.");return;}
     const dayLabel=dayLong[dayId]||dayId;
     const lines=dayMeetings.map(m=>{
       const co=coById.get(m.coId);
@@ -1660,18 +1667,18 @@ Please write a concise 2–3 sentence "Daily Summary" for this day suitable for 
 Format:
 Daily Summary — ${dayLabel}
 [Your 2–3 sentence summary here]`;
-    navigator.clipboard.writeText(prompt).then(()=>alert("✅ Prompt copiado al portapapeles. Pegalo en Claude para generar el Daily Summary.")).catch(()=>{
+    navigator.clipboard.writeText(prompt).then(()=>toastOk("✅ Prompt copiado al portapapeles. Pegalo en Claude para generar el Daily Summary.")).catch(()=>{
       const w=window.open("","_blank","width=700,height=500");
       w.document.write("<pre style='font-family:monospace;padding:20px;font-size:13px;'>"+prompt.replace(/</g,"&lt;")+"</pre>");
       w.document.close();
     });
   }
   function exportAll(scope,format){
-    if(!scheduled){alert("Generá la agenda primero.");return;}
+    if(!scheduled){toast("Generá la agenda primero.");return;}
     const entities=scope==="companies"
       ?companies.map(co=>companyToEntity(co,meetings,investors,config)).filter(Boolean)
       :investors.map(inv=>investorToEntity(inv,meetings,companies,config,investors)).filter(Boolean);
-    if(!entities.length){alert("Sin datos.");return;}
+    if(!entities.length){toast("Sin datos.");return;}
     if(format==="pdf_combined"){openPrint(buildPrintHTML(entities,config));return;}
     const files=entities.map(e=>({name:`${e.name.replace(/[^a-zA-Z0-9\s]/g,"").replace(/\s+/g,"_").slice(0,40)}${format==="word"?".doc":".html"}`,data:format==="word"?buildWordHTML(e.name,e.sub,e.sections,config):buildPrintHTML([e],config)}));
     downloadBlob(`ArgentinaInNY2026_${scope==="companies"?"Companies":"Investors"}.zip`,buildZip(files),"application/zip");
@@ -1812,7 +1819,7 @@ Daily Summary — ${dayLabel}
       const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
       return{date,dayMtgs,addrs};
     }).filter(({dayMtgs})=>dayMtgs.length>=2);
-    if(!dayData.length){alert("No hay días con 2+ reuniones.");return;}
+    if(!dayData.length){toast("No hay días con 2+ reuniones.");return;}
     setTravelLoading(true);
     // Geocode all unique addresses at once (1 req/sec Nominatim)
     const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs))];
@@ -1835,7 +1842,7 @@ Daily Summary — ${dayLabel}
     const offAddr=roadshow.trip.officeAddress;
     const dur=roadshow.trip.meetingDuration||60;
     const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-    if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
+    if(dayMtgs.length<2){toast("Necesitás al menos 2 reuniones en ese día.");return;}
     const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
     setTravelLoading(true);
     const coords=await geocodeAll([...new Set(addrs)]);
@@ -1898,7 +1905,7 @@ Daily Summary — ${dayLabel}
       const msg = coConflict ? `${coById.get(newCoId)?.name||newCoId} ya tiene reunión a ese horario`
                 : roomConflict ? `${newRoom} ya está ocupada a ese horario`
                 : `Un inversor ya tiene reunión a ese horario`;
-      alert("⚠ Conflicto: "+msg);
+      toastWarn("⚠ Conflicto: "+msg);
       setMoveSrc(null); return;
     }
     saveCurrentEvent({meetings: meetings.map(x=>x.id===m.id?{...x,slotId:newSlotId,room:newRoom,coId:newCoId}:x)});
@@ -2088,7 +2095,7 @@ Daily Summary — ${dayLabel}
             <button className="btn bo bs" style={{fontSize:9,borderColor:"rgba(30,90,176,.3)",position:"relative"}} title="Modo día — vista simplificada para celular"
               onClick={()=>{
                 const targetDate=_todayCount>0?_today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]);
-                if(!targetDate){alert("Configurá las fechas del viaje primero.");return;}
+                if(!targetDate){toast("Configurá las fechas del viaje primero.");return;}
                 setRsDayFilter(targetDate);setKioskIdx(0);setKioskFb(false);setKioskMode(true);
               }}>
               📱{_todayCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#e8850a",color:"#fff",borderRadius:"50%",width:13,height:13,fontSize:7,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"IBM Plex Mono,monospace",fontWeight:700,lineHeight:1}}>{_todayCount}</span>}
@@ -2180,7 +2187,7 @@ Daily Summary — ${dayLabel}
                 <div className="lbl">Contraseña</div>
                 <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)}
                   placeholder="Contraseña..."
-                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}}/>
+                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}}/>
               </>
             ):(
               <>
@@ -2193,7 +2200,7 @@ Daily Summary — ${dayLabel}
           <div className="modal-footer">
             <button className="btn bo bs" onClick={()=>{setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}>Cancelar</button>
             {evPasswordModal.mode==="check"?(
-              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)alert("Contraseña incorrecta.");}}>Abrir</button>
+              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}>Abrir</button>
             ):(
               <button className="btn bg bs" onClick={()=>{setEvPassword(evPasswordModal.evId,evPasswordInput);setEvPasswordModal(null);}}>Guardar</button>
             )}
@@ -2729,7 +2736,7 @@ Daily Summary — ${dayLabel}
               <button className="btn bg bs" style={{alignSelf:"flex-end"}} onClick={()=>{
                 if(!newCoForm.name.trim()||!newCoForm.ticker.trim()) return;
                 const id=newCoForm.ticker.trim().toUpperCase();
-                if(coById.get(id)){alert("Ticker already exists");return;}
+                if(coById.get(id)){toast("Ticker already exists");return;}
                 setCompanies(prev=>[...prev,{id,name:newCoForm.name.trim(),ticker:id,sector:newCoForm.sector,attendees:[]}]);
                 setNewCoForm({name:"",ticker:"",sector:"Financials"});setShowAddCo(false);
               }}>Add</button>
@@ -2748,10 +2755,10 @@ Daily Summary — ${dayLabel}
                   const file=e.target.files?.[0]; if(!file) return;
                   const reader=new FileReader();
                   reader.onload=ev=>{
-                    const wb=XLSX.read(ev.target.result,{type:"array"});
+                    const wb=_XLSX.read(ev.target.result,{type:"array"});
                     const ws=wb.Sheets[wb.SheetNames[0]];
-                    const rows=XLSX.utils.sheet_to_json(ws,{header:1});
-                    if(rows.length<2){alert("File too short");return;}
+                    const rows=_XLSX.utils.sheet_to_json(ws,{header:1});
+                    if(rows.length<2){toast("File too short");return;}
                     const hdrs=rows[0].map(h=>String(h||"").toLowerCase().trim());
                     const ci=kw=>hdrs.findIndex(h=>h.includes(kw));
                     const coIdx=ci("compan")>=0?ci("compan"):ci("ticker")>=0?ci("ticker"):0;
@@ -2777,7 +2784,7 @@ Daily Summary — ${dayLabel}
                       added++;
                     });
                     setCompanies(updatedCos);
-                    alert(`✓ ${added} representatives imported. ${skipped} skipped (not matched or duplicate).`);
+                    toast(`✓ ${added} representatives imported. ${skipped} skipped (not matched or duplicate).`);
                   };
                   reader.readAsArrayBuffer(file);
                   e.target.value="";
@@ -3032,7 +3039,7 @@ Daily Summary — ${dayLabel}
 
 
 
-                    navigator.clipboard.writeText(txt).then(()=>alert("✅ Copiado")).catch(()=>{const w=window.open("","_blank","width=700,height=480");w.document.write("<pre style='font:12px monospace;padding:20px;white-space:pre-wrap'>"+txt+"</pre>");w.document.close();});
+                    navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Copiado")).catch(()=>{const w=window.open("","_blank","width=700,height=480");w.document.write("<pre style='font:12px monospace;padding:20px;white-space:pre-wrap'>"+txt+"</pre>");w.document.close();});
                   }}>📋 Copiar WhatsApp</button>
                   <button className="btn bo bs" style={{fontSize:10,whiteSpace:"nowrap"}} onClick={()=>{
                     const rows=withFb.map(m=>{const inv=(m.invIds||[]).map(id=>invByIdFb.get(id)).filter(Boolean);const co=coByIdFb.get(m.coId);const fb=m.feedback||{};return`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 12px;font-size:20px">${["","💤","😐","👍","😃","🔥"][fb.interestLevel||0]}</td><td style="padding:8px 12px"><b style="color:#000039">${inv.map(i=>i.name).join(", ")}</b><br><small style="color:#6b7280">${inv.map(i=>i.fund).filter(Boolean).join(", ")}</small></td><td style="padding:8px 12px;color:#1e5ab0;font-weight:600">${co?.ticker||""}</td><td style="padding:8px 12px">${(fb.topics||[]).map(t=>`<span style="background:#f0f4ff;padding:1px 7px;border-radius:10px;margin:1px;display:inline-block;font-size:10px">${t}</span>`).join("")}</td><td style="padding:8px 12px;font-size:11px">${NEXT_LABELS[fb.nextStep||""]||""}</td><td style="padding:8px 12px;font-size:11px;color:#6b7280">${fb.internalNotes||""}</td></tr>`;}).join("");

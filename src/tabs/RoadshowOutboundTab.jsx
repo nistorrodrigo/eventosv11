@@ -5,7 +5,7 @@ import { esc } from "../storage.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { DayDateInput } from "../components/DatePicker.jsx";
 import { downloadBlob } from "../storage.jsx";
-import * as XLSX from "xlsx";
+
 
 export function RoadshowOutboundTab({
   outbound, saveOutbound, config, events, globalDB,

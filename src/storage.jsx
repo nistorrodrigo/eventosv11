@@ -1,5 +1,5 @@
 // ── storage.js — persistence, zip, HTML export builders ──
-import * as XLSX from 'xlsx';
+
 
 /* ═══════════════════════════════════════════════════════════════════
    PERSISTENCE — localStorage (works in real browser / Vercel)

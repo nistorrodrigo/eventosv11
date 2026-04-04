@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
+import { ToastProvider } from './src/components/Toast.jsx'
 import App from './App.jsx'
 const BookingPage = lazy(() => import('./src/components/BookingPage.jsx'))
 
@@ -52,7 +53,9 @@ function Root(){
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <Root />
+      <ToastProvider>
+        <Root />
+      </ToastProvider>
     </ErrorBoundary>
   </React.StrictMode>
 )

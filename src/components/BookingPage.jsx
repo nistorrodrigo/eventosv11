@@ -48,7 +48,7 @@ export default function BookingPage({eventId}){
       phone:form.phone.trim()||null, location_pref:form.location, notes:form.notes.trim()||null,
       confirm_code:confirmCode, owner_id:ownerId
     });
-    if(insErr){setSubmitting(false);alert("Error al reservar. Intentá de nuevo.");return;}
+    if(insErr){setSubmitting(false);setError("Error al reservar. Intentá de nuevo.");return;}
     // Delete the slot to prevent double booking
     await supabase.from("roadshow_slots").delete().eq("id",selected.id);
     setDone({confirmCode});
