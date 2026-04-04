@@ -221,6 +221,57 @@ export function RoadshowInboundTab({
           {/* AGENDA */}
           {rsSubTab==="schedule"&&(
             <div>
+              {/* Event Stats Panel */}
+              {(()=>{
+                const allM=(roadshow.meetings||[]).filter(m=>m.status!=="cancelled");
+                if(allM.length<2)return null;
+                const confM=allM.filter(m=>m.status==="confirmed").length;
+                const withFb=allM.filter(m=>m.feedback?.interestLevel>0).length;
+                const avgInt=withFb?Math.round(allM.filter(m=>m.feedback?.interestLevel>0).reduce((s,m)=>s+m.feedback.interestLevel,0)/withFb*10)/10:0;
+                const bySector={};allM.forEach(m=>{const co=rsCoById.get(m.companyId);const s=co?.sector||"Otro";bySector[s]=(bySector[s]||0)+1;});
+                const sectors=Object.entries(bySector).sort((a,b)=>b[1]-a[1]);
+                const byDay={};allM.forEach(m=>{byDay[m.date]=(byDay[m.date]||0)+1;});
+                const days=Object.entries(byDay).sort((a,b)=>a[0].localeCompare(b[0]));
+                const maxDay=Math.max(...days.map(d=>d[1]),1);
+                const SEC_CLR2={"Financials":"#1e5ab0","Energy":"#e8850a","Utilities":"#23a29e","TMT":"#7c3aed","Infra":"#059669","Industry":"#b45309","Consumer":"#dc2626","Agro":"#65a30d","Exchange":"#0891b2","Real Estate":"#d97706","Other":"#6b7280","Custom":"#9ca3af"};
+                return(
+                  <div style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr",gap:10,marginBottom:14}}>
+                    {/* KPIs */}
+                    <div style={{display:"flex",gap:6}}>
+                      {[{v:allM.length,l:"Total",c:"#000039"},{v:confM,l:"Conf.",c:"#166534"},{v:withFb,l:"Feedback",c:"#1e5ab0"},{v:avgInt||"—",l:"Interés",c:"#b45309"}].map(k=>(
+                        <div key={k.l} style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:8,padding:"8px 10px",textAlign:"center",minWidth:52}}>
+                          <div style={{fontSize:18,fontWeight:700,color:k.c,fontFamily:"Playfair Display,serif",lineHeight:1}}>{k.v}</div>
+                          <div style={{fontSize:7,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".08em",marginTop:2}}>{k.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Sector mini bars */}
+                    <div style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:8,padding:"8px 12px"}}>
+                      <div style={{fontSize:8,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",marginBottom:4}}>Por sector</div>
+                      {sectors.slice(0,4).map(([s,n])=>(
+                        <div key={s} style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+                          <div style={{width:6,height:6,borderRadius:1,background:SEC_CLR2[s]||"#9ca3af",flexShrink:0}}/>
+                          <div style={{flex:1,height:4,background:"#f0f3f8",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${n/allM.length*100}%`,background:SEC_CLR2[s]||"#9ca3af",borderRadius:2}}/></div>
+                          <span style={{fontSize:8,color:"#6b7280",fontFamily:"IBM Plex Mono,monospace",minWidth:20}}>{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Meetings per day mini chart */}
+                    <div style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:8,padding:"8px 12px"}}>
+                      <div style={{fontSize:8,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",marginBottom:4}}>Por día</div>
+                      <div style={{display:"flex",alignItems:"end",gap:3,height:36}}>
+                        {days.map(([d,n])=>(
+                          <div key={d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                            <div style={{fontSize:7,fontFamily:"IBM Plex Mono,monospace",color:"#6b7280"}}>{n}</div>
+                            <div style={{width:"100%",height:`${Math.max(n/maxDay*24,2)}px`,background:"#1e5ab0",borderRadius:2,opacity:.7}}/>
+                            <div style={{fontSize:6,color:"#9ca3af"}}>{new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"narrow"})}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               {/* Legend + add button */}
               <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
                 <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginRight:4}} onClick={()=>{
