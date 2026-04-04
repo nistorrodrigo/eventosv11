@@ -8,8 +8,7 @@ import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
 import { supabaseRetry } from "./src/utils/retry.js";
-import { Settings, Upload, Users, Building2, Calendar, BarChart3, Download, Clock, BookOpen, Map, Plane } from "lucide-react";
-const ICON_SM=14;
+// Lucide icons removed — caused "sr is not a constructor" in production build
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
@@ -1002,28 +1001,27 @@ Daily Summary — ${dayLabel}
     else setTab(t=>(t==="roadshow"||t==="outbound")?"upload":t);
   },[activeEv]); // eslint-disable-line
   const evKind=currentEvent?.kind||"conference";
-  const I=ICON_SM;
-  const DB_TAB={id:"db",label:<><BookOpen size={I}/> Librería</>};
+  const DB_TAB={id:"db",label:"📚 Librería"};
   const CONF_TABS=[
-    {id:"config",label:<><Settings size={I}/> Config</>},
-    {id:"upload",label:<><Upload size={I}/> Cargar</>},
-    {id:"investors",label:<><Users size={I}/> ({investors.length})</>},
-    {id:"companies",label:<><Building2 size={I}/> Compañías</>},
-    {id:"schedule",label:<><Calendar size={I}/> Agenda</>},
-    {id:"feedback",label:<><BarChart3 size={I}/> Feedback{meetings.filter(m=>m.feedback?.interestLevel).length>0?" ("+meetings.filter(m=>m.feedback?.interestLevel).length+")":""}</>},
-    {id:"export",label:<><Download size={I}/> Exportar</>},
-    {id:"historical",label:<><BarChart3 size={I}/> Histórico</>},
-    {id:"activitylog",label:<><Clock size={I}/> Historial</>},
+    {id:"config",label:"⚙ Config"},
+    {id:"upload",label:"📥 Cargar"},
+    {id:"investors",label:`👥 (${investors.length})`},
+    {id:"companies",label:"🏢 Compañías"},
+    {id:"schedule",label:"📅 Agenda"},
+    {id:"feedback",label:`📊 Feedback${meetings.filter(m=>m.feedback?.interestLevel).length>0?" ("+meetings.filter(m=>m.feedback?.interestLevel).length+")":""}`},
+    {id:"export",label:"⬇ Exportar"},
+    {id:"historical",label:"📊 Histórico"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const RS_TABS=[
-    {id:"roadshow",label:<><Map size={I}/> Inbound</>},
-    {id:"activitylog",label:<><Clock size={I}/> Historial</>},
+    {id:"roadshow",label:"🗺️ Inbound"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const OUT_TABS=[
-    {id:"outbound",label:<><Plane size={I}/> Outbound</>},
-    {id:"activitylog",label:<><Clock size={I}/> Historial</>},
+    {id:"outbound",label:"✈️ Outbound"},
+    {id:"activitylog",label:"🕐 Historial"},
     DB_TAB,
   ];
   const TABS=evKind==="roadshow"?RS_TABS:evKind==="outbound"?OUT_TABS:CONF_TABS;
