@@ -85,6 +85,64 @@ export function DashboardView({
             </div>
           )}
 
+          {/* ── Analytics ── */}
+          {hasEvents&&(()=>{
+            // Aggregate data across all events
+            const allMtgs=dashEvents.flatMap(e=>e.roadshow?.meetings||e.meetings||[]);
+            const confMtgs=allMtgs.filter(m=>m.status==="confirmed");
+            const tentMtgs=allMtgs.filter(m=>m.status==="tentative");
+            // Sector distribution (from roadshow companies)
+            const sectorCount={};
+            dashEvents.forEach(e=>(e.roadshow?.companies||[]).forEach(c=>{if(c.active!==false)sectorCount[c.sector||"Other"]=(sectorCount[c.sector||"Other"]||0)+1;}));
+            const sectors=Object.entries(sectorCount).sort((a,b)=>b[1]-a[1]);
+            const totalSec=sectors.reduce((s,[,n])=>s+n,0)||1;
+            const SEC_CLR2={"Financials":"#1e5ab0","Energy":"#e8850a","Utilities":"#23a29e","TMT":"#7c3aed","Infra":"#059669","Industry":"#b45309","Consumer":"#dc2626","Agro":"#65a30d","Exchange":"#0891b2","Real Estate":"#d97706","Other":"#6b7280","LS Internal":"#374151","Custom":"#9ca3af"};
+            // Meetings by day of week
+            const byDow=[0,0,0,0,0,0,0];
+            allMtgs.forEach(m=>{if(m.date){const d=new Date(m.date+"T12:00:00").getDay();byDow[d]++;}});
+            const maxDow=Math.max(...byDow,1);
+            const DOW=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+            if(sectors.length>1||allMtgs.length>3) return(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:28}}>
+                {/* Pie chart */}
+                <div style={{background:"#fff",borderRadius:12,padding:"20px",border:"1px solid #e9eef5",boxShadow:"0 1px 4px rgba(0,0,57,.04)"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".12em",marginBottom:12}}>Empresas por sector</div>
+                  <div style={{display:"flex",alignItems:"center",gap:20}}>
+                    <svg viewBox="0 0 100 100" style={{width:90,height:90,flexShrink:0}}>
+                      {(()=>{let offset=0;return sectors.map(([sec,n])=>{const pct=n/totalSec*100;const dash=pct*2.51327;const gap=251.327-dash;const el=<circle key={sec} cx="50" cy="50" r="40" fill="none" stroke={SEC_CLR2[sec]||"#9ca3af"} strokeWidth="18" strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-offset*2.51327} transform="rotate(-90 50 50)" opacity=".85"/>;offset+=pct;return el;});})()}
+                    </svg>
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      {sectors.slice(0,6).map(([sec,n])=>(
+                        <div key={sec} style={{display:"flex",alignItems:"center",gap:6,fontSize:10}}>
+                          <div style={{width:8,height:8,borderRadius:2,background:SEC_CLR2[sec]||"#9ca3af",flexShrink:0}}/>
+                          <span style={{color:"#374151"}}>{sec}</span>
+                          <span style={{color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Bar chart - meetings by day */}
+                <div style={{background:"#fff",borderRadius:12,padding:"20px",border:"1px solid #e9eef5",boxShadow:"0 1px 4px rgba(0,0,57,.04)"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".12em",marginBottom:12}}>Reuniones por día</div>
+                  <div style={{display:"flex",alignItems:"end",gap:8,height:80}}>
+                    {DOW.map((d,i)=>(
+                      <div key={d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                        <div style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:byDow[i]>0?"#000039":"#d1d5db",fontWeight:700}}>{byDow[i]||""}</div>
+                        <div style={{width:"100%",height:`${Math.max(byDow[i]/maxDow*60,2)}px`,background:i===0||i===6?"#e9eef5":"#1e5ab0",borderRadius:3,opacity:byDow[i]>0?.8:.3,transition:"height .3s"}}/>
+                        <div style={{fontSize:8,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>{d}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>
+                    <span>{allMtgs.length} total</span>
+                    <span>{confMtgs.length} conf. ({allMtgs.length?Math.round(confMtgs.length/allMtgs.length*100):0}%)</span>
+                  </div>
+                </div>
+              </div>
+            );return null;
+          })()}
+
           {/* ── Event sections ── */}
           {hasEvents&&(()=>{
             const SECTIONS=[
