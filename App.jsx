@@ -869,6 +869,35 @@ Daily Summary — ${dayLabel}
     return()=>window.removeEventListener('beforeinstallprompt',handler);
   },[]);
 
+  // ── Meeting reminder notifications (30 min before) ──────────
+  useEffect(()=>{
+    if(!("Notification" in window)) return;
+    const notified=new Set(); // track already-notified meeting IDs
+    const check=()=>{
+      if(Notification.permission!=="granted") return;
+      const now=new Date();
+      const todayISO=now.toISOString().slice(0,10);
+      const nowH=now.getHours()+now.getMinutes()/60;
+      (roadshow?.meetings||[]).filter(m=>m.date===todayISO&&m.status!=="cancelled").forEach(m=>{
+        const minUntil=(m.hour-nowH)*60;
+        if(minUntil>0&&minUntil<=30&&!notified.has(m.id)){
+          notified.add(m.id);
+          const co=(roadshow.companies||[]).find(c=>c.id===m.companyId);
+          const fmtH2=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+          new Notification(`🔔 Reunión en ${Math.round(minUntil)} min`,{
+            body:`${co?.name||"Reunión"} · ${fmtH2(m.hour)} hs`,
+            icon:"/icon-192.svg",
+            tag:`mtg-${m.id}`,
+            requireInteraction:true
+          });
+        }
+      });
+    };
+    const iv=setInterval(check,60000); // check every minute
+    check(); // check immediately
+    return()=>clearInterval(iv);
+  },[roadshow?.meetings]);
+
     // Dynamic favicon with today's meeting count badge
     useEffect(()=>{
       const today=new Date().toISOString().slice(0,10);
@@ -1255,6 +1284,13 @@ Daily Summary — ${dayLabel}
         {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando en la nube...":"Sincronizado"}>
           {syncStatus==="syncing"?"⟳ Sync...":"✓ Synced"}
         </span>}
+        {"Notification" in window&&Notification.permission==="default"&&(
+          <button className="btn bs" title="Activar recordatorios 30 min antes de cada reunión"
+            style={{fontSize:9,padding:"2px 8px",background:"rgba(30,90,176,.12)",color:"var(--gold)",border:"1px solid rgba(30,90,176,.2)",gap:3,cursor:"pointer",borderRadius:4}}
+            onClick={()=>Notification.requestPermission()}>
+            🔔 Notificar
+          </button>
+        )}
         {pwaPrompt&&!pwaInstalled&&(
           <button className="btn bs" title="Instalar como app"
             style={{fontSize:9,padding:"2px 8px",background:"#1e5ab0",color:"#fff",border:"none",gap:4,cursor:"pointer",borderRadius:4}}
