@@ -1,7 +1,7 @@
 {
   "name": "LS Event Manager",
   "short_name": "LS Events",
-  "description": "Latin Securities · Roadshow & Event Manager",
+  "description": "Latin Securities · Roadshow & Event Manager — Gestión de agenda, reuniones y logística para roadshows de inversores.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000039",
@@ -21,6 +21,19 @@
       "purpose": "any maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/",
+      "description": "Ver todos los eventos"
+    },
+    {
+      "name": "Nuevo evento",
+      "url": "/?action=new",
+      "description": "Crear un nuevo roadshow o conferencia"
+    }
+  ],
   "categories": ["productivity", "business"],
-  "lang": "es-AR"
+  "lang": "es-AR",
+  "prefer_related_applications": false
 }

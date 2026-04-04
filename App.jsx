@@ -869,6 +869,21 @@ Daily Summary — ${dayLabel}
     return()=>window.removeEventListener('beforeinstallprompt',handler);
   },[]);
 
+    // Dynamic favicon with today's meeting count badge
+    useEffect(()=>{
+      const today=new Date().toISOString().slice(0,10);
+      const todayMtgs=(roadshow?.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").length;
+      if(!todayMtgs) return;
+      const canvas=document.createElement("canvas");canvas.width=32;canvas.height=32;
+      const ctx=canvas.getContext("2d");
+      ctx.fillStyle="#000039";ctx.fillRect(0,0,32,32);ctx.fillStyle="#fff";ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("LS",16,13);
+      // Badge
+      ctx.fillStyle="#ef4444";ctx.beginPath();ctx.arc(24,24,8,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#fff";ctx.font="bold 10px sans-serif";ctx.fillText(String(todayMtgs),24,25);
+      const link=document.querySelector("link[rel='icon']")||document.createElement("link");
+      link.rel="icon";link.href=canvas.toDataURL();document.head.appendChild(link);
+    },[roadshow?.meetings]);
+
     // Load from cloud when auth user changes (auth state managed by AuthContext)
     const [cloudLoaded,setCloudLoaded]=useState(false);
     const [syncStatus,setSyncStatus]=useState("idle"); // "idle"|"syncing"|"synced"|"offline"
@@ -1436,7 +1451,7 @@ Daily Summary — ${dayLabel}
       </div>
     )}
 
-    <main className="body">
+    <main className="body tab-enter" key={tab}>
 
       {/* ════ CONFIG ════ */}
       {tab==="config"&&(

@@ -104,6 +104,14 @@ html,body{background:var(--ink)}
 .dfill{height:2px;border-radius:2px}
 .sec-hdr{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:10px 0 5px;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:6px}
 /* events list */
+/* Animations */
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+@keyframes subtleBounce{0%{transform:translateY(0)}50%{transform:translateY(-2px)}100%{transform:translateY(0)}}
+.tab-enter{animation:fadeSlideIn .2s ease-out both}
+.pulse{animation:pulse .8s ease-in-out infinite}
+.card:hover{box-shadow:0 4px 16px rgba(30,90,176,.1)!important;transform:translateY(-1px);transition:all .18s ease}
+.btn:active{transform:scale(.96);transition:transform .08s}
 .ev-card{background:var(--ink2);border:1px solid rgba(30,90,176,.1);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:12px;transition:border-color .15s}
 .ev-card:hover{border-color:rgba(30,90,176,.22)}.ev-card.active-ev{border-color:var(--gold);background:rgba(30,90,176,.05)}
 

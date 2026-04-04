@@ -189,6 +189,7 @@ export function RoadshowInboundTab({
             </div>
           </div>
 
+          <div className="tab-enter" key={rsSubTab}>
           {/* AGENDA */}
           {rsSubTab==="schedule"&&(
             <div>
@@ -1438,6 +1439,8 @@ export function RoadshowInboundTab({
             onClose={()=>{setKioskMode(false);setKioskFb(false);}}
             onSaveMtg={saveMtg}
           />}
+
+          </div>{/* end tab-enter */}
 
           {/* ── Library Picker Modal ──────────────────────────────── */}
           {libPicker&&(
