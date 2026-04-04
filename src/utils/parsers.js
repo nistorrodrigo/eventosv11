@@ -135,6 +135,34 @@ export function parseDBInvestorsFile(arrayBuffer, XLSX){
   return imported.length?imported:null;
 }
 
+// Parse investor email text → returns {patchTrip, matchedCos}
+export function parseInvestorEmail(text, knownCompanies, existingRsCompanies){
+  const dateRe=/\b(\d{1,2})[\s/\-](\w+)[\s/\-,]+(\d{4})/g;
+  const monthMap={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,jan:1,feb:2,mar:3,apr:4,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const dates=[];let m;
+  while((m=dateRe.exec(text.toLowerCase()))!==null){
+    const d=parseInt(m[1]),mo=monthMap[m[2].toLowerCase().slice(0,3)]||parseInt(m[2]),y=parseInt(m[3]);
+    if(mo&&d&&y) dates.push(`${y}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
+  }
+  dates.sort();
+  const hotelM=text.match(/staying at ([\w\s]+(?:hotel|inn|hilton|hyatt|marriott|sheraton|intercontinental|four seasons|palacio|sofitel|faena)[\w\s]*)/i);
+  const hotel=hotelM?hotelM[1].trim():"";
+  // Match companies from dynamic list (globalDB + roadshow companies)
+  const lower=text.toLowerCase();
+  const matched=[];const seenNames=new Set();
+  for(const co of knownCompanies){
+    if(co.name&&lower.includes(co.name.toLowerCase())&&!seenNames.has(co.name.toLowerCase())){
+      seenNames.add(co.name.toLowerCase());
+      const existing=(existingRsCompanies||[]).find(c=>c.name.toLowerCase()===co.name.toLowerCase());
+      if(!existing) matched.push({id:`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:co.name,ticker:co.ticker||"",sector:co.sector||"Custom",location:"ls_office",contacts:co.contacts||[],hqAddress:co.hqAddress||"",notes:"",active:true});
+    }
+  }
+  const patchTrip={};
+  if(dates.length>=2){patchTrip.arrivalDate=dates[0];patchTrip.departureDate=dates[dates.length-1];}
+  if(hotel) patchTrip.hotel=hotel;
+  return{patchTrip,matchedCos:matched};
+}
+
 // Parse roadshow meetings Excel → returns {meetings, skipped}
 export function parseRoadshowMeetingsFile(arrayBuffer, XLSX, companyMap){
   const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];

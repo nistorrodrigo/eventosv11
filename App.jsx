@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } fro
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
-import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile } from "./src/utils/parsers.js";
+import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
@@ -416,58 +416,10 @@ export default function App(){
     }catch(err){toastErr("Error: "+err.message);}};
     reader.readAsArrayBuffer(file);e.target.value="";
   }
+  // handleRsEmailParse → parsing in src/utils/parsers.js (now uses dynamic globalDB companies)
   function handleRsEmailParse(text){
-    // Extract dates
-    const dateRe=/\b(\d{1,2})[\s/\-](\w+)[\s/\-,]+(\d{4})/g;
-    const monthMap={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,jan:1,feb:2,mar:3,apr:4,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    const dates=[];let m;
-    while((m=dateRe.exec(text.toLowerCase()))!==null){
-      const d=parseInt(m[1]),mo=monthMap[m[2].toLowerCase().slice(0,3)]||parseInt(m[2]),y=parseInt(m[3]);
-      if(mo&&d&&y) dates.push(`${y}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
-    }
-    dates.sort();
-    // Extract hotel
-    const hotelM=text.match(/staying at ([\w\s]+(?:hotel|inn|hilton|hyatt|marriott|sheraton|intercontinental|four seasons|palacio|sofitel|faena)[\w\s]*)/i);
-    const hotel=hotelM?hotelM[1].trim():"";
-    // Extract company names by matching known tickers/names
-    const knownCos=[
-      {name:"Banco Macro",ticker:"BMA",id:"rc_bmacro",sector:"Financials"},
-      {name:"BBVA Argentina",ticker:"BBAR",id:"rc_bbva",sector:"Financials"},
-      {name:"Grupo Financiero Galicia",ticker:"GGAL",id:"rc_ggal",sector:"Financials"},
-      {name:"Galicia",ticker:"GGAL",id:"rc_ggal",sector:"Financials"},
-      {name:"Grupo Supervielle",ticker:"SUPV",id:"rc_supv",sector:"Financials"},
-      {name:"Supervielle",ticker:"SUPV",id:"rc_supv",sector:"Financials"},
-      {name:"BYMA",ticker:"BYMA",id:"rc_byma",sector:"Exchange"},
-      {name:"Pampa",ticker:"PAMP",id:"rc_pampa",sector:"Energy"},
-      {name:"Pampa Energía",ticker:"PAMP",id:"rc_pampa",sector:"Energy"},
-      {name:"YPF",ticker:"YPFD",id:"rc_ypf",sector:"Energy"},
-      {name:"Vista",ticker:"VIST",id:"rc_vista",sector:"Energy"},
-      {name:"Vista Energy",ticker:"VIST",id:"rc_vista",sector:"Energy"},
-      {name:"Central Puerto",ticker:"CEPU",id:"rc_cepu",sector:"Energy"},
-      {name:"Transportadora de Gas del Sur",ticker:"TGSU2",id:"rc_tgsu",sector:"Energy"},
-      {name:"TGS",ticker:"TGSU2",id:"rc_tgsu",sector:"Energy"},
-      {name:"TGN",ticker:"TGNO4",id:"rc_tgn",sector:"Energy"},
-      {name:"Telecom",ticker:"TECO2",id:"rc_teco",sector:"TMT"},
-      {name:"Telecom Argentina",ticker:"TECO2",id:"rc_teco",sector:"TMT"},
-      {name:"Loma Negra",ticker:"LOMA",id:"rc_loma",sector:"Industry"},
-      {name:"Edenor",ticker:"EDN",id:"rc_edn",sector:"Energy"},
-      {name:"Globant",ticker:"GLOB",id:"rc_glob",sector:"TMT"},
-    ];
-    const lower=text.toLowerCase();
-    const matched=[];const seenIds=new Set();
-    for(const co of knownCos){
-      if(lower.includes(co.name.toLowerCase())&&!seenIds.has(co.id)){
-        seenIds.add(co.id);
-        const existing=roadshow.companies.find(c=>c.id===co.id||c.name.toLowerCase()===co.name.toLowerCase());
-        if(!existing) matched.push({id:co.id+"_"+Date.now(),name:co.name,ticker:co.ticker,sector:co.sector,location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true});
-      }
-    }
-    // Any unknown company lines (lines with just company names)
-    const lines=text.split("\n").map(l=>l.trim()).filter(l=>l.length>3&&l.length<60&&!/[.:@]/.test(l)&&!/^(we|i|please|below|let|both|and|on|leaving|arriving|staying|would|like|meet|your)/i.test(l));
-    const patchTrip={};
-    if(dates.length>=2){patchTrip.arrivalDate=dates[0];patchTrip.departureDate=dates[dates.length-1];}
-    if(hotel) patchTrip.hotel=hotel;
-    return{patchTrip,matchedCos:matched};
+    const knownCos=[...(globalDB.companies||[]),...(roadshow.companies||[])];
+    return parseInvestorEmail(text,knownCos,roadshow.companies);
   }
   // handleRsMeetingsExcel → parsing in src/utils/parsers.js
   function handleRsMeetingsExcel(e){
