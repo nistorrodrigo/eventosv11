@@ -163,16 +163,31 @@ Latin Securities`;
             </div>
           </div>
           {meeting?.changeLog?.length>0&&(
-            <div style={{marginBottom:10,background:"rgba(30,90,176,.04)",borderRadius:6,padding:"7px 10px"}}>
-              <div className="lbl" style={{marginBottom:3}}>🕐 Historial</div>
-              <div style={{maxHeight:68,overflowY:"auto"}}>
-                {[...(meeting.changeLog||[])].reverse().slice(0,5).map((c,i)=>(
-                  <div key={i} style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginBottom:1}}>
-                    {new Date(c.at).toLocaleDateString("es-AR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})} · <b>{c.field}</b>: {String(c.from??"-").slice(0,14)} → {String(c.to??"-").slice(0,14)}
-                  </div>
-                ))}
+            <details style={{marginBottom:10,background:"rgba(30,90,176,.04)",borderRadius:8,overflow:"hidden"}}>
+              <summary style={{padding:"8px 12px",cursor:"pointer",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--gold)",fontWeight:600,letterSpacing:".04em",userSelect:"none",display:"flex",alignItems:"center",gap:6}}>
+                🕐 Historial de cambios ({meeting.changeLog.length})
+              </summary>
+              <div style={{padding:"6px 12px 10px",maxHeight:200,overflowY:"auto"}}>
+                {[...(meeting.changeLog||[])].reverse().map((c,i)=>{
+                  const icons={moved:"🔄",status:"📌",location:"📍",hour:"⏰",date:"📅",created:"➕"};
+                  const icon=icons[c.field]||"✏️";
+                  const time=new Date(c.at);
+                  const isRecent=Date.now()-time.getTime()<86400000;
+                  return(
+                    <div key={i} style={{display:"flex",gap:8,padding:"4px 0",borderBottom:i<meeting.changeLog.length-1?"1px solid rgba(30,90,176,.06)":"none"}}>
+                      <div style={{width:2,background:isRecent?"#1e5ab0":"#d1d5db",borderRadius:2,flexShrink:0}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:10,color:"var(--cream)"}}>{icon} <strong>{c.field}</strong>: {String(c.from??"-")} → {String(c.to??"-")}</div>
+                        <div style={{fontSize:8,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginTop:1}}>
+                          {time.toLocaleDateString("es-AR",{day:"numeric",month:"short"})} {time.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}
+                          {isRecent&&<span style={{marginLeft:6,color:"#1e5ab0",fontSize:7}}>● reciente</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            </details>
           )}
           <div style={{marginBottom:12}}><div className="lbl">Notas / Agenda</div>
             <textarea className="inp" style={{minHeight:54,resize:"vertical"}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Temas a tratar, contexto, agenda..."/></div>
