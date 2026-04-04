@@ -89,6 +89,7 @@ export default function App(){
 
   // Debounced cloud save — avoids Supabase write on every keystroke
   const _cloudSaveTimer=useRef(null);
+  const _unlockedEvents=useRef(new Set()); // events unlocked by password this session
   function saveCurrentEvent(patch){
     setEvents(prev=>{
       const next=prev.map(e=>e.id===activeEv?{...e,...patch}:e);
@@ -192,6 +193,10 @@ export default function App(){
   async function checkEvPassword(evId){
     const ev=events.find(e=>e.id===evId);
     if(!ev?.passwordHash) return true; // no password
+    // Skip password if logged-in user is the owner (created the event)
+    if(authUser&&ev.owner_id===authUser.id) return true;
+    // Also skip if this session already unlocked the event
+    if(_unlockedEvents.current.has(evId)) return true;
     return new Promise(resolve=>{
       setEvPasswordModal({evId,mode:"check",resolve});
       setEvPasswordInput("");
@@ -227,7 +232,7 @@ export default function App(){
       return;
     }
     const id=`ev-${Date.now()}`;
-    const ev={id,name,kind,createdAt:new Date().toISOString(),
+    const ev={id,name,kind,createdAt:new Date().toISOString(),owner_id:authUser?.id||null,
       investors:[],companies:COMPANIES_INIT.map(c=>({...c,attendees:[]})),
       meetings:[],unscheduled:[],fixedRoom:{},fundGrouping:{},config:DEFAULT_CONFIG};
     const next=[...events,ev]; setEvents(next); saveEvents(next); setActiveEv(id); setNewEvName(""); cloudSaveEvent(ev);
@@ -1375,7 +1380,7 @@ Daily Summary — ${dayLabel}
                 <div className="lbl">Contraseña</div>
                 <input className="inp" type="password" autoFocus value={evPasswordInput} onChange={e=>setEvPasswordInput(e.target.value)}
                   placeholder="Contraseña..."
-                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}}/>
+                  onKeyDown={async e=>{if(e.key==="Enter"){const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;if(ok)_unlockedEvents.current.add(evPasswordModal.evId);setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}}/>
               </>
             ):(
               <>
@@ -1388,7 +1393,7 @@ Daily Summary — ${dayLabel}
           <div className="modal-footer">
             <button className="btn bo bs" onClick={()=>{setEvPasswordModal(null);evPasswordModal.resolve&&evPasswordModal.resolve(false);}}>Cancelar</button>
             {evPasswordModal.mode==="check"?(
-              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}>Abrir</button>
+              <button className="btn bg bs" onClick={async()=>{const hash=await hashPwd(evPasswordInput);const ev=events.find(x=>x.id===evPasswordModal.evId);const ok=ev?.passwordHash===hash;if(ok)_unlockedEvents.current.add(evPasswordModal.evId);setEvPasswordModal(null);evPasswordModal.resolve(ok);if(!ok)toast("Contraseña incorrecta.");}}>Abrir</button>
             ):(
               <button className="btn bg bs" onClick={()=>{setEvPassword(evPasswordModal.evId,evPasswordInput);setEvPasswordModal(null);}}>Guardar</button>
             )}
