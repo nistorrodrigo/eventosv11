@@ -169,6 +169,9 @@ export default function App(){
   const [invProfile,setInvProfile] = useState(null);
   const [coProfile,setCoProfile]   = useState(null);
   const [showEvMgr,setShowEvMgr]   = useState(false);
+  const [shareModal,setShareModal] = useState(null); // {evId, shares:[]}
+  const [shareEmail,setShareEmail] = useState("");
+  const [shareRole,setShareRole]   = useState("viewer");
   const [dashboardView,setDashboardView] = useState(false);
   const [globalSearch,setGlobalSearch] = useState("");
   const [showSearch,setShowSearch] = useState(false);
@@ -990,6 +993,30 @@ Daily Summary — ${dayLabel}
     await supabase.from("ls_global_db").upsert({user_id:authUser.id,data:db});
   }
 
+  // ── Event sharing ────────────────────────────────────────────
+  async function openShareModal(evId){
+    const {data}=await supabase.from("ls_event_shares").select("*").eq("event_id",evId);
+    setShareModal({evId,shares:data||[]});setShareEmail("");setShareRole("viewer");
+  }
+  async function addShare(){
+    if(!shareModal||!shareEmail.trim()||!authUser) return;
+    const email=shareEmail.trim().toLowerCase();
+    // Look up user by email
+    const {data:users}=await supabase.from("ls_event_shares").select("shared_with_email").eq("event_id",shareModal.evId).eq("shared_with_email",email);
+    if(users?.length){toast("Este email ya tiene acceso.");return;}
+    await supabase.from("ls_event_shares").insert({event_id:shareModal.evId,owner_id:authUser.id,shared_with_email:email,role:shareRole});
+    toastOk(`✅ Compartido con ${email} como ${shareRole}`);
+    openShareModal(shareModal.evId); // refresh
+  }
+  async function removeShare(shareId){
+    await supabase.from("ls_event_shares").delete().eq("id",shareId);
+    if(shareModal) openShareModal(shareModal.evId);
+  }
+  async function updateShareRole(shareId,newRole){
+    await supabase.from("ls_event_shares").update({role:newRole}).eq("id",shareId);
+    if(shareModal) openShareModal(shareModal.evId);
+  }
+
   // signIn, signUp, signOut → now in AuthContext
 
   // ── Wrap saveEvents to also sync to cloud ───────────────────
@@ -1348,6 +1375,7 @@ Daily Summary — ${dayLabel}
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
                   <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
+                  <button className="btn bo bs" title="Compartir evento" onClick={()=>openShareModal(e.id)}>👥</button>
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
@@ -1399,6 +1427,43 @@ Daily Summary — ${dayLabel}
             )}
           </div>
         </div>
+      </div>
+    )}
+
+    {/* ── Share Event Modal ── */}
+    {shareModal&&(
+      <div className="overlay" role="dialog" aria-modal="true" aria-label="Compartir evento" onClick={e=>{if(e.target===e.currentTarget)setShareModal(null);}} onKeyDown={e=>{if(e.key==="Escape")setShareModal(null);}}>
+        <FocusTrap><div className="modal" style={{maxWidth:480}}>
+          <div className="modal-hdr"><div className="modal-title">👥 Compartir evento</div></div>
+          <div className="modal-body">
+            <div style={{display:"flex",gap:6,marginBottom:14}}>
+              <input className="inp" style={{flex:1}} placeholder="Email del usuario..." value={shareEmail} onChange={e=>setShareEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addShare()}/>
+              <select className="sel" style={{width:100}} value={shareRole} onChange={e=>setShareRole(e.target.value)}>
+                <option value="viewer">👁 Ver</option>
+                <option value="editor">✏️ Editar</option>
+              </select>
+              <button className="btn bg bs" onClick={addShare}>Compartir</button>
+            </div>
+            {shareModal.shares.length===0?<div style={{textAlign:"center",padding:"20px 0",color:"var(--dim)",fontSize:12}}>Este evento no está compartido con nadie.</div>:(
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div className="lbl" style={{marginBottom:2}}>Accesos actuales</div>
+                {shareModal.shares.map(s=>(
+                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--ink3)",borderRadius:6}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,color:"var(--cream)",fontWeight:600}}>{s.shared_with_email}</div>
+                    </div>
+                    <select className="sel" style={{width:90,fontSize:10,padding:"2px 6px"}} value={s.role} onChange={e=>updateShareRole(s.id,e.target.value)}>
+                      <option value="viewer">👁 Ver</option>
+                      <option value="editor">✏️ Editar</option>
+                    </select>
+                    <button className="btn bd bs" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>removeShare(s.id)}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="modal-footer"><button className="btn bo bs" onClick={()=>setShareModal(null)}>Cerrar</button></div>
+        </div></FocusTrap>
       </div>
     )}
 
