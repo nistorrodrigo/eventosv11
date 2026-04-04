@@ -1197,6 +1197,40 @@ export function RoadshowInboundTab({
                   ✓ Los horarios disponibles (sin reunión asignada) &nbsp;·&nbsp; ✓ Nombre del cliente y fondo &nbsp;·&nbsp; ✓ Fechas y hotel &nbsp;·&nbsp; ✓ Lugar de la reunión (LS u otra) &nbsp;·&nbsp; ✓ Datos de contacto de {lsCont?.name||"el equipo LS"}
                 </div>
               </div>
+
+              {/* Email Templates */}
+              <div className="sec-hdr" style={{marginTop:18,marginBottom:8}}>📋 Templates rápidos</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[
+                  {id:"confirm",icon:"✅",title:"Confirmación de reunión",
+                    gen:(co)=>{const mtg=(roadshow.meetings||[]).find(m=>m.companyId===co.id);const fmtH2=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};const dateStr=mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"[date]";const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;
+                    return `Subject: Meeting Confirmation — ${co.name} & ${roadshow.trip.fund}\n\nDear team,\n\nWe are pleased to confirm the following meeting:\n\n📅 Date: ${dateStr}\n🕐 Time: ${mtg?fmtH2(mtg.hour):"[time]"} (Buenos Aires time)\n📍 Location: ${mtg?.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):co.hqAddress||"TBD"}\n👤 Attendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                  {id:"followup",icon:"📞",title:"Follow-up post reunión",
+                    gen:(co)=>{const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" and ")||roadshow.trip.fund;
+                    return `Subject: Follow-up — ${co.name} meeting\n\nDear team,\n\nThank you for taking the time to meet with ${visitors} during our Buenos Aires roadshow.\n\nAs discussed, we will:\n- [action item 1]\n- [action item 2]\n\nPlease don't hesitate to reach out if you need any additional information.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                  {id:"thankyou",icon:"🙏",title:"Thank you — fin del roadshow",
+                    gen:(co)=>{const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;const fund=roadshow.trip.fund||roadshow.trip.clientName||"our client";
+                    return `Subject: Thank you — ${fund} Buenos Aires Roadshow\n\nDear team,\n\nOn behalf of ${visitors} and the Latin Securities team, we would like to thank you for the meeting during ${fund}'s visit to Buenos Aires.\n\nWe value the relationship and look forward to keeping you updated on future developments.\n\nWarm regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                  {id:"reschedule",icon:"🔄",title:"Cambio de horario",
+                    gen:(co)=>{const mtg=(roadshow.meetings||[]).find(m=>m.companyId===co.id);const fmtH2=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+                    return `Subject: Schedule Change — ${co.name} meeting\n\nDear team,\n\nWe need to adjust the timing of our meeting. The updated details are:\n\n📅 New date: ${mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"[new date]"}\n🕐 New time: ${mtg?fmtH2(mtg.hour):"[new time]"}\n📍 Location: ${mtg?.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):co.hqAddress||"[location]"}\n\nWe apologize for any inconvenience and appreciate your flexibility.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                ].map(tmpl=>(
+                  <div key={tmpl.id} className="card" style={{padding:"12px 14px",cursor:"default"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                      <span style={{fontSize:18}}>{tmpl.icon}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:"var(--cream)"}}>{tmpl.title}</span>
+                    </div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {roadshow.companies.filter(c=>c.active).slice(0,8).map(co=>(
+                        <button key={co.id} className="btn bo bs" style={{fontSize:9}} onClick={()=>{
+                          const text=tmpl.gen(co);
+                          navigator.clipboard.writeText(text).then(()=>toastOk(`✅ ${tmpl.title} para ${co.name} copiado`));
+                        }}>{co.ticker||co.name.slice(0,8)}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
