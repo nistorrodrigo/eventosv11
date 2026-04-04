@@ -177,7 +177,7 @@ export function RoadshowInboundTab({
 
           {/* Sub-tabs */}
           <div className="rs-subtabs" style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-            {[["schedule","📅 Agenda"],["bookings",`📬 Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
+            {[["schedule","📅 Agenda"],["bookings",`📬 Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["expenses","💰 Gastos"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
               <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative",flexShrink:0}} onClick={()=>setRsSubTab(id)}>{lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
             ))}
             <div className="rs-subtabs-stats" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4,flexShrink:0}}>
@@ -1049,6 +1049,95 @@ export function RoadshowInboundTab({
             </div>
             );
           })()}
+          {/* GASTOS / EXPENSES */}
+          {rsSubTab==="expenses"&&(()=>{
+            const expenses=roadshow.expenses||[];
+            const CATS=["🚗 Transfer","🍽 Comida","🏨 Hotel","✈️ Vuelo","📱 Comunicaciones","🎫 Entretenimiento","📦 Otros"];
+            const CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
+            const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:CATS[0],description:"",amount:"",currency:"USD",paidBy:lsCont.name||"",notes:""});
+            const [expEdit,setExpEdit]=useState(null);
+            const addExpense=()=>{
+              if(!expForm.amount||!expForm.description.trim())return;
+              const exp={id:"exp-"+Date.now(),date:expForm.date,category:expForm.category,description:expForm.description.trim(),amount:parseFloat(expForm.amount),currency:expForm.currency,paidBy:expForm.paidBy.trim(),notes:expForm.notes.trim(),createdAt:new Date().toISOString()};
+              if(expEdit){
+                saveRoadshow({...roadshow,expenses:expenses.map(e=>e.id===expEdit?{...exp,id:expEdit}:e)});setExpEdit(null);
+              }else{
+                saveRoadshow({...roadshow,expenses:[...expenses,exp]});
+              }
+              setExpForm({...expForm,description:"",amount:"",notes:""});
+            };
+            const delExpense=id=>{saveRoadshow({...roadshow,expenses:expenses.filter(e=>e.id!==id)});};
+            const byCurrency={};expenses.forEach(e=>{byCurrency[e.currency]=(byCurrency[e.currency]||0)+e.amount;});
+            const byCategory={};expenses.forEach(e=>{byCategory[e.category]=(byCategory[e.category]||0)+e.amount;});
+            const fmtAmt=(n,cur)=>new Intl.NumberFormat("es-AR",{style:"currency",currency:cur,minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
+            return(
+              <div>
+                <div className="sec-hdr" style={{marginBottom:10}}>💰 Gastos del roadshow</div>
+                {/* Totals */}
+                {Object.keys(byCurrency).length>0&&(
+                  <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                    {Object.entries(byCurrency).map(([cur,total])=>(
+                      <div key={cur} style={{background:"#fff",border:"1px solid rgba(30,90,176,.1)",borderRadius:8,padding:"10px 16px",textAlign:"center"}}>
+                        <div style={{fontSize:20,fontWeight:700,color:"#000039",fontFamily:"Playfair Display,serif"}}>{fmtAmt(total,cur)}</div>
+                        <div style={{fontSize:8,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em",marginTop:2}}>{cur}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Form */}
+                <div className="card" style={{marginBottom:14}}>
+                  <div style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr auto auto",gap:8,alignItems:"end"}}>
+                    <div><div className="lbl">Fecha</div><input type="date" className="inp" style={{width:130}} value={expForm.date} onChange={e=>setExpForm({...expForm,date:e.target.value})}/></div>
+                    <div><div className="lbl">Descripción *</div><input className="inp" placeholder="Ej: Almuerzo con Pampa" value={expForm.description} onChange={e=>setExpForm({...expForm,description:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addExpense()}/></div>
+                    <div><div className="lbl">Categoría</div><select className="sel" value={expForm.category} onChange={e=>setExpForm({...expForm,category:e.target.value})}>{CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+                    <div><div className="lbl">Monto *</div><div style={{display:"flex",gap:4}}><input className="inp" type="number" step="0.01" style={{width:100}} placeholder="0.00" value={expForm.amount} onChange={e=>setExpForm({...expForm,amount:e.target.value})} onKeyDown={e=>e.key==="Enter"&&addExpense()}/><select className="sel" style={{width:70}} value={expForm.currency} onChange={e=>setExpForm({...expForm,currency:e.target.value})}>{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div>
+                    <div><button className="btn bg bs" style={{marginBottom:1}} onClick={addExpense}>{expEdit?"✓ Guardar":"+ Agregar"}</button></div>
+                  </div>
+                </div>
+                {/* List */}
+                {expenses.length===0?<div className="card" style={{textAlign:"center",padding:"30px 20px",color:"var(--dim)"}}><div style={{fontSize:28,marginBottom:8}}>💰</div><div style={{fontSize:13}}>Sin gastos registrados.</div></div>:(
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <table className="tbl">
+                      <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th style={{textAlign:"right"}}>Monto</th><th>Pagó</th><th></th></tr></thead>
+                      <tbody>
+                        {[...expenses].sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt?.localeCompare(b.createdAt||"")).map(e=>(
+                          <tr key={e.id}>
+                            <td style={{fontFamily:"IBM Plex Mono,monospace",fontSize:10,whiteSpace:"nowrap"}}>{new Date(e.date+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</td>
+                            <td style={{fontSize:11}}>{e.category}</td>
+                            <td style={{fontSize:11}}>{e.description}{e.notes?<span style={{color:"var(--dim)",fontSize:10}}> — {e.notes}</span>:""}</td>
+                            <td style={{textAlign:"right",fontWeight:700,fontFamily:"IBM Plex Mono,monospace",fontSize:11}}>{fmtAmt(e.amount,e.currency)}</td>
+                            <td style={{fontSize:10,color:"var(--dim)"}}>{e.paidBy||"—"}</td>
+                            <td style={{whiteSpace:"nowrap"}}>
+                              <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"2px 4px"}} onClick={()=>{setExpForm({date:e.date,category:e.category,description:e.description,amount:String(e.amount),currency:e.currency,paidBy:e.paidBy||"",notes:e.notes||""});setExpEdit(e.id);}}>✏️</button>
+                              <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"#dc2626",padding:"2px 4px"}} onClick={()=>delExpense(e.id)}>🗑</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {/* Category breakdown */}
+                {Object.keys(byCategory).length>1&&(
+                  <div style={{marginTop:14}}>
+                    <div className="sec-hdr" style={{marginBottom:8}}>Desglose por categoría</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      {Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).map(([cat,total])=>{
+                        const max=Math.max(...Object.values(byCategory));
+                        const pct=max?Math.round(total/max*100):0;
+                        return(<div key={cat} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{width:130,fontSize:10,color:"var(--txt)",flexShrink:0}}>{cat}</div>
+                          <div style={{flex:1,height:6,background:"#f0f3f8",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:"#1e5ab0",borderRadius:3}}/></div>
+                          <div style={{width:80,textAlign:"right",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--txt)",flexShrink:0}}>{expenses.filter(e=>e.category===cat).length>0?fmtAmt(total,expenses.find(e=>e.category===cat)?.currency||"USD"):""}</div>
+                        </div>);
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {rsSubTab==="emails"&&(
             <div>
               <div className="card" style={{marginBottom:12}}>
