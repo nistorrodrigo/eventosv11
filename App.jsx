@@ -222,14 +222,30 @@ export default function App(){
   // ── Duplicate event ───────────────────────────────────────────────────
   function duplicateEvent(evId){
     const orig=events.find(e=>e.id===evId); if(!orig) return;
+    const newName=prompt("Nombre del nuevo evento:",`${orig.name} (copia)`);
+    if(!newName?.trim()) return;
     const id=`ev-${Date.now()}`;
-    const dup={...orig,id,name:`${orig.name} (copia)`,createdAt:new Date().toISOString(),
-      meetings:[],unscheduled:[],investors:[],
-      roadshow:orig.roadshow?{...orig.roadshow,meetings:[]}:undefined,
-      passwordHash:undefined};
+    // Clone structure: keep companies+contacts+config, clear meetings+expenses+feedback
+    const cleanRoadshow=orig.roadshow?{
+      ...orig.roadshow,
+      meetings:[],
+      expenses:[],
+      travelOverrides:{},
+      trip:{...orig.roadshow.trip,arrivalDate:"",departureDate:"",notes:""},
+      companies:(orig.roadshow.companies||[]).map(c=>({
+        ...c,
+        contacts:(c.contacts||[]).map(ct=>({...ct})), // deep copy contacts
+      })),
+    }:undefined;
+    const dup={...orig,id,name:newName.trim(),createdAt:new Date().toISOString(),owner_id:authUser?.id||null,
+      meetings:[],unscheduled:[],investors:orig.kind==="conference"?(orig.investors||[]).map(inv=>({...inv,slots:[],blockedSlots:[]})):[],
+      roadshow:cleanRoadshow,
+      activityLog:[],
+      passwordHash:undefined,_shared:undefined,_sharedRole:undefined,_sharedBy:undefined};
     const next=[...events,dup]; setEvents(next); saveEvents(next);
     setActiveEv(id); cloudSaveEvent(dup); setShowEvMgr(false);
     setTab(dup.kind==="roadshow"?"roadshow":dup.kind==="outbound"?"outbound":"upload");
+    toastOk(`✅ "${newName.trim()}" creado como template de "${orig.name}"`);
   }
 
   // ── Create new event ─────────────────────────────────────────
@@ -1204,7 +1220,7 @@ Daily Summary — ${dayLabel}
                     </div>
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
-                  <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
+                  <button className="btn bo bs" title="Usar como template — copia empresas y contactos sin reuniones" onClick={()=>duplicateEvent(e.id)}>📋 Template</button>
                   <button className="btn bo bs" title="Compartir evento" onClick={()=>openShareModal(e.id)}>👥</button>
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");

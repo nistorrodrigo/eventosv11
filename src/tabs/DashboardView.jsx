@@ -362,7 +362,7 @@ export function DashboardView({
                     </div>
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
-                  <button className="btn bo bs" title="Duplicar (copia sin reuniones)" onClick={()=>duplicateEvent(e.id)}>⧉ Duplicar</button>
+                  <button className="btn bo bs" title="Usar como template — copia empresas y contactos" onClick={()=>duplicateEvent(e.id)}>📋 Template</button>
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
