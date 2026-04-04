@@ -93,13 +93,6 @@ export function DashboardView({
                   <div style={{fontSize:8.5,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>{lbl}</div>
                 </div>
               ))}
-              <div style={{padding:"20px 20px",display:"flex",alignItems:"center",borderLeft:"1px solid #f0f3f8"}}>
-                <button
-                  style={{whiteSpace:"nowrap",fontSize:12,padding:"10px 20px",background:"#000039",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,letterSpacing:".03em",fontFamily:"inherit",transition:"background .15s,transform .1s",boxShadow:"0 2px 8px rgba(0,0,57,.25)"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="#0d1a4a";e.currentTarget.style.transform="translateY(-1px)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="#000039";e.currentTarget.style.transform="";}}
-                  onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
-              </div>
             </div>
           )}
 
@@ -237,8 +230,8 @@ export function DashboardView({
           </div>
           )}
 
-          {/* Step 1: choose kind */}
-          {!newEvKind&&(
+          {/* Step 1: choose kind — only shown on first use (no events yet) */}
+          {!hasEvents&&!newEvKind&&(
           <div style={{maxWidth:640,width:"100%"}}>
             <div style={{textAlign:"center",fontSize:15,color:"var(--txt)",marginBottom:24}}>¿Qué tipo de evento querés crear?</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,maxWidth:780}}>
@@ -262,8 +255,8 @@ export function DashboardView({
           </div>
         )}
 
-          {/* Step 2: name */}
-          {newEvKind&&(
+          {/* Step 2: name — only shown on first use */}
+          {!hasEvents&&newEvKind&&(
           <div style={{maxWidth:440,width:"100%"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
               <button onClick={()=>setNewEvKind("")} style={{background:"none",border:"none",cursor:"pointer",color:"var(--dim)",fontSize:13,padding:"4px 8px",borderRadius:6,display:"flex",alignItems:"center",gap:5}}>← Volver</button>
@@ -288,43 +281,6 @@ export function DashboardView({
         </div>{/* maxWidth:900 */}
       </div>{/* outer */}
 
-      {/* NEW EVENT MODAL — also needed inside dashboard return */}
-      {showEvMgr&&(
-        <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}>
-          <div className="modal" style={{maxWidth:480}}>
-            <div className="modal-hdr"><div className="modal-title">Nuevo evento</div></div>
-            <div className="modal-body">
-              <div style={{marginBottom:16}}>
-                <div className="lbl" style={{marginBottom:8}}>Tipo de evento</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                  {[["roadshow","🗺️","Inbound Roadshow"],["outbound","✈️","Outbound Roadshow"],["conference","🏛","Conferencia"]].map(([k,ic,lbl])=>(
-                    <div key={k} onClick={()=>setNewEvKind(k)}
-                      style={{padding:"14px 10px",border:`2px solid ${newEvKind===k?"#1e5ab0":"rgba(30,90,176,.15)"}`,borderRadius:10,cursor:"pointer",textAlign:"center",background:newEvKind===k?"rgba(30,90,176,.06)":"transparent",transition:"all .15s"}}>
-                      <div style={{fontSize:24,marginBottom:5}}>{ic}</div>
-                      <div style={{fontSize:11,color:"var(--cream)",fontWeight:600,lineHeight:1.3}}>{lbl}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {newEvKind&&(
-                <div>
-                  <div className="lbl" style={{marginBottom:6}}>Nombre del evento</div>
-                  <input className="inp" value={newEvName} onChange={e=>setNewEvName(e.target.value)}
-                    placeholder={newEvKind==="roadshow"?"Ej: IMP 2026":newEvKind==="outbound"?"Ej: US Roadshow 2Q26":"Ej: Argentina in NY 2026"}
-                    onKeyDown={e=>e.key==="Enter"&&newEvName.trim()&&(createEvent(newEvName.trim(),newEvKind),setShowEvMgr(false))}
-                    autoFocus style={{marginBottom:12}}/>
-                  <button className="btn bg bs" style={{width:"100%",justifyContent:"center"}}
-                    disabled={!newEvName.trim()}
-                    onClick={()=>{if(newEvName.trim()){createEvent(newEvName.trim(),newEvKind);setShowEvMgr(false);setNewEvName("");setNewEvKind(null);}}}>
-                    Crear evento →
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer"><button className="btn bo bs" onClick={()=>{setShowEvMgr(false);setNewEvName("");setNewEvKind(null);}}>Cancelar</button></div>
-          </div>
-        </div>
-      )}
 
     {/* NEW EVENT MODAL */}
     {showEvMgr&&(
