@@ -319,7 +319,10 @@ export default function App(){
     if(format==="word") downloadBlob(`${co.ticker}_schedule.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
-  function saveRoadshow(rs){setRoadshow(rs);saveCurrentEvent({roadshow:rs});}
+  function saveRoadshow(rs){
+    if(currentEvent?._shared&&currentEvent?._sharedRole==="viewer"){toast("Solo podés ver este evento (acceso viewer).");return;}
+    setRoadshow(rs);saveCurrentEvent({roadshow:rs});
+  }
   // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.js
   function exportRoadshowSummary(){ _exportRoadshowSummary({roadshow, openPrint}); }
   function exportPostRoadshowReport(){ _exportPostRoadshowReport({roadshow, openPrint}); }
@@ -956,12 +959,11 @@ Daily Summary — ${dayLabel}
     },[authUser]);
 
   async function loadFromCloud(userId){
-    // Load events
+    // Load own events
     const{data:evRows}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
+    let allEvs=[];
     if(evRows?.length){
-      const cloudEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,...r.data}));
-      setEvents(cloudEvs); saveEvents(cloudEvs);
-      setActiveEv(prev=>cloudEvs.find(e=>e.id===prev)?prev:cloudEvs[0]?.id||null);
+      allEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,owner_id:userId,...r.data}));
     } else {
       // First login: migrate localStorage events to cloud
       const local=loadEvents();
@@ -970,8 +972,33 @@ Daily Summary — ${dayLabel}
           const{id,name,kind,...data}=ev;
           await supabase.from("ls_events").upsert({id,name,kind,data,user_id:userId});
         }
+        allEvs=local.map(ev=>({...ev,owner_id:userId}));
       }
     }
+    // Load shared events
+    const userEmail=authUser?.email?.toLowerCase();
+    if(userEmail){
+      const{data:shares}=await supabase.from("ls_event_shares").select("event_id,role,shared_with_id").eq("shared_with_email",userEmail);
+      if(shares?.length){
+        // Update shared_with_id if not set (first time this user logs in after being shared)
+        for(const s of shares){
+          if(!s.shared_with_id) await supabase.from("ls_event_shares").update({shared_with_id:userId}).eq("event_id",s.event_id).eq("shared_with_email",userEmail);
+        }
+        // Load shared event data
+        const sharedIds=shares.map(s=>s.event_id).filter(id=>!allEvs.find(e=>e.id===id));
+        if(sharedIds.length){
+          const{data:sharedRows}=await supabase.from("ls_events").select("id,name,kind,data,user_id").in("id",sharedIds);
+          if(sharedRows?.length){
+            const sharedEvs=sharedRows.map(r=>{
+              const share=shares.find(s=>s.event_id===r.id);
+              return{id:r.id,name:r.name,kind:r.kind,owner_id:r.user_id,...r.data,_shared:true,_sharedRole:share?.role||"viewer",_sharedBy:r.user_id};
+            });
+            allEvs=[...allEvs,...sharedEvs];
+          }
+        }
+      }
+    }
+    if(allEvs.length){setEvents(allEvs);saveEvents(allEvs);setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:allEvs[0]?.id||null);}
     // Load library
     const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
     if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}

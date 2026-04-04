@@ -132,6 +132,7 @@ export function DashboardView({
                             <div style={{display:"flex",alignItems:"center",gap:7}}>
                               <span style={{fontSize:17}}>{kindIcon}</span>
                               <span style={{fontSize:8.5,color:sec.clr,fontFamily:"IBM Plex Mono,monospace",fontWeight:700,background:sec.accent,padding:"2px 7px",borderRadius:4,textTransform:"uppercase",letterSpacing:".1em"}}>{kindLbl}</span>
+                              {ev._shared&&<span style={{fontSize:8,color:"#7c3aed",background:"#f3e8ff",padding:"2px 7px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace",fontWeight:600}}>{ev._sharedRole==="editor"?"✏️ Editor":"👁 Viewer"}</span>}
                             </div>
                             <div style={{display:"flex",alignItems:"center",gap:8}}>
                               {ev.dates&&<span style={{fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}}>{ev.dates}</span>}
