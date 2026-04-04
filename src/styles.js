@@ -167,6 +167,16 @@ html,body{background:var(--ink)}
 .skel-table{background:var(--c-bg-card);border:1px solid var(--c-border);border-radius:var(--r-md);overflow:hidden}
 .skel-table-hdr{display:flex;gap:0;background:var(--c-bg-subtle);padding:var(--sp-3) var(--sp-4)}
 .skel-table-row{display:flex;gap:0;padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--c-bg-subtle)}
+/* Dashboard */
+.dash-outer{min-height:100vh;background:#f2f5fb;font-family:var(--ff-body)}
+.dash-nav{background:var(--c-navy);border-bottom:1px solid rgba(255,255,255,.06)}
+.dash-nav-inner{max-width:1200px;margin:0 auto;padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:58px}
+.dash-logo{font-family:var(--ff-serif);font-size:var(--fs-lg);color:#fff;font-weight:700;letter-spacing:.02em}
+.dash-logo-sub{font-size:var(--fs-xs);color:rgba(255,255,255,.3);font-family:var(--ff-mono);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.dash-kpi{flex:1;padding:var(--sp-5) var(--sp-3);border-right:1px solid #f0f3f8;text-align:center;transition:background .15s}
+.dash-kpi:hover{background:var(--c-bg-subtle)}
+.dash-kpi-val{font-size:28px;font-weight:700;font-family:var(--ff-serif);line-height:1;margin-bottom:6px}
+.dash-kpi-lbl{font-size:var(--fs-xs);color:var(--c-text-dim);text-transform:uppercase;letter-spacing:.1em;font-family:var(--ff-mono)}
 
 /* ── Mobile Responsive ─────────────────────────────────────── */
 @media(max-width:768px){

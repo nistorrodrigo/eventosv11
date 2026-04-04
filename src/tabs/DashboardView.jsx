@@ -24,11 +24,11 @@ export function DashboardView({
   const { authUser, signOut } = useAuth();
   return(
     <div className="app"><style>{CSS}</style>
-      <div style={{minHeight:"100vh",background:"#f2f5fb",fontFamily:"'Lora',Georgia,serif"}}>
+      <div className="dash-outer">
 
         {/* ══ NAVBAR ══ */}
-        <div style={{background:"#000039",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
-          <div style={{maxWidth:1200,margin:"0 auto",padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58}}>
+        <div className="dash-nav">
+          <div className="dash-nav-inner">
             <div style={{display:"flex",alignItems:"center",gap:16}}>
               <div style={{display:"flex",alignItems:"center",gap:1}}><span style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:"#fff",letterSpacing:".04em",lineHeight:1}}>Latin</span><span style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:400,color:"rgba(255,255,255,.7)",letterSpacing:".04em",lineHeight:1,marginLeft:5}}>Securities</span></div>
               <div style={{width:1,height:22,background:"rgba(255,255,255,.12)"}}/>
@@ -83,12 +83,9 @@ export function DashboardView({
                 {lbl:"Finalizados",val:dashEvents.filter(e=>e.state==="past").length,           clr:"#6b7280"},
                 {lbl:"Reuniones", val:dashEvents.reduce((s,e)=>{return s+(e.roadshow?.meetings||e.meetings||[]).length;},0), clr:"#1e5ab0"},
               ].map(({lbl,val,clr},i)=>(
-                <div key={lbl} style={{flex:1,padding:"20px 12px",borderRight:"1px solid #f0f3f8",textAlign:"center",transition:"background .15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="#f9fafb";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="";}}
-                >
-                  <div style={{fontSize:28,fontWeight:700,color:clr,fontFamily:"Playfair Display,serif",lineHeight:1,marginBottom:6}}>{val}</div>
-                  <div style={{fontSize:8.5,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>{lbl}</div>
+                <div key={lbl} className="dash-kpi">
+                  <div className="dash-kpi-val" style={{color:clr}}>{val}</div>
+                  <div className="dash-kpi-lbl">{lbl}</div>
                 </div>
               ))}
             </div>
