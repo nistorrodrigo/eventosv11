@@ -2653,7 +2653,7 @@ Daily Summary — ${dayLabel}
 
       {tab==="roadshow"&&<TabErrorBoundary name="Roadshow Inbound"><RoadshowInboundTab
         roadshow={roadshow} saveRoadshow={saveRoadshow}
-        config={config} events={events} globalDB={globalDB}
+        config={config} events={events} globalDB={globalDB} saveGlobalDB={saveGlobalDB}
         rsSubTab={rsSubTab} setRsSubTab={setRsSubTab}
         rsDayFilter={rsDayFilter} setRsDayFilter={setRsDayFilter}
         kioskMode={kioskMode} setKioskMode={setKioskMode}

@@ -18,7 +18,7 @@ let _XLSX_TAB=null;
 async function getXLSX(){if(!_XLSX_TAB)_XLSX_TAB=await import("xlsx");return _XLSX_TAB;}
 
 export function RoadshowInboundTab({
-  roadshow, saveRoadshow, config, events, globalDB,
+  roadshow, saveRoadshow, config, events, globalDB, saveGlobalDB,
   rsSubTab, setRsSubTab, rsDayFilter, setRsDayFilter,
   kioskMode, setKioskMode, kioskIdx, setKioskIdx,
   kioskFb, setKioskFb, kioskFbData, setKioskFbData,
@@ -45,7 +45,10 @@ export function RoadshowInboundTab({
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
         const [agendaView,setAgendaView]=useState("table"); // "table" | "calendar"
-        const [waBulkModal,setWaBulkModal]=useState(null); // { date, items:[{contact,company,meeting,message,waUrl}] }
+        const [waBulkModal,setWaBulkModal]=useState(null);
+        const [libPicker,setLibPicker]=useState(false); // library company picker modal
+        const [libSelected,setLibSelected]=useState(new Set()); // selected company IDs
+        const [libSearch,setLibSearch]=useState(""); // { date, items:[{contact,company,meeting,message,waUrl}] }
         const [bookings,setBookings]=useState([]);
         const [bookingsLoading,setBookingsLoading]=useState(false);
         const [pendingCount,setPendingCount]=useState(0);
@@ -750,41 +753,24 @@ export function RoadshowInboundTab({
                 <button className="btn bg bs" style={{fontSize:10,gap:4}} onClick={()=>{
                   const dbCos=(globalDB.companies||[]);
                   if(!dbCos.length){toast("La Librería no tiene empresas. Agregá empresas en la tab 📚 Librería primero.");return;}
-                  // Import all from library, skip duplicates by name
-                  // Map library contact to roadshow contact format
-                  const mapContact=ct=>({
-                    id:ct.id||`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                    name:ct.name||"",title:ct.title||ct.role||"",
-                    email:ct.email||"",phone:ct.phone||""
-                  });
-                  let added=0,updated=0;
-                  const updatedCos=(roadshow.companies||[]).map(rc=>{
-                    // Find matching library company by name (case-insensitive)
-                    const lib=dbCos.find(c=>c.name.toLowerCase()===rc.name.toLowerCase());
-                    if(!lib) return rc;
-                    // Update hqAddress and contacts from library (only if library has data)
-                    const newHq=lib.hqAddress||rc.hqAddress||"";
-                    const newContacts=(lib.contacts||[]).length?(lib.contacts||[]).map(mapContact):(rc.contacts||[]);
-                    if(newHq!==rc.hqAddress||(lib.contacts||[]).length>0) updated++;
-                    return{...rc,hqAddress:newHq,contacts:newContacts,
-                      ticker:lib.ticker||rc.ticker,sector:lib.sector||rc.sector};
-                  });
-                  // Add companies from library that don't exist in roadshow yet
+                  // Pre-select companies not already in roadshow
                   const existingNames=new Set((roadshow.companies||[]).map(c=>c.name.toLowerCase()));
-                  const toAdd=dbCos.filter(c=>!existingNames.has(c.name.toLowerCase())).map(c=>{
-                    added++;
-                    return{id:c.id||`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                      name:c.name,ticker:c.ticker||"",sector:c.sector||"Custom",
-                      location:"ls_office",contacts:(c.contacts||[]).map(mapContact),
-                      hqAddress:c.hqAddress||"",notes:c.notes||"",active:true};
+                  setLibSelected(new Set(dbCos.filter(c=>!existingNames.has(c.name.toLowerCase())).map(c=>c.id)));
+                  setLibSearch("");setLibPicker(true);
+                }}>📚 Importar de Librería</button>
+                <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>{
+                  const rsCos=(roadshow.companies||[]).filter(c=>c.name);
+                  if(!rsCos.length){toast("No hay empresas para sincronizar.");return;}
+                  const dbCos=[...(globalDB.companies||[])];
+                  let added=0,updated=0;
+                  rsCos.forEach(rc=>{
+                    const existing=dbCos.findIndex(c=>c.name.toLowerCase()===rc.name.toLowerCase());
+                    const libCo={id:existing>=0?dbCos[existing].id:`dbc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:rc.name,ticker:rc.ticker||"",sector:rc.sector||"",hqAddress:rc.hqAddress||"",contacts:(rc.contacts||[]).map(ct=>({id:ct.id,name:ct.name||"",title:ct.title||"",email:ct.email||"",phone:ct.phone||""})),notes:rc.notes||""};
+                    if(existing>=0){dbCos[existing]=libCo;updated++;}else{dbCos.push(libCo);added++;}
                   });
-                  if(!updated&&!toAdd.length){toast("No hay datos nuevos en la Librería para importar.");return;}
-                  saveRoadshow({...roadshow,companies:[...updatedCos,...toAdd]});
-                  const parts=[];
-                  if(updated) parts.push(`${updated} empresa(s) actualizadas con datos de la Librería`);
-                  if(added) parts.push(`${added} empresa(s) nuevas agregadas`);
-                  toastOk("✅ "+parts.join(" · "));
-                }}>📚 Importar desde Librería</button>
+                  saveGlobalDB({...globalDB,companies:dbCos});
+                  toastOk(`✅ Librería actualizada: ${added} nuevas, ${updated} actualizadas`);
+                }}>↑ Sync a Librería</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:true}))})}>Activar todas</button>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>saveRoadshow({...roadshow,companies:(roadshow.companies||[]).map(c=>({...c,active:false}))})}>Desactivar todas</button>
                 <button className="btn bo bs" style={{fontSize:10,gap:4}} onClick={()=>rsExcelRef.current?.click()}>📥 Importar Excel</button>
@@ -1452,6 +1438,64 @@ export function RoadshowInboundTab({
             onClose={()=>{setKioskMode(false);setKioskFb(false);}}
             onSaveMtg={saveMtg}
           />}
+
+          {/* ── Library Picker Modal ──────────────────────────────── */}
+          {libPicker&&(
+            <div className="overlay" role="dialog" aria-modal="true" aria-label="Importar empresas de Librería" onClick={e=>{if(e.target===e.currentTarget)setLibPicker(false);}} onKeyDown={e=>{if(e.key==="Escape")setLibPicker(false);}}>
+              <FocusTrap><div className="modal" style={{maxWidth:560,width:"95%",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+                <div className="modal-hdr" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div className="modal-title">📚 Importar empresas de la Librería</div>
+                  <div style={{fontSize:11,color:"var(--dim)"}}>{libSelected.size} seleccionadas</div>
+                </div>
+                <div style={{padding:"8px 20px",borderBottom:"1px solid rgba(30,90,176,.08)"}}>
+                  <input className="inp" placeholder="Buscar empresa..." value={libSearch} onChange={e=>setLibSearch(e.target.value)} autoFocus style={{fontSize:13}}/>
+                </div>
+                <div className="modal-body" style={{overflowY:"auto",flex:1,padding:"10px 20px"}}>
+                  <div style={{display:"flex",gap:6,marginBottom:10}}>
+                    <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setLibSelected(new Set((globalDB.companies||[]).map(c=>c.id)))}>Todas</button>
+                    <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setLibSelected(new Set())}>Ninguna</button>
+                    <button className="btn bo bs" style={{fontSize:9}} onClick={()=>{const existing=new Set((roadshow.companies||[]).map(c=>c.name.toLowerCase()));setLibSelected(new Set((globalDB.companies||[]).filter(c=>!existing.has(c.name.toLowerCase())).map(c=>c.id)));}}>Solo nuevas</button>
+                  </div>
+                  {(globalDB.companies||[]).filter(c=>{if(!libSearch)return true;const q=libSearch.toLowerCase();return c.name.toLowerCase().includes(q)||c.ticker?.toLowerCase().includes(q)||c.sector?.toLowerCase().includes(q);}).map(c=>{
+                    const existsInRs=(roadshow.companies||[]).some(rc=>rc.name.toLowerCase()===c.name.toLowerCase());
+                    return(
+                      <label key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderBottom:"1px solid #f3f5f9",cursor:"pointer",background:libSelected.has(c.id)?"rgba(30,90,176,.04)":"transparent",borderRadius:6,marginBottom:2}}>
+                        <input type="checkbox" checked={libSelected.has(c.id)} onChange={()=>{const s=new Set(libSelected);s.has(c.id)?s.delete(c.id):s.add(c.id);setLibSelected(s);}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{fontWeight:700,color:"#000039",fontSize:12}}>{c.name}</span>
+                            {c.ticker&&<span style={{fontSize:9,color:"#1e5ab0",fontFamily:"IBM Plex Mono,monospace",background:"rgba(30,90,176,.08)",padding:"1px 5px",borderRadius:3}}>{c.ticker}</span>}
+                            {c.sector&&<span style={{fontSize:9,color:"var(--dim)"}}>{c.sector}</span>}
+                            {existsInRs&&<span style={{fontSize:8,color:"#166534",background:"#dcfce7",padding:"1px 5px",borderRadius:3}}>ya en roadshow</span>}
+                          </div>
+                          {(c.contacts||[]).length>0&&<div style={{fontSize:10,color:"var(--dim)",marginTop:2}}>{c.contacts.map(ct=>ct.name).filter(Boolean).join(", ")||"Sin contactos"} · {c.hqAddress||"Sin dirección"}</div>}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="modal-footer" style={{gap:8}}>
+                  <button className="btn bo bs" onClick={()=>setLibPicker(false)}>Cancelar</button>
+                  <button className="btn bg bs" disabled={!libSelected.size} onClick={()=>{
+                    const mapContact=ct=>({id:ct.id||`rep_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:ct.name||"",title:ct.title||ct.role||"",email:ct.email||"",phone:ct.phone||""});
+                    const existingNames=new Set((roadshow.companies||[]).map(c=>c.name.toLowerCase()));
+                    const dbCos=(globalDB.companies||[]).filter(c=>libSelected.has(c.id));
+                    let added=0,updated=0;
+                    const updatedCos=(roadshow.companies||[]).map(rc=>{
+                      const lib=dbCos.find(c=>c.name.toLowerCase()===rc.name.toLowerCase());
+                      if(!lib)return rc;
+                      updated++;
+                      return{...rc,hqAddress:lib.hqAddress||rc.hqAddress,contacts:(lib.contacts||[]).length?(lib.contacts||[]).map(mapContact):(rc.contacts||[]),ticker:lib.ticker||rc.ticker,sector:lib.sector||rc.sector};
+                    });
+                    const toAdd=dbCos.filter(c=>!existingNames.has(c.name.toLowerCase())).map(c=>{added++;return{id:`rc_${Date.now()}_${Math.random().toString(36).slice(2)}`,name:c.name,ticker:c.ticker||"",sector:c.sector||"Custom",location:"ls_office",contacts:(c.contacts||[]).map(mapContact),hqAddress:c.hqAddress||"",notes:c.notes||"",active:true};});
+                    saveRoadshow({...roadshow,companies:[...updatedCos,...toAdd]});
+                    const parts=[];if(added)parts.push(`${added} nuevas`);if(updated)parts.push(`${updated} actualizadas`);
+                    toastOk("✅ "+parts.join(" · "));setLibPicker(false);
+                  }}>📚 Importar {libSelected.size} empresa{libSelected.size!==1?"s":""}</button>
+                </div>
+              </div></FocusTrap>
+            </div>
+          )}
 
           {/* ── WhatsApp Bulk Modal ─────────────────────────────── */}
           {waBulkModal&&(
