@@ -337,10 +337,26 @@ export default function App(){
     if(!authUser){toast("Necesitás estar logueado para publicar slots.");return;}
     if(!roadshow?.trip?.arrivalDate||!roadshow?.trip?.departureDate){toast("Configurá las fechas del viaje primero.");return;}
     const trip=roadshow.trip;
-    const busyMtgs=new Set((roadshow.meetings||[]).map(m=>`${m.date}-${m.hour}`));
+    // Block meeting slots + duration + 30 min travel buffer
+    const dur=trip.meetingDuration||60;
+    const travelBuffer=30; // minutes for travel between meetings
+    const busyMtgs=new Set();
+    (roadshow.meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{
+      const totalBlockMin=dur+travelBuffer;
+      // Block every 30-min slot from meeting start to meeting end + travel buffer
+      for(let offset=0;offset<totalBlockMin;offset+=30){
+        busyMtgs.add(`${m.date}-${m.hour+offset/60}`);
+      }
+    });
     // Also exclude existing pending/approved bookings
     const {data:existingBookings}=await supabase.from("roadshow_bookings").select("slot_date,slot_hour").eq("event_id",activeEv).in("status",["pending","approved"]);
-    const busyBookings=new Set((existingBookings||[]).map(b=>`${b.slot_date}-${b.slot_hour}`));
+    const busyBookings=new Set();
+    (existingBookings||[]).forEach(b=>{
+      const totalBlockMin=dur+travelBuffer;
+      for(let offset=0;offset<totalBlockMin;offset+=30){
+        busyBookings.add(`${b.slot_date}-${b.slot_hour+offset/60}`);
+      }
+    });
     const workDays=[];
     const s=new Date(trip.arrivalDate+"T12:00:00"),e=new Date(trip.departureDate+"T12:00:00");
     for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6)workDays.push(d.toISOString().slice(0,10));}
