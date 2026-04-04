@@ -1,11 +1,14 @@
-// ── parsers.js — File parsing logic extracted from App.jsx ────────
+// ── parsers.ts — File parsing logic extracted from App.jsx ────────
 import {
   normalizeFundName, normalizeFund, normalizePosition, normalizeAUM,
   capitalizeName, parseAvail, resolveCo, buildFundAliasMap
 } from "../constants.jsx";
 
+type XLSX_Module = any; // Full XLSX typing is complex — use any for now
+type CompanyMap = Map<string, any>;
+
 // Parse investor Excel file → returns {investors, fundGrouping, fundSimilarities}
-export function parseInvestorFile(arrayBuffer, XLSX, config){
+export function parseInvestorFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module, config: any){
   const wb=XLSX.read(arrayBuffer,{type:"array"});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1});
@@ -33,7 +36,7 @@ export function parseInvestorFile(arrayBuffer, XLSX, config){
 }
 
 // Parse previous year investor file → returns {fileName, total, missing}
-export function parsePrevYearFile(arrayBuffer, XLSX, currentInvestors, fileName){
+export function parsePrevYearFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module, currentInvestors: any[], fileName: string){
   const wb=XLSX.read(arrayBuffer,{type:"array"});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1});
@@ -58,7 +61,7 @@ export function parsePrevYearFile(arrayBuffer, XLSX, currentInvestors, fileName)
 }
 
 // Parse historical investor file for a given year → returns {year, fileName, investors}
-export function parseHistoricalInvestorFile(arrayBuffer, XLSX, year, fileName){
+export function parseHistoricalInvestorFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module, year: string, fileName: string){
   const wb=XLSX.read(arrayBuffer,{type:"array"});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1});
@@ -79,7 +82,7 @@ export function parseHistoricalInvestorFile(arrayBuffer, XLSX, year, fileName){
 }
 
 // Parse roadshow companies Excel → returns array of company objects
-export function parseRoadshowCompaniesFile(arrayBuffer, XLSX){
+export function parseRoadshowCompaniesFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module){
   const wb=XLSX.read(arrayBuffer,{type:"array"});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
@@ -98,7 +101,7 @@ export function parseRoadshowCompaniesFile(arrayBuffer, XLSX){
 }
 
 // Parse global DB companies Excel → returns array of company objects with contacts
-export function parseDBCompaniesFile(arrayBuffer, XLSX){
+export function parseDBCompaniesFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module){
   const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
   if(rows.length<2) return null;
@@ -119,7 +122,7 @@ export function parseDBCompaniesFile(arrayBuffer, XLSX){
 }
 
 // Parse global DB investors Excel → returns array of investor objects
-export function parseDBInvestorsFile(arrayBuffer, XLSX){
+export function parseDBInvestorsFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module){
   const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
   if(rows.length<2) return null;
@@ -136,7 +139,7 @@ export function parseDBInvestorsFile(arrayBuffer, XLSX){
 }
 
 // Parse investor email text → returns {patchTrip, matchedCos}
-export function parseInvestorEmail(text, knownCompanies, existingRsCompanies){
+export function parseInvestorEmail(text: string, knownCompanies: any[], existingRsCompanies: any[]){
   const dateRe=/\b(\d{1,2})[\s/\-](\w+)[\s/\-,]+(\d{4})/g;
   const monthMap={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,jan:1,feb:2,mar:3,apr:4,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
   const dates=[];let m;
@@ -164,7 +167,7 @@ export function parseInvestorEmail(text, knownCompanies, existingRsCompanies){
 }
 
 // Parse roadshow meetings Excel → returns {meetings, skipped}
-export function parseRoadshowMeetingsFile(arrayBuffer, XLSX, companyMap){
+export function parseRoadshowMeetingsFile(arrayBuffer: ArrayBuffer, XLSX: XLSX_Module, companyMap: CompanyMap){
   const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
   const COL_KEYS=["fecha","date","hora","hour","time","compañ","company","empresa","tipo","type","direc","location","lugar","estado","status","notas","notes"];

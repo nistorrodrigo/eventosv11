@@ -2,12 +2,12 @@
 import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
-import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
-import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.js";
+import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.ts";
+import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
-import { supabaseRetry } from "./src/utils/retry.js";
+import { supabaseRetry } from "./src/utils/retry.ts";
 // Lucide icons removed — caused "sr is not a constructor" in production build
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
@@ -247,7 +247,7 @@ export default function App(){
   }
 
   // ── File parse ───────────────────────────────────────────────
-  // handleFile → parsing logic in src/utils/parsers.js
+  // handleFile → parsing logic in src/utils/parsers.ts
   const handleFile=useCallback(e=>{
     const file=e.target.files?.[0]; if(!file) return;
     setFileName(file.name);
@@ -262,7 +262,7 @@ export default function App(){
   },[config.hours,activeEv]);
 
   // ── Previous year comparison ────────────────────────────────
-  // handlePrevYear → parsing logic in src/utils/parsers.js
+  // handlePrevYear → parsing logic in src/utils/parsers.ts
   const handlePrevYear = useCallback(e=>{
     const file=e.target.files?.[0]; if(!file) return;
     const reader=new FileReader();
@@ -275,7 +275,7 @@ export default function App(){
   },[investors]);
 
   // ── Historical multi-year parser ─────────────────────────────
-  // parseHistoricalFile → parsing logic in src/utils/parsers.js
+  // parseHistoricalFile → parsing logic in src/utils/parsers.ts
   const parseHistoricalFile = useCallback((file, year) => {
     const reader = new FileReader();
     reader.onload = ev => {
@@ -306,9 +306,9 @@ export default function App(){
   // ── Export ───────────────────────────────────────────────────
   // openPrint → moved to src/storage.jsx
 
-  // exportHistoricalHTML → moved to src/utils/exporters.js
+  // exportHistoricalHTML → moved to src/utils/exporters.ts
 
-  // exportExcel → moved to src/utils/exporters.js
+  // exportExcel → moved to src/utils/exporters.ts
   function exportExcel(){ _exportExcel({XLSX:_XLSX, meetings, investors, companies, config, coById, invById, DEFAULT_DAYS, downloadBlob}); }
 
   function exportInvestor(inv,format){
@@ -326,7 +326,7 @@ export default function App(){
     if(currentEvent?._shared&&currentEvent?._sharedRole==="viewer"){toast("Solo podés ver este evento (acceso viewer).");return;}
     setRoadshow(rs);saveCurrentEvent({roadshow:rs});
   }
-  // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.js
+  // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.ts
   function exportRoadshowSummary(){ _exportRoadshowSummary({roadshow, openPrint}); }
   function exportPostRoadshowReport(){ _exportPostRoadshowReport({roadshow, openPrint}); }
   function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
@@ -400,10 +400,10 @@ export default function App(){
     toast(`✅ ${newSlots.length} horarios publicados.\n\nLink copiado al portapapeles:\n${url}`);
   }
 
-  // exportDriverItinerary → moved to src/utils/exporters.js
+  // exportDriverItinerary → moved to src/utils/exporters.ts
   function exportDriverItinerary(filterDate){ _exportDriverItinerary({filterDate, roadshow, travelCache, tripDays, config, openPrint, toast}); }
   function exportRoadshowWord(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const fn=`Roadshow_${(roadshow.trip.fund||roadshow.trip.clientName||"BA").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;downloadBlob(fn,buildWordHTML(e.name,e.sub,e.sections,{...config,eventTitle:roadshow.trip.fund||"Buenos Aires Roadshow"}),"application/msword");}
-  // handleRsExcel → parsing in src/utils/parsers.js
+  // handleRsExcel → parsing in src/utils/parsers.ts
   function handleRsExcel(e){
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
@@ -416,12 +416,12 @@ export default function App(){
     }catch(err){toastErr("Error: "+err.message);}};
     reader.readAsArrayBuffer(file);e.target.value="";
   }
-  // handleRsEmailParse → parsing in src/utils/parsers.js (now uses dynamic globalDB companies)
+  // handleRsEmailParse → parsing in src/utils/parsers.ts (now uses dynamic globalDB companies)
   function handleRsEmailParse(text){
     const knownCos=[...(globalDB.companies||[]),...(roadshow.companies||[])];
     return parseInvestorEmail(text,knownCos,roadshow.companies);
   }
-  // handleRsMeetingsExcel → parsing in src/utils/parsers.js
+  // handleRsMeetingsExcel → parsing in src/utils/parsers.ts
   function handleRsMeetingsExcel(e){
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
@@ -446,7 +446,7 @@ export default function App(){
     reader.readAsArrayBuffer(file);e.target.value="";
   }
   // ─── Global DB: Excel import ──────────────────────────────────────
-  // handleDBCompaniesExcel → parsing in src/utils/parsers.js
+  // handleDBCompaniesExcel → parsing in src/utils/parsers.ts
   function handleDBCompaniesExcel(e){
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
@@ -463,7 +463,7 @@ export default function App(){
     }catch(err){toastErr("Error: "+err.message);}};
     reader.readAsArrayBuffer(file);e.target.value="";
   }
-  // handleDBInvestorsExcel → parsing in src/utils/parsers.js
+  // handleDBInvestorsExcel → parsing in src/utils/parsers.ts
   function handleDBInvestorsExcel(e){
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();

@@ -1364,11 +1364,11 @@ export function RoadshowInboundTab({
                     <button className="btn bo bs" style={{fontSize:8}} onClick={exportPostRoadshowReport}>🖨 Imprimir/PDF</button>
                     <button className="btn bo bs" style={{fontSize:8}} onClick={()=>{
                       // Generate same HTML and download as .doc
-                      const {_exportPostRoadshowReport}=require("../../src/utils/exporters.js");
+                      const {_exportPostRoadshowReport}=require("../../src/utils/exporters.ts");
                       // Simpler: call openPrint but with downloadBlob instead
                       const fn=`PostRoadshow_${(roadshow.trip.fund||"Report").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;
                       // We need the HTML - regenerate it
-                      import("../../src/utils/exporters.js").then(mod=>{
+                      import("../../src/utils/exporters.ts").then(mod=>{
                         // Use a trick: temporarily override openPrint to capture HTML
                         mod._exportPostRoadshowReport({roadshow,openPrint:html=>{
                           const blob=new Blob([html],{type:"application/msword"});
