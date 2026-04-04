@@ -871,9 +871,36 @@ Daily Summary — ${dayLabel}
 
     // Load from cloud when auth user changes (auth state managed by AuthContext)
     const [cloudLoaded,setCloudLoaded]=useState(false);
+    const [syncStatus,setSyncStatus]=useState("idle"); // "idle"|"syncing"|"synced"|"offline"
+    const _lastSaveId=useRef(""); // track last save to avoid realtime echo
     useEffect(()=>{
       if(authUser&&!cloudLoaded){loadFromCloud(authUser.id);setCloudLoaded(true);}
     },[authUser]);// eslint-disable-line
+
+    // Supabase Realtime: sync changes from other devices
+    useEffect(()=>{
+      if(!authUser) return;
+      const channel=supabase.channel("ls_events_sync")
+        .on("postgres_changes",{event:"*",schema:"public",table:"ls_events",filter:`user_id=eq.${authUser.id}`},payload=>{
+          if(payload.eventType==="UPDATE"||payload.eventType==="INSERT"){
+            const r=payload.new;
+            // Skip if this is our own save (avoid echo)
+            if(_lastSaveId.current===r.id+"-"+JSON.stringify(r.data).length) return;
+            const updated={id:r.id,name:r.name,kind:r.kind,...r.data};
+            setEvents(prev=>{
+              const exists=prev.find(e=>e.id===r.id);
+              const next=exists?prev.map(e=>e.id===r.id?updated:e):[...prev,updated];
+              saveEvents(next);
+              return next;
+            });
+            setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
+          } else if(payload.eventType==="DELETE"){
+            setEvents(prev=>{const next=prev.filter(e=>e.id!==payload.old.id);saveEvents(next);return next;});
+          }
+        })
+        .subscribe();
+      return()=>{supabase.removeChannel(channel);};
+    },[authUser]);
 
   async function loadFromCloud(userId){
     // Load events
@@ -900,7 +927,10 @@ Daily Summary — ${dayLabel}
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
+    _lastSaveId.current=id+"-"+JSON.stringify(data).length; // mark to skip realtime echo
+    setSyncStatus("syncing");
     await supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id});
+    setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
   }
   async function cloudDeleteEvent(evId){
     if(!authUser) return;
@@ -1207,6 +1237,9 @@ Daily Summary — ${dayLabel}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
+        {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando en la nube...":"Sincronizado"}>
+          {syncStatus==="syncing"?"⟳ Sync...":"✓ Synced"}
+        </span>}
         {pwaPrompt&&!pwaInstalled&&(
           <button className="btn bs" title="Instalar como app"
             style={{fontSize:9,padding:"2px 8px",background:"#1e5ab0",color:"#fff",border:"none",gap:4,cursor:"pointer",borderRadius:4}}
