@@ -279,7 +279,7 @@ export function RoadshowInboundTab({
                                 items.push({contact:r,company:co,meeting:m,message:msg,waUrl:"https://wa.me/"+digits+"?text="+encodeURIComponent(msg)});
                               });
                             });
-                            if(items.length===0){alert("No hay contactos con teléfono cargado para este día.");return;}
+                            if(items.length===0){setWaBulkModal({date:rsDayFilter,dateLabel:dayLabel,items:[],empty:true});return;}
                             setWaBulkModal({date:rsDayFilter,dateLabel:dayLabel,items});
                           }}>💬 WhatsApp Bulk</button>
                         </div>
@@ -1220,9 +1220,12 @@ export function RoadshowInboundTab({
                   <button className="modal-x" onClick={()=>setWaBulkModal(null)}>✕</button>
                 </div>
                 <div className="modal-body" style={{overflowY:"auto",flex:1}}>
-                  <p style={{fontSize:11,color:"var(--dim)",marginBottom:12}}>
+                  {waBulkModal.empty&&<p style={{fontSize:12,color:"#b91c1c",marginBottom:12,textAlign:"center",padding:"20px 0"}}>
+                    No hay contactos con teléfono cargado para este día.<br/><span style={{fontSize:10,color:"var(--dim)"}}>Agregá números de teléfono en la pestaña Empresas.</span>
+                  </p>}
+                  {!waBulkModal.empty&&<p style={{fontSize:11,color:"var(--dim)",marginBottom:12}}>
                     {waBulkModal.items.length} mensaje{waBulkModal.items.length!==1?"s":""} · Hacé click en cada link para abrir WhatsApp con el mensaje pre-cargado.
-                  </p>
+                  </p>}
                   {waBulkModal.items.map((item,i)=>(
                     <div key={i} style={{marginBottom:12,background:"var(--ink3,#f9fafb)",borderRadius:8,border:"1px solid rgba(0,0,57,.06)",overflow:"hidden"}}>
                       <div style={{padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid rgba(0,0,57,.06)"}}>
@@ -1239,10 +1242,10 @@ export function RoadshowInboundTab({
                   ))}
                 </div>
                 <div className="modal-footer" style={{gap:7,borderTop:"1px solid rgba(0,0,57,.08)",padding:"10px 18px"}}>
-                  <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
+                  {waBulkModal.items.length>0&&<button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
                     const all=waBulkModal.items.map(it=>`▸ ${it.company.name} — ${it.contact.name}\n${it.message}`).join("\n\n─────────────────\n\n");
-                    navigator.clipboard.writeText(all).then(()=>alert("Todos los mensajes copiados al portapapeles."));
-                  }}>📋 Copiar todos</button>
+                    navigator.clipboard.writeText(all);
+                  }}>📋 Copiar todos</button>}
                   <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setWaBulkModal(null)}>Cerrar</button>
                 </div>
               </div>
