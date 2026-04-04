@@ -7,6 +7,7 @@ import { FocusTrap } from "../components/FocusTrap.jsx";
 import { useEvent } from "../contexts/EventContext.jsx";
 import { WeekCalendar } from "../components/WeekCalendar.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { Calendar, Inbox, User, Building2, Map, Wallet, Mail, FileText, Clock, ICON_SM } from "../components/Icons.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -206,8 +207,8 @@ export function RoadshowInboundTab({
 
           {/* Sub-tabs */}
           <div className="rs-subtabs" style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-            {[["schedule","📅 Agenda"],["bookings",`📬 Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["expenses","💰 Gastos"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
-              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative",flexShrink:0}} onClick={()=>setRsSubTab(id)}>{lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
+            {[["schedule",Calendar,"Agenda"],["bookings",Inbox,`Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor",User,"Inversor"],["companies",Building2,"Empresas"],["travel",Map,"Recorrido"],["expenses",Wallet,"Gastos"],["emails",Mail,"Emails"],["export",FileText,"Exportar"],["activitylog",Clock,"Historial"]].map(([id,Icon,lbl])=>(
+              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative",flexShrink:0}} onClick={()=>setRsSubTab(id)}><Icon size={ICON_SM}/> {lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
             ))}
             <div className="rs-subtabs-stats" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4,flexShrink:0}}>
               <span style={{fontSize:10,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace"}}>{confirmed} ✓</span>

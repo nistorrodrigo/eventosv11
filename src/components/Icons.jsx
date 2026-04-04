@@ -26,6 +26,9 @@ export {
   Check,
   X,
 
+  Inbox,
+  User,
+
   // Status
   CheckCircle2,
   AlertCircle,
