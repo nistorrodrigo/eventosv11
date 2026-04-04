@@ -36,6 +36,7 @@ export function RoadshowInboundTab({
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
+        const [waBulkModal,setWaBulkModal]=useState(null); // { date, items:[{contact,company,meeting,message,waUrl}] }
         // Helper to patch a company field inline (used in meeting modal)
         window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
@@ -256,6 +257,33 @@ export function RoadshowInboundTab({
                           <div style={{fontSize:9,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>reuniones</div>
                         </div>
                       </div>
+                      {dayMtgs.length>0&&(
+                        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                          <button className="btn bo bs" style={{fontSize:9,gap:4,display:"inline-flex",alignItems:"center"}} onClick={()=>{
+                            const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" y ");
+                            const fund=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
+                            const dayLabel=dayDate.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+                            const items=[];
+                            dayMtgs.forEach(m=>{
+                              const co=m.type==="company"?rsCoById.get(m.companyId):null;
+                              if(!co) return;
+                              const allC=co.contacts||[];
+                              const selIds=m.attendeeIds||[];
+                              const reps=(selIds.length?allC.filter(c=>selIds.includes(c.id)):allC).filter(c=>c.name);
+                              const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co.hqAddress||co.name+" HQ"):(m.locationCustom||"A confirmar");
+                              reps.forEach(r=>{
+                                if(!r.phone) return;
+                                const firstName=r.name.split(" ")[0];
+                                const msg=`Hola ${firstName}, buen día 👋\n\nTe escribo para confirmar la reunión de mañana:\n\n📅 *${co.name}*\n🗓 ${dayLabel}\n🕐 ${fmtH(m.hour)} hs\n📍 ${locStr}\n👤 ${visitors||fund}\n\n¿Nos confirmás asistencia?\n\nSaludos,\n${lsCont.name||fund}`;
+                                const digits=r.phone.replace(/[^\d]/g,"");
+                                items.push({contact:r,company:co,meeting:m,message:msg,waUrl:"https://wa.me/"+digits+"?text="+encodeURIComponent(msg)});
+                              });
+                            });
+                            if(items.length===0){alert("No hay contactos con teléfono cargado para este día.");return;}
+                            setWaBulkModal({date:rsDayFilter,dateLabel:dayLabel,items});
+                          }}>💬 WhatsApp Bulk</button>
+                        </div>
+                      )}
                       {dayMtgs.length===0?(<div style={{textAlign:"center",padding:"28px 20px",color:"var(--dim)",fontSize:12}}>Sin reuniones este día</div>):(
                         <div style={{display:"flex",flexDirection:"column",gap:8}}>
                           {dayMtgs.map((m)=>{
@@ -1181,6 +1209,45 @@ export function RoadshowInboundTab({
             onClose={()=>{setKioskMode(false);setKioskFb(false);}}
             onSaveMtg={saveMtg}
           />}
+
+          {/* ── WhatsApp Bulk Modal ─────────────────────────────── */}
+          {waBulkModal&&(
+            <div className="overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
+              onClick={e=>{if(e.target===e.currentTarget)setWaBulkModal(null);}}>
+              <div className="modal" style={{maxWidth:560,width:"95%",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+                <div className="modal-hdr">
+                  <div className="modal-title">💬 WhatsApp Bulk — {waBulkModal.dateLabel}</div>
+                  <button className="modal-x" onClick={()=>setWaBulkModal(null)}>✕</button>
+                </div>
+                <div className="modal-body" style={{overflowY:"auto",flex:1}}>
+                  <p style={{fontSize:11,color:"var(--dim)",marginBottom:12}}>
+                    {waBulkModal.items.length} mensaje{waBulkModal.items.length!==1?"s":""} · Hacé click en cada link para abrir WhatsApp con el mensaje pre-cargado.
+                  </p>
+                  {waBulkModal.items.map((item,i)=>(
+                    <div key={i} style={{marginBottom:12,background:"var(--ink3,#f9fafb)",borderRadius:8,border:"1px solid rgba(0,0,57,.06)",overflow:"hidden"}}>
+                      <div style={{padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid rgba(0,0,57,.06)"}}>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#000039"}}>{item.contact.name}</div>
+                          <div style={{fontSize:10,color:"#6b7280"}}>{item.company.name}{item.contact.title?" · "+item.contact.title:""}</div>
+                        </div>
+                        <a href={item.waUrl} target="_blank" rel="noopener noreferrer"
+                          style={{display:"inline-flex",alignItems:"center",gap:5,padding:"6px 14px",borderRadius:8,background:"#25d366",color:"#fff",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap"}}
+                          >💬 Enviar</a>
+                      </div>
+                      <pre style={{fontFamily:"inherit",fontSize:10,whiteSpace:"pre-wrap",margin:0,padding:"10px 14px",color:"#374151",lineHeight:1.6}}>{item.message}</pre>
+                    </div>
+                  ))}
+                </div>
+                <div className="modal-footer" style={{gap:7,borderTop:"1px solid rgba(0,0,57,.08)",padding:"10px 18px"}}>
+                  <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
+                    const all=waBulkModal.items.map(it=>`▸ ${it.company.name} — ${it.contact.name}\n${it.message}`).join("\n\n─────────────────\n\n");
+                    navigator.clipboard.writeText(all).then(()=>alert("Todos los mensajes copiados al portapapeles."));
+                  }}>📋 Copiar todos</button>
+                  <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setWaBulkModal(null)}>Cerrar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         );
 }
