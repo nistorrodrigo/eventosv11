@@ -1,15 +1,15 @@
 /* LS Event Manager — modular build 2026 */
 import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabase.js";
-import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
+import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.tsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.ts";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
-import { FocusTrap } from "./src/components/FocusTrap.jsx";
-import { useAuth } from "./src/contexts/AuthContext.jsx";
-import { EventProvider } from "./src/contexts/EventContext.jsx";
+import { FocusTrap } from "./src/components/FocusTrap.tsx";
+import { useAuth } from "./src/contexts/AuthContext.tsx";
+import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
 // Lucide icons removed — caused "sr is not a constructor" in production build
-import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
+import { TabErrorBoundary } from "./src/components/TabErrorBoundary.tsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
 async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}

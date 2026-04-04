@@ -1,13 +1,13 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../supabase.js";
-import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
-import { SkeletonCard } from "../components/Skeleton.jsx";
-import { FocusTrap } from "../components/FocusTrap.jsx";
-import { useEvent } from "../contexts/EventContext.jsx";
-import { WeekCalendar } from "../components/WeekCalendar.jsx";
-import { EmptyState } from "../components/EmptyState.jsx";
-import { KanbanBoard } from "../components/KanbanBoard.jsx";
+import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.tsx";
+import { SkeletonCard } from "../components/Skeleton.tsx";
+import { FocusTrap } from "../components/FocusTrap.tsx";
+import { useEvent } from "../contexts/EventContext.tsx";
+import { WeekCalendar } from "../components/WeekCalendar.tsx";
+import { EmptyState } from "../components/EmptyState.tsx";
+import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";

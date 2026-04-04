@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { downloadBlob, saveEvents } from "../storage.jsx";
 import { CSS } from "../styles.js";
-import { useAuth } from "../contexts/AuthContext.jsx";
+import { useAuth } from "../contexts/AuthContext.tsx";
 
 export function DashboardView({
   events, dashEvents, setEvents, saveEvents,

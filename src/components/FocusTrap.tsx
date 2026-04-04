@@ -1,23 +1,22 @@
-// ── FocusTrap.jsx — Traps keyboard focus inside modals for a11y ──
-import { useEffect, useRef } from "react";
+// ── FocusTrap.tsx — Traps keyboard focus inside modals for a11y ──
+import { useEffect, useRef, ReactNode } from "react";
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function FocusTrap({ children, active = true }) {
-  const ref = useRef(null);
+export function FocusTrap({ children, active = true }: { children: ReactNode; active?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!active || !ref.current) return;
     const el = ref.current;
-    const prev = document.activeElement;
+    const prev = document.activeElement as HTMLElement | null;
 
-    // Focus first focusable element
-    const first = el.querySelector(FOCUSABLE);
+    const first = el.querySelector<HTMLElement>(FOCUSABLE);
     if (first) first.focus();
 
-    function handleKey(e) {
+    function handleKey(e: KeyboardEvent) {
       if (e.key !== "Tab") return;
-      const focusable = [...el.querySelectorAll(FOCUSABLE)].filter(f => f.offsetParent !== null);
+      const focusable = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(f => f.offsetParent !== null);
       if (!focusable.length) return;
       const firstF = focusable[0];
       const lastF = focusable[focusable.length - 1];
@@ -31,8 +30,7 @@ export function FocusTrap({ children, active = true }) {
     el.addEventListener("keydown", handleKey);
     return () => {
       el.removeEventListener("keydown", handleKey);
-      // Restore focus
-      if (prev && prev.focus) try { prev.focus(); } catch {}
+      if (prev?.focus) try { prev.focus(); } catch {}
     };
   }, [active]);
 

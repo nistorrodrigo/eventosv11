@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
-import { ToastProvider } from './src/components/Toast.jsx'
-import { AuthProvider } from './src/contexts/AuthContext.jsx'
+import { ToastProvider } from './src/components/Toast.tsx'
+import { AuthProvider } from './src/contexts/AuthContext.tsx'
 import App from './App.jsx'
 import { initMonitoring } from './src/utils/monitoring.ts'
 initMonitoring();
