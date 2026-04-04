@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import { ToastProvider } from './src/components/Toast.jsx'
 import { AuthProvider } from './src/contexts/AuthContext.jsx'
 import App from './App.jsx'
+import { initMonitoring } from './src/utils/monitoring.js'
+initMonitoring();
 const BookingPage = lazy(() => import('./src/components/BookingPage.jsx'))
 
 class ErrorBoundary extends React.Component {
