@@ -3,6 +3,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief } from "./src/utils/exporters.js";
+import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
 async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
@@ -240,114 +241,43 @@ export default function App(){
   }
 
   // ── File parse ───────────────────────────────────────────────
+  // handleFile → parsing logic in src/utils/parsers.js
   const handleFile=useCallback(e=>{
     const file=e.target.files?.[0]; if(!file) return;
     setFileName(file.name);
     const reader=new FileReader();
     reader.onload=ev=>{
-      const wb=_XLSX.read(ev.target.result,{type:"array"});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=_XLSX.utils.sheet_to_json(ws,{header:1});
-      if(rows.length<2) return;
-      const hdrs=rows[0].map(String);
-      const ci=pred=>hdrs.findIndex(h=>pred(h.toLowerCase().replace(/[\s\n]+/g," ").trim()));
-      const fi=ci(h=>h==="fund"),ni=ci(h=>h==="name"),si=ci(h=>h.startsWith("surname"));
-      const pi=ci(h=>h.startsWith("position")),ei=ci(h=>h==="email"),phi=ci(h=>h.includes("mobile")||h.includes("phone"));
-      const ai=ci(h=>h==="aum"),ti=ci(h=>h.includes("preferred meeting date")),coi=ci(h=>h.includes("which meetings"));
-      const g=(row,i)=>i>=0?String(row[i]??"").trim():"";
-      const parsed=rows.slice(1).filter(row=>g(row,fi)||g(row,ni)).map((row,ri)=>({
-        id:`inv-${ri}`,name:capitalizeName([g(row,ni),g(row,si)].filter(Boolean).join(" "))||`Inversor ${ri+1}`,
-        fund:normalizeFundName(g(row,fi)),email:g(row,ei),phone:g(row,phi),position:normalizePosition(g(row,pi)),aum:normalizeAUM(g(row,ai)),
-        companies:[...new Set(g(row,coi).split(";").map(s=>s.trim()).filter(Boolean).map(resolveCo).filter(Boolean))],
-        slots:parseAvail(g(row,ti),config.hours,config),blockedSlots:[],notes:""
-      }));
-      const fg={};const fm={};
-      parsed.forEach(inv=>{if(inv.fund){fm[inv.fund]=(fm[inv.fund]||0)+1;}});
-      Object.entries(fm).forEach(([f,n])=>{if(n>1)fg[f]=true;});
-      // Apply fuzzy fund normalization
-      const aliasMap = buildFundAliasMap(parsed);
-      const normalized = parsed.map(inv=>({...inv, fund: inv.fund ? aliasMap[inv.fund]||inv.fund : inv.fund}));
-      // Detect similar-but-different funds that got merged → suggest grouping
-      const fundSimilarities = [];
-      const seenNorms={};
-      parsed.forEach(inv=>{
-        if(!inv.fund) return;
-        const norm=normalizeFund(inv.fund);
-        if(!norm) return;
-        if(seenNorms[norm] && seenNorms[norm]!==inv.fund){
-          const pair=[seenNorms[norm],inv.fund].sort().join("|||");
-          if(!fundSimilarities.find(p=>p.pair===pair)) fundSimilarities.push({pair,canonical:aliasMap[inv.fund],variant:inv.fund,original:seenNorms[norm]});
-        } else seenNorms[norm]=inv.fund;
-      });
-      const fg2={};const fm2={};
-      normalized.forEach(inv=>{if(inv.fund){fm2[inv.fund]=(fm2[inv.fund]||0)+1;}});
-      Object.entries(fm2).forEach(([f,n])=>{if(n>1)fg2[f]=true;});
-      saveCurrentEvent({investors:normalized,fundGrouping:fg2,meetings:[],unscheduled:[],fixedRoom:{},fundSimilarities});
+      const result=parseInvestorFile(ev.target.result, _XLSX, config);
+      if(!result) return;
+      saveCurrentEvent({investors:result.investors, fundGrouping:result.fundGrouping, meetings:[], unscheduled:[], fixedRoom:{}, fundSimilarities:result.fundSimilarities});
       setTab("investors");
     };
     reader.readAsArrayBuffer(file);
   },[config.hours,activeEv]);
 
   // ── Previous year comparison ────────────────────────────────
+  // handlePrevYear → parsing logic in src/utils/parsers.js
   const handlePrevYear = useCallback(e=>{
     const file=e.target.files?.[0]; if(!file) return;
     const reader=new FileReader();
     reader.onload=ev=>{
-      const wb=_XLSX.read(ev.target.result,{type:"array"});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=_XLSX.utils.sheet_to_json(ws,{header:1});
-      if(rows.length<2){toast("Archivo vacío o inválido.");return;}
-      const hdrs=rows[0].map(String);
-      const ci=pred=>hdrs.findIndex(h=>pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
-      const fi=ci(h=>h==="fund"),ni=ci(h=>h==="name"),si=ci(h=>h.startsWith("surname")),ei=ci(h=>h==="email");
-      const g=(row,i)=>i>=0?String(row[i]??"").trim():"";
-      const prevList=rows.slice(1).filter(row=>g(row,fi)||g(row,ni)).map((row,ri)=>({
-        name:capitalizeName([g(row,ni),g(row,si)].filter(Boolean).join(" "))||`Inv ${ri+1}`,
-        fund:normalizeFundName(g(row,fi)),
-        email:g(row,ei).toLowerCase().trim(),
-      }));
-      // Match against current investors by email (primary) or name+fund (fallback)
-      const currentEmails=new Set(investors.map(i=>i.email?.toLowerCase().trim()).filter(Boolean));
-      const currentNameFund=new Set(investors.map(i=>`${normalizeFund(i.name||"")}|||${normalizeFund(i.fund||"")}`));
-      const missing=prevList.filter(p=>{
-        if(p.email && currentEmails.has(p.email)) return false;
-        const key=`${normalizeFund(p.name)}|||${normalizeFund(p.fund)}`;
-        if(currentNameFund.has(key)) return false;
-        return true;
-      });
-      setPrevYearData({fileName:file.name, total:prevList.length, missing});
+      const result=parsePrevYearFile(ev.target.result, _XLSX, investors, file.name);
+      if(!result){toast("Archivo vacío o inválido.");return;}
+      setPrevYearData(result);
     };
     reader.readAsArrayBuffer(file);
   },[investors]);
 
   // ── Historical multi-year parser ─────────────────────────────
+  // parseHistoricalFile → parsing logic in src/utils/parsers.js
   const parseHistoricalFile = useCallback((file, year) => {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const wb = _XLSX.read(ev.target.result, {type:"array"});
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = _XLSX.utils.sheet_to_json(ws, {header:1});
-        if (rows.length < 2) { toast("Archivo vacío o inválido."); return; }
-        const hdrs = rows[0].map(String);
-        const ci = pred => hdrs.findIndex(h => pred(h.toLowerCase().replace(/[ \t\n\r]+/g," ").trim()));
-        const fi=ci(h=>h==="fund"), ni=ci(h=>h==="name"), si=ci(h=>h.startsWith("surname")), ei=ci(h=>h==="email");
-        const coi=ci(h=>h.includes("which meetings"));
-        const g=(row,i)=>i>=0?String(row[i]??"").trim():"";
-        const parsed = rows.slice(1).filter(row=>g(row,fi)||g(row,ni)).map((row,ri) => ({
-          name: capitalizeName([g(row,ni),g(row,si)].filter(Boolean).join(" ")) || `Inv ${ri+1}`,
-          fund: normalizeFundName(g(row,fi)),
-          email: g(row,ei).toLowerCase().trim(),
-          companies: coi>=0 ? [...new Set(g(row,coi).split(";").map(s=>s.trim()).filter(Boolean).map(resolveCo).filter(Boolean))] : [],
-        }));
-        if (parsed.length === 0) { toast(`No se encontraron inversores en el archivo. Verificá que tenga columnas Name/Fund.`); return; }
-        setHistoricalYears(prev => {
-          const filtered = prev.filter(y => y.year !== year);
-          return [...filtered, {year, fileName: file.name, investors: parsed}].sort((a,b)=>a.year.localeCompare(b.year));
-        });
-      } catch(err) {
-        toastErr("Error al procesar el archivo: " + err.message);
-      }
+        const result=parseHistoricalInvestorFile(ev.target.result, _XLSX, year, file.name);
+        if(!result){toast("Archivo vacío o inválido. Verificá columnas Name/Fund.");return;}
+        setHistoricalYears(prev=>[...prev.filter(y=>y.year!==year),result].sort((a,b)=>a.year.localeCompare(b.year)));
+      } catch(err) { toastErr("Error al procesar el archivo: " + err.message); }
     };
     reader.readAsArrayBuffer(file);
   }, []);
