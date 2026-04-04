@@ -378,6 +378,28 @@ export function RoadshowInboundTab({
                             const txt=`📅 *Agenda ${dayLabel2}*\n${roadshow.trip.fund||""}\n\n${lines.join("\n")}`;
                             navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Agenda del día copiada"));
                           }}>📋 Copiar agenda</button>
+                          {/* Bulk email */}
+                          {roadshow.trip?.resendKey&&<button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={async()=>{
+                            const resendKey=roadshow.trip.resendKey;
+                            const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;
+                            const fund2=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
+                            let sent=0,failed=0;
+                            for(const m of dayMtgs){
+                              const co=m.type==="company"?rsCoById.get(m.companyId):null;if(!co)continue;
+                              const emails=(co.contacts||[]).filter(c=>c.email).map(c=>c.email);if(!emails.length)continue;
+                              const dateStr=dayDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+                              const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
+                              const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
+                              const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
+                              const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
+                              try{
+                                const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email})});
+                                if(res.ok)sent++;else failed++;
+                              }catch{failed++;}
+                            }
+                            if(sent)toastOk(`✅ ${sent} email(s) enviado(s)${failed?" · "+failed+" fallaron":""}`);
+                            else toastErr("No se pudieron enviar emails. Verificá la API key de Resend.");
+                          }}>📧 Email Bulk ({dayMtgs.filter(m=>{const co=rsCoById.get(m.companyId);return(co?.contacts||[]).some(c=>c.email);}).length})</button>}
                           <button className="btn bo bs" style={{fontSize:9,gap:4,display:"inline-flex",alignItems:"center"}} onClick={()=>{
                             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" y ");
                             const fund=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
