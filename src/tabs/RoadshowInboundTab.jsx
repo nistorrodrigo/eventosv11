@@ -1274,42 +1274,66 @@ export function RoadshowInboundTab({
 
           {/* Activity Log subtab */}
           {rsSubTab==="activitylog"&&(()=>{
-            const log=currentEvent?.activityLog||[];
+            // Build unified activity feed from meeting changeLogs + explicit activityLog
+            const fmtHH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+            const feed=[];
+            // From meeting changeLogs
+            (roadshow.meetings||[]).forEach(m=>{
+              const co=m.type==="company"?rsCoById.get(m.companyId):null;
+              const name=co?.name||(m.lsType||m.title||"Reunión");
+              (m.changeLog||[]).forEach(cl=>{
+                const icons={moved:"🔄",status:"📌",location:"📍",hour:"⏰",date:"📅",created:"➕"};
+                const icon=icons[cl.field]||"✏️";
+                let desc=`${icon} **${name}**`;
+                if(cl.field==="moved") desc+=` movida de ${cl.from} a ${cl.to}`;
+                else if(cl.field==="status") desc+=` estado: ${cl.from} → ${cl.to}`;
+                else desc+=` ${cl.field} actualizado`;
+                feed.push({ts:cl.at,desc,type:"meeting"});
+              });
+              // Meeting creation (use icsVersion=1 + no changeLog as proxy)
+              if((!m.changeLog||!m.changeLog.length)&&m.id){
+                feed.push({ts:m.id.includes("-")?new Date(parseInt(m.id.split("-")[1])||0).toISOString():"",desc:`➕ **${name}** agregada · ${m.date} ${fmtHH(m.hour)}`,type:"meeting"});
+              }
+            });
+            // From explicit activityLog
+            (currentEvent?.activityLog||[]).forEach(entry=>{
+              feed.push({ts:entry.ts,desc:`${entry.action}${entry.detail?" — "+entry.detail:""}`,user:entry.user,type:"manual"});
+            });
+            // Sort by timestamp desc
+            feed.sort((a,b)=>(b.ts||"").localeCompare(a.ts||""));
+            const grouped={};
+            feed.forEach(f=>{const day=f.ts?f.ts.slice(0,10):"unknown";if(!grouped[day])grouped[day]=[];grouped[day].push(f);});
+            const days=Object.keys(grouped).sort().reverse();
             return(
               <div>
-                <h2 className="pg-h" style={{fontSize:16,marginBottom:4}}>🕐 Historial de cambios</h2>
-                <p className="pg-s" style={{marginBottom:14}}>Registro de actividad en este evento.</p>
-                {log.length===0?(
+                <h2 className="pg-h" style={{fontSize:16,marginBottom:4}}>🕐 Activity Feed</h2>
+                <p className="pg-s" style={{marginBottom:14}}>Timeline de cambios en este roadshow.</p>
+                {feed.length===0?(
                   <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
                     <div style={{fontSize:32,marginBottom:10}}>📋</div>
                     <div>No hay actividad registrada aún.</div>
-                    <div style={{fontSize:11,marginTop:6}}>Creá o modificá reuniones para registrar cambios.</div>
                   </div>
                 ):(
-                  <div className="card" style={{padding:0,overflow:"hidden"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse"}}>
-                      <thead>
-                        <tr style={{background:"rgba(30,90,176,.06)"}}>
-                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Fecha y hora</th>
-                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Usuario</th>
-                          <th style={{padding:"8px 14px",textAlign:"left",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:600}}>Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {log.map((entry,i)=>{
-                          const d=new Date(entry.ts);
-                          const fmtTs=isNaN(d)?entry.ts:d.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+                  <div>
+                    {days.map(day=>(
+                      <div key={day} style={{marginBottom:16}}>
+                        <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:8,paddingBottom:4,borderBottom:"1px solid rgba(30,90,176,.08)"}}>
+                          {day==="unknown"?"Sin fecha":new Date(day+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+                        </div>
+                        {grouped[day].map((f,i)=>{
+                          const time=f.ts?new Date(f.ts).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):"";
                           return(
-                            <tr key={i} style={{borderTop:"1px solid rgba(30,90,176,.06)",background:i%2===0?"transparent":"rgba(30,90,176,.02)"}}>
-                              <td style={{padding:"8px 14px",fontSize:11,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)",whiteSpace:"nowrap"}}>{fmtTs}</td>
-                              <td style={{padding:"8px 14px",fontSize:11,color:"var(--gold)",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.user}</td>
-                              <td style={{padding:"8px 14px",fontSize:12,color:"var(--cream)"}}>{entry.action}{entry.detail?<span style={{color:"var(--dim)",marginLeft:6}}>— {entry.detail}</span>:null}</td>
-                            </tr>
+                            <div key={i} style={{display:"flex",gap:10,marginBottom:6,paddingLeft:4}}>
+                              <div style={{width:2,background:f.type==="meeting"?"#1e5ab0":"#23a29e",borderRadius:2,flexShrink:0}}/>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:12,color:"var(--cream)",lineHeight:1.5}} dangerouslySetInnerHTML={{__html:f.desc.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")}}/>
+                                <div style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",marginTop:1}}>{time}{f.user?" · "+f.user:""}</div>
+                              </div>
+                            </div>
                           );
                         })}
-                      </tbody>
-                    </table>
-                    {log.length>=200&&<div style={{padding:"8px 14px",fontSize:11,color:"var(--dim)",textAlign:"center",borderTop:"1px solid rgba(30,90,176,.08)"}}>Mostrando los últimos 200 cambios</div>}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
