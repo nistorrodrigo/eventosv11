@@ -17,7 +17,24 @@ export function LibraryTab({
         const dbInvs=globalDB.investors||[];
 
 
-        const filteredCos=dbCos.filter(c=>!coSearch||c.name.toLowerCase().includes(coSearch.toLowerCase())||c.ticker.toLowerCase().includes(coSearch.toLowerCase())||c.sector.toLowerCase().includes(coSearch.toLowerCase()));
+        const isSort=coSearch.startsWith("sort:");
+        const filteredCos=(isSort?[...dbCos]:dbCos.filter(c=>!coSearch||c.name.toLowerCase().includes(coSearch.toLowerCase())||(c.ticker||"").toLowerCase().includes(coSearch.toLowerCase())||(c.sector||"").toLowerCase().includes(coSearch.toLowerCase())));
+        // Stats: how many events each company appears in
+        const coEventStats=new Map();
+        dbCos.forEach(c=>{
+          let eventCount=0,totalMtgs=0,lastDate="";
+          (events||[]).forEach(ev=>{
+            const rsCos=ev.roadshow?.companies||[];
+            const match=rsCos.find(rc=>rc.name.toLowerCase()===c.name.toLowerCase());
+            if(match){
+              eventCount++;
+              const mtgs=(ev.roadshow?.meetings||[]).filter(m=>m.companyId===match.id&&m.status!=="cancelled");
+              totalMtgs+=mtgs.length;
+              mtgs.forEach(m=>{if(m.date>lastDate)lastDate=m.date;});
+            }
+          });
+          coEventStats.set(c.id,{eventCount,totalMtgs,lastDate});
+        });
         const filteredInvs=dbInvs.filter(i=>!invSearch||i.name.toLowerCase().includes(invSearch.toLowerCase())||(i.fund||"").toLowerCase().includes(invSearch.toLowerCase())||(i.email||"").toLowerCase().includes(invSearch.toLowerCase()));
 
         function saveCo(co){const db={...globalDB,companies:globalDB.companies.map(c=>c.id===co.id?co:c)};saveGlobalDB(db);setEditCo(null);}
@@ -47,6 +64,12 @@ export function LibraryTab({
               {/* Toolbar */}
               <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
                 <input className="inp" style={{flex:1,minWidth:200,fontSize:12}} value={coSearch} onChange={e=>setCoSearch(e.target.value)} placeholder="🔍 Buscar por nombre, ticker o sector..."/>
+                <select className="sel" style={{width:"auto",fontSize:10,padding:"4px 8px"}} value={coSearch.startsWith("sort:")?coSearch:""} onChange={e=>{setCoSearch(e.target.value);}}>
+                  <option value="">Ordenar: A-Z</option>
+                  <option value="sort:usage">Ordenar: Más usadas</option>
+                  <option value="sort:recent">Ordenar: Más recientes</option>
+                  <option value="sort:contacts">Ordenar: Más contactos</option>
+                </select>
                 <button className="btn bg bs" style={{gap:5,fontSize:11}} onClick={addCo}>+ Agregar</button>
                 <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>dbCoExcelRef.current?.click()}>📥 Importar Excel</button>
                 <button className="btn bo bs" style={{gap:5,fontSize:11}} onClick={()=>downloadDBTemplate("companies")}>📋 Plantilla</button>
@@ -61,10 +84,17 @@ export function LibraryTab({
 
               {/* Company list */}
               <div style={{display:"grid",gap:8}}>
-                {filteredCos.map(co=>{
+                {(isSort?[...filteredCos].sort((a,b)=>{
+                  const sa=coEventStats.get(a.id)||{eventCount:0,totalMtgs:0,lastDate:""};
+                  const sb=coEventStats.get(b.id)||{eventCount:0,totalMtgs:0,lastDate:""};
+                  if(coSearch==="sort:usage") return sb.totalMtgs-sa.totalMtgs||sb.eventCount-sa.eventCount;
+                  if(coSearch==="sort:recent") return sb.lastDate.localeCompare(sa.lastDate);
+                  if(coSearch==="sort:contacts") return (b.contacts||[]).length-(a.contacts||[]).length;
+                  return a.name.localeCompare(b.name);
+                }):filteredCos).map(co=>{
                   const isEdit=editCo===co.id;
-                  const working=isEdit?co:co;
                   const clr=SEC_CLR[co.sector]||"#666";
+                  const stats=coEventStats.get(co.id)||{eventCount:0,totalMtgs:0,lastDate:""};
                   return(
                     <div key={co.id} style={{border:`1px solid ${isEdit?"rgba(30,90,176,.3)":"rgba(30,90,176,.1)"}`,borderRadius:9,padding:"12px 14px",background:isEdit?"rgba(30,90,176,.03)":"#fff",transition:"all .15s"}}>
                       {!isEdit?(
@@ -75,10 +105,11 @@ export function LibraryTab({
                               <span style={{fontSize:13,fontWeight:700,color:"var(--cream)"}}>{co.name||"Sin nombre"}</span>
                               <span style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:`${clr}22`,color:clr,fontFamily:"IBM Plex Mono,monospace"}}>{co.sector}</span>
                             </div>
-                            <div style={{fontSize:10,color:"var(--dim)",marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
+                            <div style={{fontSize:10,color:"var(--dim)",marginTop:2,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
                               {co.hqAddress&&<span>📍 {co.hqAddress}</span>}
-                              
                               <span style={{color:"var(--gold)"}}>{co.contacts?.length||0} contacto(s)</span>
+                              {stats.eventCount>0&&<span style={{fontSize:9,background:"#eff6ff",color:"#1e5ab0",padding:"1px 6px",borderRadius:4,fontFamily:"IBM Plex Mono,monospace"}}>{stats.eventCount} evento{stats.eventCount!==1?"s":""} · {stats.totalMtgs} reunión{stats.totalMtgs!==1?"es":""}</span>}
+                              {stats.lastDate&&<span style={{fontSize:9,color:"#9ca3af",fontFamily:"IBM Plex Mono,monospace"}}>Última: {new Date(stats.lastDate+"T12:00:00").toLocaleDateString("es-AR",{month:"short",year:"numeric"})}</span>}
                             </div>
                             {(co.contacts||[]).length>0&&(
                               <div style={{marginTop:6,display:"flex",gap:6,flexWrap:"wrap"}}>
