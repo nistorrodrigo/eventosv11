@@ -1218,9 +1218,9 @@ Daily Summary — ${dayLabel}
         <p>Latin Securities · Roadshow/Event Manager</p>
       </div>
       {/* Event switcher */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginRight:16,padding:"0 12px",borderRight:"1px solid rgba(255,255,255,.07)"}}>
-        <button style={{fontSize:10,color:"var(--dim)",background:"none",border:"1px solid rgba(30,90,176,.15)",borderRadius:5,padding:"3px 9px",cursor:"pointer",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}} onClick={()=>setDashboardView(true)} title="Volver al dashboard">← Dashboard</button>
-        <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
+      <div className="hdr-ev" style={{display:"flex",alignItems:"center",gap:8,marginRight:16,padding:"0 12px",borderRight:"1px solid rgba(255,255,255,.07)",flexWrap:"wrap"}}>
+        <button style={{fontSize:10,color:"var(--dim)",background:"none",border:"1px solid rgba(30,90,176,.15)",borderRadius:5,padding:"3px 9px",cursor:"pointer",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}} onClick={()=>setDashboardView(true)} title="Volver al dashboard">←</button>
+        <span className="hdr-ev-label" style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
           onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
           {events.filter(e=>!e.archived||e.id===activeEv).map(e=><option key={e.id} value={e.id}>{e.archived?"🗄 ":e.kind==="roadshow"?"🗺️ ":e.kind==="outbound"?"✈️ ":"🏛 "}{e.name}</option>)}

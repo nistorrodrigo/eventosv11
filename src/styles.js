@@ -106,5 +106,47 @@ html,body{background:var(--ink)}
 /* events list */
 .ev-card{background:var(--ink2);border:1px solid rgba(30,90,176,.1);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:12px;transition:border-color .15s}
 .ev-card:hover{border-color:rgba(30,90,176,.22)}.ev-card.active-ev{border-color:var(--gold);background:rgba(30,90,176,.05)}
+
+/* ── Mobile Responsive ─────────────────────────────────────── */
+@media(max-width:768px){
+  .hdr{padding:0 12px;flex-wrap:wrap;gap:4px}
+  .hdr-ev{gap:5px!important;margin-right:0!important;padding:4px 0!important;border-right:none!important;order:2;flex:1;min-width:0}
+  .hdr-ev .sel{max-width:140px;font-size:10px!important}
+  .hdr-ev-label{display:none!important}
+  .brand h1{font-size:13px}.brand p{font-size:7px}
+  .nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0;width:100%;order:3;border-top:1px solid rgba(30,90,176,.08)}
+  .nav::-webkit-scrollbar{display:none}
+  .ntab{padding:0 10px;height:42px;font-size:8.5px;flex-shrink:0}
+  .body{padding:12px 10px}
+  .pg-h{font-size:17px}.pg-s{font-size:11px;margin-bottom:12px}
+  .g2,.g3{grid-template-columns:1fr}
+  .card{padding:12px 14px;margin-bottom:10px}
+  .stats{gap:6px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .stat{min-width:80px;padding:8px 10px;flex-shrink:0}
+  .sv{font-size:20px}.sl{font-size:7.5px}
+  .modal{border-radius:8px;max-height:90vh;overflow-y:auto}
+  .modal-hdr{padding:14px 16px 10px}.modal-title{font-size:15px}
+  .modal-body{padding:12px 16px}.modal-footer{padding:10px 16px}
+  .overlay{padding:12px 8px;align-items:center}
+  .tbl th,.tbl td{padding:5px 7px;font-size:10.5px}
+  .ex-card{padding:12px 14px}.ex-card-ico{font-size:20px}.ex-card-t{font-size:12px}
+  .inp{font-size:14px;padding:9px 11px}
+  .btn{font-size:10px;padding:6px 12px}.bs{padding:5px 10px;font-size:9px}
+  .ent-row{flex-direction:column;gap:6px}
+  .sec-hdr{font-size:8px}
+  .grid-wrap{-webkit-overflow-scrolling:touch}
+  .grid-tbl .th-co{min-width:80px;font-size:8px}
+}
+@media(max-width:480px){
+  .hdr{padding:0 8px}
+  .brand h1{font-size:12px}.brand p{display:none}
+  .ntab{padding:0 8px;height:38px;font-size:7.5px}
+  .body{padding:8px 6px}
+  .g2,.g3{gap:8px}
+  .stats{gap:4px}.stat{min-width:70px;padding:6px 8px}
+  .sv{font-size:18px}
+  .overlay{padding:6px 4px}
+  .modal{border-radius:6px}
+}
 `;
 
