@@ -1044,10 +1044,13 @@ Daily Summary — ${dayLabel}
   if(!authUser) return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",padding:20}}>
       <style>{"@keyframes spin{to{transform:rotate(360deg)}}.auth-inp{width:100%;padding:10px 13px;background:rgba(30,90,176,.08);border:1.5px solid rgba(30,90,176,.25);border-radius:7px;color:#e8eaf0;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;margin-bottom:10px}.auth-inp:focus{border-color:#3399ff}.auth-btn{width:100%;padding:12px;background:#1e5ab0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}.auth-btn:disabled{opacity:.5;cursor:not-allowed}"}</style>
-      <div style={{width:"100%",maxWidth:380,background:"rgba(20,22,40,.98)",border:"1px solid rgba(30,90,176,.2)",borderRadius:16,padding:"36px 32px",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{width:"100%",maxWidth:380,background:"rgba(16,18,36,.98)",border:"1px solid rgba(30,90,176,.15)",borderRadius:18,padding:"40px 34px",boxShadow:"0 24px 80px rgba(0,0,0,.6),0 0 0 1px rgba(30,90,176,.08) inset"}}>
         <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontFamily:"Playfair Display,serif",fontSize:26,color:"#e8eaf0",marginBottom:4}}>Latin Securities</div>
-          <div style={{color:"#7a8fa8",fontSize:11,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".12em",textTransform:"uppercase"}}>LS Event Manager</div>
+          <div style={{width:48,height:48,background:"linear-gradient(135deg,#1e5ab0,#3399ff)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:"0 4px 20px rgba(30,90,176,.35)"}}>
+            <span style={{color:"#fff",fontSize:18,fontWeight:800,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".05em"}}>LS</span>
+          </div>
+          <div style={{fontFamily:"Playfair Display,serif",fontSize:24,color:"#e8eaf0",marginBottom:4,letterSpacing:"-.01em"}}>Event Manager</div>
+          <div style={{color:"#4a5a7a",fontSize:9,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".18em",textTransform:"uppercase"}}>Latin Securities · Institutional Sales</div>
         </div>
         <div style={{display:"flex",gap:4,marginBottom:24,background:"rgba(30,90,176,.08)",borderRadius:8,padding:3}}>
           {[["login","Iniciar sesión"],["signup","Crear cuenta"]].map(([v,l])=>(
@@ -1065,8 +1068,8 @@ Daily Summary — ${dayLabel}
         <button className="auth-btn" disabled={authBusy||!authEmail||!authPwd} onClick={authView==="login"?signIn:signUp}>
           {authBusy?"⏳ Procesando...":(authView==="login"?"Entrar":"Crear cuenta")}
         </button>
-        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"rgba(120,140,170,.5)",fontFamily:"IBM Plex Mono,monospace"}}>
-          Tus datos están cifrados y sincronizados en la nube.
+        <div style={{textAlign:"center",marginTop:20,fontSize:9,color:"rgba(100,120,150,.4)",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".06em"}}>
+          🔒 Cifrado end-to-end · Sync en la nube
         </div>
       </div>
     </div>
