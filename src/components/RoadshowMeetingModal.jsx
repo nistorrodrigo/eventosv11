@@ -201,6 +201,44 @@ Latin Securities`;
               value={postNotes} onChange={e=>setPostNotes(e.target.value)}
               placeholder="Puntos clave discutidos, intereses del inversor, próximos pasos..."/>
           </div>
+          {/* AI Summary */}
+          {mode==="edit"&&(notes||postNotes)&&(
+            <button className="btn bo bs" style={{fontSize:9,gap:4,marginTop:8,width:"100%",justifyContent:"center",background:"linear-gradient(135deg,rgba(30,90,176,.04),rgba(51,153,255,.04))",borderColor:"rgba(30,90,176,.2)"}} onClick={()=>{
+              const co=companies?.find(c=>c.id===meeting?.companyId);
+              const fb=meeting?.feedback||{};
+              const INTEREST_L=["","Sin interés","Bajo","Medio","Interesado","Muy interesado"];
+              const prompt=`You are a meeting summary assistant for Latin Securities, an investment banking firm in Buenos Aires.
+
+Summarize this meeting into a structured brief (in English, professional tone):
+
+MEETING: ${co?.name||"Meeting"} ${co?.ticker?"("+co.ticker+")":""}
+DATE: ${meeting?.date||""} ${meeting?.hour?Math.floor(meeting.hour)+":"+String(Math.round((meeting.hour-Math.floor(meeting.hour))*60)).padStart(2,"0"):""}
+FORMAT: ${meeting?.meetingFormat||"Meeting"}
+
+PRE-MEETING NOTES:
+${notes||"(none)"}
+
+POST-MEETING NOTES:
+${postNotes||"(none)"}
+
+FEEDBACK:
+- Interest Level: ${fb.interestLevel?INTEREST_L[fb.interestLevel]:"Not rated"}
+- Topics Discussed: ${(fb.topics||[]).join(", ")||"None specified"}
+- Next Step: ${fb.nextStep||"Not defined"}
+- Internal Notes: ${fb.internalNotes||"(none)"}
+
+Please output:
+1. **Executive Summary** (2-3 sentences)
+2. **Key Takeaways** (bullet points)
+3. **Action Items** (numbered, with owner if obvious)
+4. **Interest Assessment** (1 sentence)
+5. **Recommended Follow-up** (1 sentence)`;
+              navigator.clipboard.writeText(prompt).then(()=>{
+                // Try to open Claude in new tab
+                window.open("https://claude.ai/new","_blank");
+              });
+            }}>✨ AI Summary — copiar prompt para Claude</button>
+          )}
           {/* Meeting Feedback */}
           {mode==="edit"&&(
             <div style={{borderTop:"1px solid rgba(30,90,176,.08)",paddingTop:14}}>
