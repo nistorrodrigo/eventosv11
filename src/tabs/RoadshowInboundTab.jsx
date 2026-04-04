@@ -1,5 +1,6 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "../../supabase.js";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -32,11 +33,32 @@ export function RoadshowInboundTab({
   exportBookingPage, exportRoadshowICS, exportRoadshowPDF, exportRoadshowWord,
   handleRsEmailParse, openPrint,
   calcAllTravel, calcDayTravel,
+  publishBookingSlots,
 }){
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
         const [waBulkModal,setWaBulkModal]=useState(null); // { date, items:[{contact,company,meeting,message,waUrl}] }
+        const [bookings,setBookings]=useState([]);
+        const [bookingsLoading,setBookingsLoading]=useState(false);
+        const [pendingCount,setPendingCount]=useState(0);
+        // Fetch pending count every 30s
+        const evId=currentEvent?.id;
+        const fetchPendingCount=useCallback(async()=>{
+          if(!evId)return;
+          const {count}=await supabase.from("roadshow_bookings").select("id",{count:"exact",head:true}).eq("event_id",evId).eq("status","pending");
+          setPendingCount(count||0);
+        },[evId]);
+        useEffect(()=>{fetchPendingCount();const iv=setInterval(fetchPendingCount,30000);return()=>clearInterval(iv);},[fetchPendingCount]);
+        // Fetch full bookings when subtab is bookings
+        const fetchBookings=useCallback(async()=>{
+          if(!evId)return;
+          setBookingsLoading(true);
+          const {data}=await supabase.from("roadshow_bookings").select("*").eq("event_id",evId).order("created_at",{ascending:false});
+          setBookings(data||[]);
+          setBookingsLoading(false);
+        },[evId]);
+        useEffect(()=>{if(rsSubTab==="bookings")fetchBookings();},[rsSubTab,fetchBookings]);
         // Helper to patch a company field inline (used in meeting modal)
         window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
@@ -144,8 +166,8 @@ export function RoadshowInboundTab({
 
           {/* Sub-tabs */}
           <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
-            {[["schedule","📅 Agenda"],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
-              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10}} onClick={()=>setRsSubTab(id)}>{lbl}</button>
+            {[["schedule","📅 Agenda"],["bookings",`📬 Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
+              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative"}} onClick={()=>setRsSubTab(id)}>{lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
             ))}
             <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
               <span style={{fontSize:10,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace"}}>{confirmed} ✓</span>
@@ -485,6 +507,72 @@ export function RoadshowInboundTab({
                     })}
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* RESERVAS ONLINE */}
+          {rsSubTab==="bookings"&&(
+            <div>
+              <div className="sec-hdr" style={{marginBottom:10}}>📬 Reservas online</div>
+              {bookingsLoading?<div style={{textAlign:"center",padding:20,color:"var(--dim)"}}>Cargando reservas...</div>:(
+                bookings.length===0?<div className="card" style={{textAlign:"center",padding:"30px 20px",color:"var(--dim)"}}><div style={{fontSize:28,marginBottom:8}}>📭</div><div style={{fontSize:13}}>No hay reservas todavía.</div><div style={{fontSize:11,marginTop:6}}>Publicá el link de reserva desde la pestaña Exportar.</div></div>:(
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {["pending","approved","rejected"].map(status=>{
+                      const group=bookings.filter(b=>b.status===status);
+                      if(!group.length)return null;
+                      const labels={pending:"⏳ Pendientes",approved:"✅ Aprobadas",rejected:"❌ Rechazadas"};
+                      return(<div key={status}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--dim)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,fontFamily:"IBM Plex Mono,monospace"}}>{labels[status]} ({group.length})</div>
+                        {group.map(b=>{
+                          const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+                          const dayLabel=b.slot_date?new Date(b.slot_date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):"";
+                          return(
+                            <div key={b.id} className="card" style={{padding:"14px 16px",marginBottom:8,borderLeft:`4px solid ${status==="pending"?"#f59e0b":status==="approved"?"#22c55e":"#ef4444"}`}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                                <div>
+                                  <div style={{fontSize:14,fontWeight:700,color:"#000039"}}>{b.company}</div>
+                                  <div style={{fontSize:11,color:"#374151"}}>{b.contact_name} · {b.email}{b.phone?" · "+b.phone:""}</div>
+                                </div>
+                                <div style={{textAlign:"right"}}>
+                                  <div style={{fontSize:12,fontWeight:700,fontFamily:"IBM Plex Mono,monospace"}}>{dayLabel} · {fmtH(b.slot_hour)} hs</div>
+                                  <div style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{b.confirm_code}</div>
+                                </div>
+                              </div>
+                              {b.location_pref&&<div style={{fontSize:10,color:"#6b7280"}}>📍 {b.location_pref==="ls_office"?"Oficinas LS":b.location_pref==="hq"?"Sede empresa":"Otro"}{b.notes?" · 📋 "+b.notes:""}</div>}
+                              {status==="pending"&&(
+                                <div style={{display:"flex",gap:6,marginTop:10}}>
+                                  <button className="btn bg bs" style={{fontSize:9}} onClick={async()=>{
+                                    await supabase.from("roadshow_bookings").update({status:"approved",reviewed_at:new Date().toISOString()}).eq("id",b.id);
+                                    // Create meeting in roadshow
+                                    const coMatch=(roadshow.companies||[]).find(c=>c.name.toLowerCase()===b.company.toLowerCase().trim());
+                                    let coId=coMatch?.id;
+                                    if(!coId){
+                                      coId="co_"+Date.now();
+                                      const newCo={id:coId,name:b.company,hqAddress:"",ticker:"",sector:"",contacts:[{id:"rep_"+Date.now(),name:b.contact_name,title:"",email:b.email,phone:b.phone||""}]};
+                                      saveRoadshow({...roadshow,companies:[...(roadshow.companies||[]),newCo],meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||"ls_office",locationCustom:"",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                    }else{
+                                      saveRoadshow({...roadshow,meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||"ls_office",locationCustom:"",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                    }
+                                    fetchBookings();fetchPendingCount();
+                                  }}>✅ Aprobar + crear reunión</button>
+                                  <button className="btn bo bs" style={{fontSize:9}} onClick={async()=>{
+                                    await supabase.from("roadshow_bookings").update({status:"approved",reviewed_at:new Date().toISOString()}).eq("id",b.id);
+                                    fetchBookings();fetchPendingCount();
+                                  }}>✓ Aprobar</button>
+                                  <button className="btn bo bs" style={{fontSize:9,color:"#ef4444",borderColor:"#fecaca"}} onClick={async()=>{
+                                    await supabase.from("roadshow_bookings").update({status:"rejected",reviewed_at:new Date().toISOString()}).eq("id",b.id);
+                                    fetchBookings();fetchPendingCount();
+                                  }}>✗ Rechazar</button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>);
+                    })}
+                  </div>
+                )
               )}
             </div>
           )}
@@ -1016,9 +1104,14 @@ export function RoadshowInboundTab({
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportBookingPage} onKeyDown={e=>{if(e.key==="Enter")exportBookingPage();}}>
                   <div className="ex-card-ico">🔗</div>
-                  <div className="ex-card-t">Página de reserva (HTML)</div>
-                  <div className="ex-card-s">Las empresas eligen horario — first-come-first-served. Te mandan código de confirmación.</div>
+                  <div className="ex-card-t">Página de reserva (HTML offline)</div>
+                  <div className="ex-card-s">Descarga HTML estático — funciona sin conexión pero no sincroniza con la app.</div>
                 </div>
+                {publishBookingSlots&&<div className="ex-card" role="button" tabIndex={0} onClick={publishBookingSlots} onKeyDown={e=>{if(e.key==="Enter")publishBookingSlots();}} style={{borderColor:"#1e5ab033",background:"linear-gradient(135deg,#f8faff,#eef3ff)"}}>
+                  <div className="ex-card-ico">🌐</div>
+                  <div className="ex-card-t">Link de reserva online</div>
+                  <div className="ex-card-s">Publica horarios en la nube. Las empresas reservan con un link y las reservas aparecen en la app.</div>
+                </div>}
               </div>
               <div className="sec-hdr" style={{marginBottom:8}}>📋 Compartir disponibilidad (español)</div>
               <div className="card">

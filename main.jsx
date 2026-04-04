@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
+const BookingPage = lazy(() => import('./src/components/BookingPage.jsx'))
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -40,10 +41,18 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+function Root(){
+  const [hash,setHash]=useState(window.location.hash);
+  useEffect(()=>{const h=()=>setHash(window.location.hash);window.addEventListener("hashchange",h);return()=>window.removeEventListener("hashchange",h);},[]);
+  const bookMatch=hash.match(/^#\/book\/(.+)$/);
+  if(bookMatch) return <Suspense fallback={<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f0f4f8",fontFamily:"Calibri",color:"#6b7280"}}>Cargando...</div>}><BookingPage eventId={decodeURIComponent(bookMatch[1])}/></Suspense>;
+  return <App/>;
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <Root />
     </ErrorBoundary>
   </React.StrictMode>
 )

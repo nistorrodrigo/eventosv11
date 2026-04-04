@@ -1039,6 +1039,34 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
     downloadBlob(fn,html,"text/html");
   }
 
+  async function publishBookingSlots(){
+    if(!authUser){alert("Necesitás estar logueado para publicar slots.");return;}
+    if(!roadshow?.trip?.arrivalDate||!roadshow?.trip?.departureDate){alert("Configurá las fechas del viaje primero.");return;}
+    const trip=roadshow.trip;
+    const busyMtgs=new Set((roadshow.meetings||[]).map(m=>`${m.date}-${m.hour}`));
+    // Also exclude existing pending/approved bookings
+    const {data:existingBookings}=await supabase.from("roadshow_bookings").select("slot_date,slot_hour").eq("event_id",activeEv).in("status",["pending","approved"]);
+    const busyBookings=new Set((existingBookings||[]).map(b=>`${b.slot_date}-${b.slot_hour}`));
+    const workDays=[];
+    const s=new Date(trip.arrivalDate+"T12:00:00"),e=new Date(trip.departureDate+"T12:00:00");
+    for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6)workDays.push(d.toISOString().slice(0,10));}
+    const BOOK_HOURS=[9,9.5,10,10.5,11,11.5,12,12.5,14,14.5,15,15.5,16,16.5,17,17.5];
+    const newSlots=[];
+    for(const day of workDays){
+      for(const h of BOOK_HOURS){
+        const key=`${day}-${h}`;
+        if(!busyMtgs.has(key)&&!busyBookings.has(key)) newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
+      }
+    }
+    // Delete old slots for this event
+    await supabase.from("roadshow_slots").delete().eq("event_id",activeEv);
+    // Insert new
+    if(newSlots.length){const {error:insErr}=await supabase.from("roadshow_slots").insert(newSlots);if(insErr){alert("Error publicando slots: "+insErr.message);return;}}
+    const url=`${window.location.origin}/#/book/${activeEv}`;
+    try{await navigator.clipboard.writeText(url);}catch{}
+    alert(`✅ ${newSlots.length} horarios publicados.\n\nLink copiado al portapapeles:\n${url}`);
+  }
+
   function exportDriverItinerary(filterDate){
     const {trip,meetings,companies}=roadshow;
     const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
@@ -3547,6 +3575,7 @@ Daily Summary — ${dayLabel}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
         exportDriverItinerary={exportDriverItinerary}
+        publishBookingSlots={publishBookingSlots}
       />}
 
 
