@@ -16,6 +16,13 @@ export function toastOk(msg) { _globalToast(msg, "success"); }
 export function toastErr(msg) { _globalToast(msg, "error"); }
 export function toastWarn(msg) { _globalToast(msg, "warning"); }
 
+const TOAST_COLORS = {
+  success: { bg: "var(--c-success-bg)", border: "#86efac", text: "var(--c-success)", icon: "\u2705" },
+  error:   { bg: "var(--c-error-bg)",   border: "#fca5a5", text: "var(--c-error)",   icon: "\u274c" },
+  warning: { bg: "var(--c-warning-bg)", border: "#fde047", text: "var(--c-warning)", icon: "\u26a0\ufe0f" },
+  info:    { bg: "#e0f2fe",             border: "#7dd3fc", text: "#0c4a6e",          icon: "\u2139\ufe0f" },
+};
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
@@ -25,38 +32,23 @@ export function ToastProvider({ children }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), type === "error" ? 6000 : 3500);
   }, []);
 
-  // Register global API
   useEffect(() => { _globalToast = addToast; }, [addToast]);
 
   const ctx = { toast: addToast, ok: (m) => addToast(m, "success"), err: (m) => addToast(m, "error"), warn: (m) => addToast(m, "warning") };
 
-  const colors = {
-    success: { bg: "#dcfce7", border: "#86efac", text: "#166534", icon: "✅" },
-    error:   { bg: "#fee2e2", border: "#fca5a5", text: "#991b1b", icon: "❌" },
-    warning: { bg: "#fef9c3", border: "#fde047", text: "#854d0e", icon: "⚠️" },
-    info:    { bg: "#e0f2fe", border: "#7dd3fc", text: "#0c4a6e", icon: "ℹ️" },
-  };
-
   return (
     <ToastCtx.Provider value={ctx}>
       {children}
-      {/* Toast container */}
-      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 99999, display: "flex", flexDirection: "column", gap: 8, maxWidth: 420, pointerEvents: "none" }}>
+      <div className="toast-container">
         {toasts.map(t => {
-          const c = colors[t.type] || colors.info;
+          const c = TOAST_COLORS[t.type] || TOAST_COLORS.info;
           return (
-            <div key={t.id} style={{
-              background: c.bg, border: `1px solid ${c.border}`, color: c.text,
-              padding: "10px 16px", borderRadius: 10, fontSize: 12, fontFamily: "Calibri,Arial,sans-serif",
-              boxShadow: "0 4px 16px rgba(0,0,0,.12)", lineHeight: 1.5, pointerEvents: "auto",
-              animation: "toastIn .25s ease-out", whiteSpace: "pre-line",
-            }}>
+            <div key={t.id} className="toast-item" style={{ background: c.bg, borderColor: c.border, color: c.text }}>
               {c.icon} {t.msg}
             </div>
           );
         })}
       </div>
-      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}`}</style>
     </ToastCtx.Provider>
   );
 }

@@ -151,6 +151,22 @@ html,body{background:var(--ink)}
 .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .flex-center{display:flex;align-items:center;justify-content:center}
 .flex-between{display:flex;align-items:center;justify-content:space-between}
+/* Toast */
+.toast-container{position:fixed;top:var(--sp-4);right:var(--sp-4);z-index:var(--z-toast);display:flex;flex-direction:column;gap:var(--sp-2);max-width:420px;pointer-events:none}
+.toast-item{border:1px solid;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-lg);font-size:var(--fs-base);font-family:var(--ff-body);box-shadow:var(--shadow-md);line-height:1.5;pointer-events:auto;animation:toastIn .25s ease-out;white-space:pre-line}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+/* Empty State */
+.empty-state{text-align:center;padding:var(--sp-8) var(--sp-5)}
+.empty-state-icon{display:flex;justify-content:center;margin-bottom:var(--sp-3);opacity:.8}
+.empty-state-title{font-size:var(--fs-md);font-weight:700;color:var(--c-navy);margin-bottom:var(--sp-2);font-family:var(--ff-serif)}
+.empty-state-sub{font-size:var(--fs-base);color:var(--c-text-muted);line-height:1.6;max-width:320px;margin:0 auto}
+/* Skeleton */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skel-line{background:linear-gradient(90deg,var(--c-bg) 25%,#e4e9f2 37%,var(--c-bg) 63%);background-size:800px 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:var(--r-sm);margin-bottom:var(--sp-2)}
+.skel-card{background:var(--c-bg-card);border:1px solid var(--c-border);border-radius:var(--r-lg);padding:var(--sp-4) var(--sp-5);margin-bottom:var(--sp-3)}
+.skel-table{background:var(--c-bg-card);border:1px solid var(--c-border);border-radius:var(--r-md);overflow:hidden}
+.skel-table-hdr{display:flex;gap:0;background:var(--c-bg-subtle);padding:var(--sp-3) var(--sp-4)}
+.skel-table-row{display:flex;gap:0;padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--c-bg-subtle)}
 
 /* ── Mobile Responsive ─────────────────────────────────────── */
 @media(max-width:768px){

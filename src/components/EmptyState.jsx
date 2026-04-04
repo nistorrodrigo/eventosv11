@@ -56,13 +56,11 @@ const ILLUSTRATIONS = {
 
 export function EmptyState({ icon = "calendar", title, subtitle, action }) {
   return (
-    <div style={{textAlign:"center",padding:"36px 20px"}}>
-      <div style={{display:"flex",justifyContent:"center",marginBottom:12,opacity:.8}}>
-        {ILLUSTRATIONS[icon] || ILLUSTRATIONS.calendar}
-      </div>
-      <div style={{fontSize:15,fontWeight:700,color:"#000039",marginBottom:6,fontFamily:"Playfair Display,serif"}}>{title}</div>
-      {subtitle && <div style={{fontSize:12,color:"#7a8fa8",lineHeight:1.6,maxWidth:320,margin:"0 auto"}}>{subtitle}</div>}
-      {action && <div style={{marginTop:14}}>{action}</div>}
+    <div className="empty-state">
+      <div className="empty-state-icon">{ILLUSTRATIONS[icon] || ILLUSTRATIONS.calendar}</div>
+      <div className="empty-state-title">{title}</div>
+      {subtitle && <div className="empty-state-sub">{subtitle}</div>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }
