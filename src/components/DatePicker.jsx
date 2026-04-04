@@ -68,7 +68,7 @@ export function DayDateInput({day,di,onChange}){
     onChange({...day,date:isoStr,short:shortLabel,long:d.toLocaleDateString("en-US",{weekday:"long"})+" "+d.toLocaleDateString("en-US",{month:"long",day:"numeric"})+"th "+d.getFullYear()});
     setOpen(false);
   }
-  const displayLabel=day.date?new Date(day.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):day.short||"Pick a date";
+  const displayLabel=day.date?new Date(day.date+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short",year:"numeric"}):day.short||"Elegir fecha";
   return(
     <div style={{position:"relative"}} ref={ref}>
       <div style={{display:"flex",alignItems:"center",gap:4}}>

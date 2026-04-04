@@ -1125,12 +1125,15 @@ Daily Summary — ${dayLabel}
     {/* HEADER */}
     <header className="hdr">
       <div className="brand">
-        <h1 style={{cursor:"pointer"}} onClick={()=>setDashboardView(v=>!v)} title="Dashboard">🏠 LS Event Manager</h1>
-        <p>Latin Securities · Roadshow/Event Manager</p>
+        <h1 style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}} onClick={()=>setDashboardView(v=>!v)} title="Dashboard">
+          <span style={{width:28,height:28,background:"linear-gradient(135deg,#1e5ab0,#3399ff)",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:800,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".05em"}}>LS</span>
+          Event Manager
+        </h1>
+        <p>Latin Securities · Roadshow & Event Manager</p>
       </div>
       {/* Event switcher */}
       <div className="hdr-ev" style={{display:"flex",alignItems:"center",gap:8,marginRight:16,padding:"0 12px",borderRight:"1px solid rgba(255,255,255,.07)",flexWrap:"wrap"}}>
-        <button style={{fontSize:10,color:"var(--dim)",background:"none",border:"1px solid rgba(30,90,176,.15)",borderRadius:5,padding:"3px 9px",cursor:"pointer",fontFamily:"IBM Plex Mono,monospace",letterSpacing:".04em"}} onClick={()=>setDashboardView(true)} title="Volver al dashboard">←</button>
+        <button className="btn bo bs" style={{fontSize:9,padding:"3px 8px"}} onClick={()=>setDashboardView(true)} title="Volver al dashboard">←</button>
         <span className="hdr-ev-label" style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
           onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
@@ -1169,10 +1172,10 @@ Daily Summary — ${dayLabel}
           {syncStatus==="syncing"?"⟳ Sync...":syncStatus==="offline"?"⚡ Offline":"✓ Synced"}
         </span>}
         {"Notification" in window&&Notification.permission==="default"&&(
-          <button className="btn bs" title="Activar recordatorios 30 min antes de cada reunión"
-            style={{fontSize:9,padding:"2px 8px",background:"rgba(30,90,176,.12)",color:"var(--gold)",border:"1px solid rgba(30,90,176,.2)",gap:3,cursor:"pointer",borderRadius:4}}
+          <button className="btn bo bs" title="Activar recordatorios 30 min antes de cada reunión"
+            style={{fontSize:8,padding:"2px 6px"}}
             onClick={()=>Notification.requestPermission()}>
-            🔔 Notificar
+            🔔
           </button>
         )}
         {pwaPrompt&&!pwaInstalled&&(

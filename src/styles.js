@@ -31,8 +31,8 @@ html,body{background:var(--ink)}
 .app{min-height:100vh;background:var(--c-bg);color:var(--c-text-secondary);font-family:var(--ff-body)}
 .hdr{background:var(--c-bg-card);border-bottom:1px solid var(--c-border);padding:0 26px;display:flex;align-items:center;position:sticky;top:0;z-index:var(--z-header);box-shadow:var(--shadow-md)}
 .brand{padding:12px 0;margin-right:auto}
-.brand h1{font-family:var(--ff-serif);font-size:var(--fs-md);color:var(--c-navy);letter-spacing:.03em}
-.brand p{font-size:var(--fs-xs);color:var(--c-text-dim);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+.brand h1{font-family:var(--ff-serif);font-size:var(--fs-md);color:var(--c-navy);letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.brand p{font-size:7.5px;color:var(--c-text-dim);letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
 .nav{display:flex}.nav[role="tablist"]{gap:0}
 .ntab{padding:0 14px;height:56px;display:flex;align-items:center;font-size:var(--fs-xs);letter-spacing:.07em;color:var(--c-text-dim);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:var(--ff-mono);text-transform:uppercase;transition:all .15s;gap:5px;white-space:nowrap}
 .ntab:hover{color:var(--txt)}.ntab.on{color:var(--gold);border-bottom-color:var(--gold);background:rgba(30,90,176,.04)}
