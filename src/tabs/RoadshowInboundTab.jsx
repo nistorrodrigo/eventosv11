@@ -67,9 +67,13 @@ export function RoadshowInboundTab({
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){
           const ex=roadshow.meetings.find(x=>x.id===m.id);
-          // icsVersion is already incremented by RoadshowMeetingModal when time/location changes
           const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];
           saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);
+          // Auto-recalculate travel for affected day(s)
+          if(calcDayTravel&&m.date){
+            calcDayTravel(m.date);
+            if(ex&&ex.date!==m.date) calcDayTravel(ex.date);
+          }
         }
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
         const confirmed=roadshow.meetings.filter(m=>m.status==="confirmed").length;
@@ -418,6 +422,11 @@ export function RoadshowInboundTab({
                                     if(!dragMtg||mtg||isWE) return;
                                     const updated=(roadshow.meetings||[]).map(m=>m.id===dragMtg.id?{...m,date,hour:h,changeLog:[...(m.changeLog||[]),{at:new Date().toISOString(),field:"moved",from:`${dragMtg.origDate} ${fmtHour(dragMtg.origHour)}`,to:`${date} ${fmtHour(h)}`}]}:m);
                                     saveRoadshow({...roadshow,meetings:updated});
+                                    // Auto-recalculate travel for affected days
+                                    if(calcDayTravel){
+                                      calcDayTravel(date);
+                                      if(dragMtg.origDate!==date) calcDayTravel(dragMtg.origDate);
+                                    }
                                     setDragMtg(null);
                                   }}
                                   style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
