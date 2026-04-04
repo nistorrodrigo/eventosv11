@@ -35,7 +35,7 @@ import {
 import {
   getMeetingAddress, cleanAddr,
   openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict,
-  geocodeAll, osrmRoute, googleMapsRoute,
+  geocodeAll, osrmRoute, applyBATraffic,
 } from "./src/travel.js";
 
 // ── UI Components ──────────────────────────────────────────────────
@@ -1123,7 +1123,7 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
           const conflict=tMin!=null&&gapMin<tMin;
           const warn=tMin!=null&&!conflict&&gapMin<tMin+10;
           const gapColor=conflict?"#dc2626":warn?"#d97706":"#059669";
-          const travelSource=tData?.source==="google"?" (con tráfico)":tData?" (sin tráfico, OSRM)":"";
+          const travelSource=tData?.source==="osrm+traffic"?" (tráfico CABA est.)":(tData?" (sin tráfico)":"");
           const travelTxt=tData?`🚗 ${tData.durationText} · ${tData.distanceText}${travelSource}`:"🚗 traslado (tiempo no calculado — calculá en tab Recorrido)";
           const marginTxt=tMin!=null?` · ${gapMin-tMin} min de margen`:`${gapMin} min entre reuniones`;
           rows+=`<tr class="gap-row">
@@ -1161,8 +1161,8 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
     if(!dayBlocks){alert("No hay reuniones para el itinerario.");return;}
 
     const travelNote=Object.keys(travelCache).length?
-      "✓ Tiempos de traslado calculados (OSRM)" :
-      "⚠ Tiempos de traslado no calculados — calculalos en el tab 🗺️ Recorrido para mayor precisión.";
+      "✓ Rango de traslado estimado con tráfico típico de CABA por hora del día (OpenStreetMap + OSRM, sin API key)." :
+      "⚠ Tiempos de traslado no calculados — hacé click en 🔄 Calcular en el tab 🗺️ Recorrido para ver rangos de tráfico.";
 
     const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <title>Itinerario del chofer — ${fund}</title>
@@ -1771,7 +1771,6 @@ Daily Summary — ${dayLabel}
 
   async function calcAllTravel(){
     const offAddr=roadshow.trip.officeAddress;
-    const apiKey=roadshow.trip.mapsApiKey||"";
     const dur=roadshow.trip.meetingDuration||60;
     const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
     const dayData=workDays.map(date=>{
@@ -1781,52 +1780,37 @@ Daily Summary — ${dayLabel}
     }).filter(({dayMtgs})=>dayMtgs.length>=2);
     if(!dayData.length){alert("No hay días con 2+ reuniones.");return;}
     setTravelLoading(true);
-    if(apiKey){
-      // Google Maps Distance Matrix — traffic-aware, no geocoding needed, departure = end of each meeting
-      for(const {date,dayMtgs,addrs} of dayData){
-        const results={};
-        for(let i=0;i<dayMtgs.length-1;i++){
-          const deptHour=dayMtgs[i].hour+dur/60; // depart after meeting ends
-          results[`${date}-${i}`]=await googleMapsRoute(addrs[i],addrs[i+1],date,deptHour,apiKey);
-        }
-        setTravelCache(prev=>({...prev,[date]:results}));
+    // Geocode all unique addresses at once (1 req/sec Nominatim)
+    const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs))];
+    const coords=await geocodeAll(allAddrs);
+    for(const {date,dayMtgs,addrs} of dayData){
+      const results={};
+      for(let i=0;i<dayMtgs.length-1;i++){
+        const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+        const base=(o&&d)?await osrmRoute(o,d):null;
+        // Apply CABA traffic multipliers based on actual departure hour (end of previous meeting)
+        const deptHour=dayMtgs[i].hour+dur/60;
+        results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
       }
-    }else{
-      // Fallback: Nominatim geocoding + OSRM (no traffic, no API key needed)
-      const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs))];
-      const coords=await geocodeAll(allAddrs);
-      for(const {date,dayMtgs,addrs} of dayData){
-        const results={};
-        for(let i=0;i<dayMtgs.length-1;i++){
-          const o=coords[addrs[i]];const d=coords[addrs[i+1]];
-          results[`${date}-${i}`]=(o&&d)?await osrmRoute(o,d):null;
-        }
-        setTravelCache(prev=>({...prev,[date]:results}));
-      }
+      setTravelCache(prev=>({...prev,[date]:results}));
     }
     setTravelLoading(false);
   }
 
   async function calcDayTravel(date){
     const offAddr=roadshow.trip.officeAddress;
-    const apiKey=roadshow.trip.mapsApiKey||"";
     const dur=roadshow.trip.meetingDuration||60;
     const dayMtgs=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
     if(dayMtgs.length<2){alert("Necesitás al menos 2 reuniones en ese día.");return;}
     const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
     setTravelLoading(true);
+    const coords=await geocodeAll([...new Set(addrs)]);
     const results={};
-    if(apiKey){
-      for(let i=0;i<dayMtgs.length-1;i++){
-        const deptHour=dayMtgs[i].hour+dur/60;
-        results[`${date}-${i}`]=await googleMapsRoute(addrs[i],addrs[i+1],date,deptHour,apiKey);
-      }
-    }else{
-      const coords=await geocodeAll([...new Set(addrs)]);
-      for(let i=0;i<dayMtgs.length-1;i++){
-        const o=coords[addrs[i]];const d=coords[addrs[i+1]];
-        results[`${date}-${i}`]=(o&&d)?await osrmRoute(o,d):null;
-      }
+    for(let i=0;i<dayMtgs.length-1;i++){
+      const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+      const base=(o&&d)?await osrmRoute(o,d):null;
+      const deptHour=dayMtgs[i].hour+dur/60;
+      results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
     }
     setTravelCache(prev=>({...prev,[date]:results}));
     setTravelLoading(false);

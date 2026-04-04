@@ -63,43 +63,34 @@ export async function osrmRoute(o,d){
 }
 
 
-/* ── Google Maps Distance Matrix — traffic-aware, returns a range ──
-   Requires an API key with Distance Matrix API enabled.
-   departure_time = actual day + hour → Buenos Aires UTC-3.
-   Returns { durationText:"12–18 min", durationSec, durationSecMin, distanceText, source:"google" }
-   durationSec = pessimistic (with traffic) — used for conflict detection.
+/* ── Buenos Aires traffic multipliers (free, no API key) ──────────────
+   OSRM gives base driving time (no traffic). We apply typical CABA weekday
+   traffic multipliers by hour-of-day to produce a realistic range.
+   Patterns based on microcentro/downtown BA:
+     08:00–10:00  morning rush  ×1.3–1.6
+     10:00–12:00  late morning  ×1.15–1.35
+     12:00–14:00  lunch         ×1.2–1.45
+     14:00–17:00  afternoon     ×1.1–1.25
+     17:00–20:00  evening rush  ×1.45–1.85
+     other                      ×1.05–1.15
 */
-export async function googleMapsRoute(origin, dest, dateStr, hour, apiKey){
-  try{
-    // Build departure timestamp: meeting date + hour in Buenos Aires (UTC-3)
-    const hh=Math.floor(hour); const mm=Math.round((hour-hh)*60);
-    const pad=n=>String(n).padStart(2,"0");
-    // Construct ISO with explicit -03:00 offset (BA winter, no DST in April)
-    const iso=`${dateStr}T${pad(hh)}:${pad(mm)}:00-03:00`;
-    const departureUnix=Math.floor(new Date(iso).getTime()/1000);
-    // Must be in the future for traffic data; Google accepts past dates but returns duration only
-    const url=`https://maps.googleapis.com/maps/api/distancematrix/json`+
-      `?origins=${encodeURIComponent(origin+", Buenos Aires, Argentina")}`+
-      `&destinations=${encodeURIComponent(dest+", Buenos Aires, Argentina")}`+
-      `&mode=driving&departure_time=${departureUnix}&traffic_model=best_guess`+
-      `&language=es&key=${encodeURIComponent(apiKey)}`;
-    const ctrl=new AbortController(); setTimeout(()=>ctrl.abort(),10000);
-    const r=await fetch(url,{signal:ctrl.signal});
-    if(!r.ok) return null;
-    const j=await r.json();
-    if(j.status!=="OK") return null;
-    const el=j.rows?.[0]?.elements?.[0];
-    if(!el||el.status!=="OK") return null;
-    const secFree=el.duration.value;
-    const secTraffic=el.duration_in_traffic?.value??secFree;
-    const km=Math.round(el.distance.value/1000*10)/10;
-    const minFree=Math.round(secFree/60);
-    const minTraffic=Math.round(secTraffic/60);
-    // Build range: if traffic adds >2 min show range, else ~X
-    const durationText=minTraffic>minFree+2?`${minFree}–${minTraffic} min`:`~${minFree} min`;
-    return{durationText,durationSec:secTraffic,durationSecMin:secFree,distanceText:`${km} km`,source:"google"};
-  }catch(e){return null;}
+export function applyBATraffic(baseSec, deptHour, distanceText){
+  const h=deptHour;
+  const mult=
+    (h>=8&&h<10)  ?{lo:1.30,hi:1.60}:
+    (h>=10&&h<12) ?{lo:1.15,hi:1.35}:
+    (h>=12&&h<14) ?{lo:1.20,hi:1.45}:
+    (h>=14&&h<17) ?{lo:1.10,hi:1.25}:
+    (h>=17&&h<20) ?{lo:1.45,hi:1.85}:
+                   {lo:1.05,hi:1.15};
+  const minLo=Math.round(baseSec*mult.lo/60);
+  const minHi=Math.round(baseSec*mult.hi/60);
+  const durationText=minHi<=minLo+1?`~${minLo} min`:`${minLo}–${minHi} min`;
+  // Use pessimistic value for conflict detection
+  const durationSec=Math.round(baseSec*mult.hi);
+  return{durationText,durationSec,distanceText,source:"osrm+traffic",baseSec};
 }
+
 export function openGoogleMapsRoute(stops){
   if(!stops.length) return;
   const origin=encodeURIComponent(stops[0]);
