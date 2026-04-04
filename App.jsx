@@ -6,6 +6,7 @@ import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoad
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
+import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
 async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
@@ -2650,7 +2651,7 @@ Daily Summary — ${dayLabel}
         </div>
       )}
 
-      {tab==="roadshow"&&<RoadshowInboundTab
+      {tab==="roadshow"&&<TabErrorBoundary name="Roadshow Inbound"><RoadshowInboundTab
         roadshow={roadshow} saveRoadshow={saveRoadshow}
         config={config} events={events} globalDB={globalDB}
         rsSubTab={rsSubTab} setRsSubTab={setRsSubTab}
@@ -2687,15 +2688,15 @@ Daily Summary — ${dayLabel}
         exportPostRoadshowReport={exportPostRoadshowReport}
         exportDriverItinerary={exportDriverItinerary}
         publishBookingSlots={publishBookingSlots}
-      />}
+      /></TabErrorBoundary>}
 
 
-      {tab==="outbound"&&<RoadshowOutboundTab
+      {tab==="outbound"&&<TabErrorBoundary name="Roadshow Outbound"><RoadshowOutboundTab
         outbound={outbound} saveOutbound={saveOutbound}
         config={config} events={events} globalDB={globalDB}
         currentEvent={currentEvent}
         obSubTab={obSubTab} setObSubTab={setObSubTab}
-      />}
+      /></TabErrorBoundary>}
 
       {tab==="activitylog"&&(()=>{
           const log=currentEvent?.activityLog||[];
@@ -2740,7 +2741,7 @@ Daily Summary — ${dayLabel}
           );
         })()}
 
-      {tab==="db"&&<LibraryTab
+      {tab==="db"&&<TabErrorBoundary name="Librería"><LibraryTab
         globalDB={globalDB} saveGlobalDB={saveGlobalDB} events={events}
         dbTab={dbTab} setDbTab={setDbTab}
         coSearch={coSearch} setCoSearch={setCoSearch}
@@ -2751,7 +2752,7 @@ Daily Summary — ${dayLabel}
         crmFund={crmFund} setCrmFund={setCrmFund}
         dbCoExcelRef={dbCoExcelRef} dbInvExcelRef={dbInvExcelRef}
         downloadDBTemplate={downloadDBTemplate}
-      />}
+      /></TabErrorBoundary>}
 
 
     </main>
