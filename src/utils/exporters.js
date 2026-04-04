@@ -1,5 +1,5 @@
 // ── exporters.js — Extracted export functions from App.jsx ────────
-import { normalizeFund, COMPANIES_INIT, DEFAULT_DAYS } from "../constants.jsx";
+import { normalizeFund, COMPANIES_INIT, DEFAULT_DAYS, INTEREST_LABELS, INTEREST_COLORS, NEXT_LABELS } from "../constants.jsx";
 import { downloadBlob } from "../storage.jsx";
 import { getMeetingAddress, applyBATraffic } from "../travel.js";
 
@@ -377,5 +377,119 @@ ${mtgContacts.length?`<div class="section"><div class="sec-label">Company Repres
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px"><div><div class="sec-label" style="margin-bottom:6px">📋 Pre-meeting notes</div><div class="notes-box">${(mtg?.notes||co.notes||"—").replace(/</g,"&lt;")}</div></div><div><div class="sec-label" style="margin-bottom:6px">✅ Post-meeting notes</div><div class="post-box">${(mtg?.postNotes||"").replace(/</g,"&lt;")||"<span style='color:#9ca3af;font-style:italic'>Complete after the meeting</span>"}</div></div></div>
 ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div><div style="font-size:10.5pt">${co.hqAddress}</div></div>`:""}
 <div class="footer"><span>Latin Securities · Confidential</span><span>${co.name} · ${trip.fund||trip.clientName||""}</span></div></body></html>`;
+  openPrint(html);
+}
+
+// ── Post-Roadshow Report with feedback analytics ──────────────────
+export function _exportPostRoadshowReport({roadshow, openPrint}){
+  const {trip,meetings,companies}=roadshow;
+  const coMap=new Map((companies||[]).map(c=>[c.id,c]));
+  const allMtgs=(meetings||[]).filter(m=>m.status!=="cancelled"&&m.type==="company");
+  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtDate=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});}catch{return iso;}};
+  const fund=trip.fund||trip.clientName||"Roadshow";
+  const visitorLine=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(", ")||"";
+  const now=new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+
+  // Analytics
+  const withFb=allMtgs.filter(m=>m.feedback?.interestLevel>0);
+  const avgInterest=withFb.length?Math.round(withFb.reduce((s,m)=>s+m.feedback.interestLevel,0)/withFb.length*10)/10:0;
+  const topicFreq={};withFb.forEach(m=>(m.feedback.topics||[]).forEach(t=>{topicFreq[t]=(topicFreq[t]||0)+1;}));
+  const topTopics=Object.entries(topicFreq).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const nextFreq={};withFb.forEach(m=>{if(m.feedback.nextStep)nextFreq[m.feedback.nextStep]=(nextFreq[m.feedback.nextStep]||0)+1;});
+  const conf=allMtgs.filter(m=>m.status==="confirmed").length;
+
+  // Heatmap rows sorted by interest desc
+  const heatRows=allMtgs.map(m=>{
+    const co=coMap.get(m.companyId);const fb=m.feedback||{};const il=fb.interestLevel||0;
+    return{co,m,il,nextStep:fb.nextStep||"",topics:(fb.topics||[]).join(", "),postSnip:(m.postNotes||"").slice(0,80)};
+  }).sort((a,b)=>b.il-a.il);
+
+  // Follow-ups grouped
+  const followUps=[];
+  const FU_ORDER=["follow_up_call","send_materials","meeting_again","monitor"];
+  FU_ORDER.forEach(step=>{
+    const mtgs=allMtgs.filter(m=>m.feedback?.nextStep===step);
+    if(mtgs.length)followUps.push({step,label:NEXT_LABELS[step]||step,mtgs});
+  });
+
+  // Group by day for detail
+  const byDay={};allMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
+  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+  const days=Object.keys(byDay).sort();
+
+  const css=`*{box-sizing:border-box;margin:0;padding:0}@page{margin:12mm 15mm;size:A4}body{font-family:'Segoe UI',Calibri,sans-serif;font-size:10.5pt;color:#111827;background:#fff;padding:20px 24px}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;margin-bottom:20px;border-bottom:2.5px solid #000039}
+.ls1{font-size:13pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase}.ls2{font-size:6.5pt;color:#6b7280;letter-spacing:.2em;text-transform:uppercase;margin-top:2px}
+.kpi-row{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap}.kpi{flex:1;min-width:90px;padding:14px 12px;border:1px solid #e9eef5;border-radius:8px;background:#f9fafb;text-align:center}
+.kpi-num{font-family:Georgia,serif;font-size:24pt;font-weight:700;color:#000039;line-height:1}.kpi-lbl{font-size:7.5pt;color:#9ca3af;text-transform:uppercase;letter-spacing:.1em;margin-top:4px;font-family:'IBM Plex Mono',monospace}
+.sec-title{font-size:10pt;font-weight:700;color:#000039;margin:22px 0 10px;text-transform:uppercase;letter-spacing:.08em;padding-bottom:4px;border-bottom:2px solid #e9eef5}
+table{width:100%;border-collapse:collapse;font-size:10pt}th{background:#f3f4f6;padding:6px 10px;text-align:left;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;font-weight:600;border-bottom:1px solid #e9eef5}
+td{padding:6px 10px;border-bottom:1px solid #f3f4f6;vertical-align:top}tr:nth-child(even) td{background:#fafcfe}
+.il{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:9pt;font-weight:600}
+.day-hdr{background:#000039;color:#fff;padding:8px 14px;border-radius:6px 6px 0 0;font-family:'IBM Plex Mono',monospace;font-size:9pt;letter-spacing:.08em;text-transform:uppercase;margin-top:16px}
+.mtg-card{border:1px solid #e9eef5;border-top:none;padding:12px 14px;background:#fff}.mtg-card:last-child{border-radius:0 0 6px 6px}
+.fu-card{padding:10px 14px;border-left:3px solid #1e5ab0;background:#f8faff;border-radius:0 6px 6px 0;margin-bottom:8px}
+.tag{display:inline-block;background:#eaf1fb;color:#1e5ab0;border-radius:3px;padding:1px 6px;font-size:8.5pt;margin:1px 2px}
+.footer{margin-top:24px;padding-top:8px;border-top:1px solid #e9eef5;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af}
+@media print{body{padding:0}.kpi,.mtg-card,.fu-card{break-inside:avoid}}`;
+
+  const kpiHTML=`<div class="kpi-row">
+<div class="kpi"><div class="kpi-num">${allMtgs.length}</div><div class="kpi-lbl">Reuniones</div></div>
+<div class="kpi"><div class="kpi-num" style="color:#166534">${conf}</div><div class="kpi-lbl">Confirmadas</div></div>
+<div class="kpi"><div class="kpi-num" style="color:#1e5ab0">${withFb.length}</div><div class="kpi-lbl">Con feedback</div></div>
+<div class="kpi"><div class="kpi-num">${avgInterest||"—"}</div><div class="kpi-lbl">Interés prom.</div></div>
+<div class="kpi"><div class="kpi-num">${days.length}</div><div class="kpi-lbl">Días</div></div>
+</div>
+${topTopics.length?`<div style="margin-bottom:18px;display:flex;gap:6px;flex-wrap:wrap">${topTopics.map(([t,n])=>`<span class="tag" style="font-size:9pt">${t} <strong>(${n})</strong></span>`).join("")}</div>`:""}`;
+
+  const heatHTML=heatRows.length?`<div class="sec-title">Interés por empresa</div>
+<table><tr><th>Empresa</th><th>Sector</th><th>Interés</th><th>Next step</th><th>Post-notes</th></tr>
+${heatRows.map(({co,il,nextStep,topics,postSnip})=>{
+  const clr=INTEREST_COLORS[il]||"#6b7280";
+  return `<tr><td style="font-weight:600">${co?.name||"—"}${co?.ticker?` <span style="color:#9ca3af;font-size:8.5pt">(${co.ticker})</span>`:""}</td>
+<td style="font-size:9pt;color:#6b7280">${co?.sector||"—"}</td>
+<td><span class="il" style="background:${clr}15;color:${clr}">${INTEREST_LABELS[il]||"—"}</span></td>
+<td style="font-size:9pt">${nextStep?NEXT_LABELS[nextStep]||nextStep:"—"}</td>
+<td style="font-size:9pt;color:#374151;max-width:200px">${postSnip||"—"}</td></tr>`;
+}).join("")}</table>`:"";;
+
+  const detailHTML=days.map(date=>{
+    const mtgs=byDay[date];
+    return `<div class="day-hdr">${fmtDate(date)} — ${mtgs.length} reunión${mtgs.length!==1?"es":""}</div>
+${mtgs.map(m=>{
+  const co=coMap.get(m.companyId);const fb=m.feedback||{};const il=fb.interestLevel||0;
+  const clr=INTEREST_COLORS[il]||"#6b7280";
+  const allC=co?.contacts||[];const actIds=m.actualAttendees;
+  const attendees=actIds?.length?allC.filter(c=>actIds.includes(c.id)).map(c=>c.name).join(", "):"";
+  return `<div class="mtg-card">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+  <div><span style="font-family:'IBM Plex Mono',monospace;font-size:10pt;color:#6b7280;margin-right:8px">${fmtH(m.hour)}</span><strong style="color:#000039;font-size:11pt">${co?.name||"—"}</strong>${co?.ticker?` <span style="color:#9ca3af;font-size:8.5pt">(${co.ticker})</span>`:""}</div>
+  <span class="il" style="background:${clr}15;color:${clr}">${INTEREST_LABELS[il]||"Sin feedback"}</span>
+</div>
+${attendees?`<div style="font-size:9pt;color:#374151;margin-bottom:4px">👤 ${attendees}</div>`:""}
+${(fb.topics||[]).length?`<div style="margin-bottom:4px">${fb.topics.map(t=>`<span class="tag">${t}</span>`).join("")}</div>`:""}
+${fb.nextStep?`<div style="font-size:9pt;margin-bottom:4px">➡️ ${NEXT_LABELS[fb.nextStep]||fb.nextStep}</div>`:""}
+${m.postNotes?`<div style="font-size:9.5pt;color:#166534;margin-top:4px;padding:6px 10px;background:#f0fdf4;border-radius:4px;line-height:1.5">✅ ${m.postNotes}</div>`:""}
+${fb.internalNotes?`<div style="font-size:9pt;color:#6b7280;margin-top:4px;padding:6px 10px;background:#f9fafb;border-radius:4px;font-style:italic;line-height:1.5">📝 ${fb.internalNotes}</div>`:""}
+</div>`;
+}).join("")}`;
+  }).join("");
+
+  const fuHTML=followUps.length?`<div class="sec-title">Follow-ups pendientes</div>
+${followUps.map(({label,mtgs})=>`<div style="margin-bottom:12px">
+<div style="font-size:9pt;font-weight:700;color:#1e5ab0;margin-bottom:6px">${label} (${mtgs.length})</div>
+${mtgs.map(m=>{const co=coMap.get(m.companyId);return `<div class="fu-card"><strong>${co?.name||"—"}</strong> · ${fmtDate(m.date)} ${fmtH(m.hour)}${m.postNotes?` — <span style="color:#374151">${m.postNotes.slice(0,100)}</span>`:""}</div>`;}).join("")}
+</div>`).join("")}`:"";
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Post-Roadshow Report — ${fund}</title><style>${css}</style></head><body>
+<div class="hdr"><div><div class="ls1">Latin Securities</div><div class="ls2">Post-Roadshow Report</div></div>
+<div style="text-align:right;font-size:9pt;color:#6b7280"><div style="font-weight:700;color:#000039;font-size:11pt">${fund}</div>
+<div>${trip.arrivalDate?new Date(trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"}):""}${trip.departureDate?" – "+new Date(trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"}):""}</div>
+${visitorLine?`<div>${visitorLine}</div>`:""}<div style="font-size:8pt;color:#9ca3af;margin-top:4px">Generado el ${now}</div></div></div>
+${kpiHTML}${heatHTML}
+<div class="sec-title">Detalle por reunión</div>${detailHTML}
+${fuHTML}
+<div class="footer"><span>Latin Securities · Confidential</span><span>${fund} · Post-Roadshow Report</span></div></body></html>`;
   openPrint(html);
 }

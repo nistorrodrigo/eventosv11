@@ -399,3 +399,8 @@ export function runSchedule(investors, fundGrouping, cfg){
   return{meetings,unscheduled,fixedRoom};
 }
 
+// ── Shared feedback labels (used by KioskModal, FeedbackWidget, exporters) ──
+export const INTEREST_LABELS=["","💤 Sin interés","😐 Bajo","👍 Medio","😃 Interesado","🔥 Muy interesado"];
+export const INTEREST_COLORS=["","#dc2626","#ea580c","#ca8a04","#16a34a","#166534"];
+export const NEXT_LABELS={"follow_up_call":"📞 Follow-up call","send_materials":"📄 Enviar materiales","meeting_again":"🔁 Repetir reunión","monitor":"👁 Monitorear","no_interest":"❌ Sin interés"};
+

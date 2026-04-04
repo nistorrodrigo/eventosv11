@@ -2,7 +2,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
-import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief } from "./src/utils/exporters.js";
+import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
@@ -317,6 +317,7 @@ export default function App(){
   function saveRoadshow(rs){setRoadshow(rs);saveCurrentEvent({roadshow:rs});}
   // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.js
   function exportRoadshowSummary(){ _exportRoadshowSummary({roadshow, openPrint}); }
+  function exportPostRoadshowReport(){ _exportPostRoadshowReport({roadshow, openPrint}); }
   function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
   function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
   function exportRoadshowICS(mtgId){
@@ -2719,6 +2720,7 @@ Daily Summary — ${dayLabel}
         calcDayTravel={calcDayTravel}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
+        exportPostRoadshowReport={exportPostRoadshowReport}
         exportDriverItinerary={exportDriverItinerary}
         publishBookingSlots={publishBookingSlots}
       />}

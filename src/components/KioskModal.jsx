@@ -1,6 +1,7 @@
 // ── KioskModal.jsx ──
 import { useState, useRef } from 'react';
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
+import { INTEREST_LABELS, NEXT_LABELS } from "../constants.jsx";
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
   const today=new Date().toISOString().slice(0,10);
@@ -243,8 +244,7 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
               )}
               {/* WhatsApp share */}
               {cur&&(()=>{
-                const INTEREST_LABELS=["","💤 Sin interés","😐 Bajo","👍 Medio","😃 Interesado","🔥 Muy interesado"];
-                const NEXT_LABELS={"follow_up_call":"📞 Follow-up call","send_materials":"📄 Enviar materiales","meeting_again":"🔁 Repetir reunión","monitor":"👁 Monitorear","no_interest":"❌ Sin interés"};
+                // INTEREST_LABELS, NEXT_LABELS imported from constants.jsx
                 const coName=co?co.name:(cur.lsType||cur.title||"Reunión interna");
                 const fmtDate=kioskDate?new Date(kioskDate+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):"";
                 const fb=cur.feedback||{};

@@ -25,7 +25,7 @@ export function RoadshowInboundTab({
   icsImportModal, setIcsImportModal, rsMtgsExcelRef, rsExcelRef,
   rsShowParser, setRsShowParser,
   rsCoById, rsCoMapForTravel, tripDays,
-  exportCompanyBrief, exportRoadshowSummary, exportDriverItinerary,
+  exportCompanyBrief, exportRoadshowSummary, exportPostRoadshowReport, exportDriverItinerary,
   // lsCont is computed internally from config + roadshow.trip.lsContactIdx
   currentEvent,
   dragMtg, setDragMtg,
@@ -1079,8 +1079,13 @@ export function RoadshowInboundTab({
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowSummary} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary();}}>
                   <div className="ex-card-ico">📊</div>
-                  <div className="ex-card-t">Resumen post-roadshow</div>
-                  <div className="ex-card-s">Métricas, cobertura por sector y notas del viaje.</div>
+                  <div className="ex-card-t">Resumen ejecutivo</div>
+                  <div className="ex-card-s">KPIs, cobertura por sector y agenda del viaje.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={exportPostRoadshowReport} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportPostRoadshowReport();}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
+                  <div className="ex-card-ico">🔬</div>
+                  <div className="ex-card-t">Reporte con feedback</div>
+                  <div className="ex-card-s">Interés por empresa, topics, next steps, follow-ups pendientes. Para uso interno.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportDriverItinerary(null)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportDriverItinerary(null);}}>
                   <div className="ex-card-ico">🚗</div>
