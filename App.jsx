@@ -1301,8 +1301,18 @@ Daily Summary — ${dayLabel}
         <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>{setSearchFilter("all");setSearchStatus("all");setShowSearch(true);}}>🔍</button>
         {evKind==="roadshow"&&(()=>{
           const _today=new Date().toISOString().slice(0,10);
-          const _todayCount=(roadshow.meetings||[]).filter(m=>m.date===_today&&m.status!=="cancelled").length;
-          return(
+          const _todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===_today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+          const _todayCount=_todayMtgs.length;
+          const _nowH=new Date().getHours()+new Date().getMinutes()/60;
+          const _nextMtg=_todayMtgs.find(m=>m.hour>_nowH);
+          const _nextCo=_nextMtg?(roadshow.companies||[]).find(c=>c.id===_nextMtg.companyId):null;
+          const _fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+          const _conf=_todayMtgs.filter(m=>m.status==="confirmed").length;
+          return(<>
+            {_todayCount>0&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"2px 10px",background:"rgba(30,90,176,.06)",borderRadius:6,marginRight:4}}>
+              <span style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"var(--dim)"}}>Hoy: <strong style={{color:"#000039"}}>{_todayCount}</strong> mtg{_todayCount!==1?"s":""} · <strong style={{color:"#166534"}}>{_conf}✓</strong></span>
+              {_nextMtg&&<span style={{fontSize:9,fontFamily:"IBM Plex Mono,monospace",color:"#1e5ab0"}}>→ {_fmtH(_nextMtg.hour)} {_nextCo?.ticker||_nextCo?.name?.slice(0,10)||""}</span>}
+            </div>}
             <button className="btn bo bs" style={{fontSize:9,borderColor:"rgba(30,90,176,.3)",position:"relative"}} title="Modo día — vista simplificada para celular"
               onClick={()=>{
                 const targetDate=_todayCount>0?_today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]);
@@ -1311,7 +1321,7 @@ Daily Summary — ${dayLabel}
               }}>
               📱{_todayCount>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#e8850a",color:"#fff",borderRadius:"50%",width:13,height:13,fontSize:7,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"IBM Plex Mono,monospace",fontWeight:700,lineHeight:1}}>{_todayCount}</span>}
             </button>
-          );
+          </>);
         })()}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
