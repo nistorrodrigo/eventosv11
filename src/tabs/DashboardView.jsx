@@ -47,23 +47,17 @@ export function DashboardView({
 
         {/* ══ HERO ══ */}
         <div className="dash-hero" style={{background:"linear-gradient(165deg,#000039 0%,#091040 55%,#0e1852 100%)",padding:"52px 40px 76px",position:"relative",overflow:"hidden"}}>
-          {/* Diagonal grid decoration */}
-          <div style={{position:"absolute",inset:0,opacity:.04,backgroundImage:"repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",backgroundSize:"30px 30px",pointerEvents:"none"}}/>
-          {/* Accent line */}
-          <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,#1e5ab0 30%,#3399ff 60%,transparent)"}}/>
+          <div className="dash-hero-grid"/>
+          <div className="dash-hero-line"/>
           <div style={{maxWidth:1200,margin:"0 auto",position:"relative"}}>
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+            <div className="flex-between" style={{flexWrap:"wrap",gap:20,alignItems:"flex-start"}}>
               <div>
-                <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.3)",letterSpacing:".28em",textTransform:"uppercase",marginBottom:14}}>Buenos Aires · Latin Securities</div>
+                <div className="dash-hero-tag">Buenos Aires · Latin Securities</div>
                 <h1 className="dash-title" style={{fontFamily:"Playfair Display,serif",fontSize:42,fontWeight:400,color:"#fff",margin:"0 0 10px",letterSpacing:"-.02em",lineHeight:1.1}}>Roadshow &amp; Event Manager</h1>
-                <p style={{fontSize:12,color:"rgba(255,255,255,.38)",fontFamily:"IBM Plex Mono,monospace",margin:0,letterSpacing:".07em"}}>Institutional Sales · Gestión de agenda y exportación</p>
+                <p className="dash-hero-sub">Institutional Sales · Gestión de agenda y exportación</p>
               </div>
               <div style={{display:"flex",gap:10,alignSelf:"flex-end",paddingBottom:4}}>
-                <button
-                  style={{padding:"10px 20px",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,color:"rgba(255,255,255,.7)",fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:".04em",transition:"all .15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(255,255,255,.3)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.07)";e.currentTarget.style.borderColor="rgba(255,255,255,.15)";}}
-                  onClick={()=>setShowEvMgr(true)}>+ Nuevo evento</button>
+                <button className="dash-hero-btn" onClick={()=>setShowEvMgr(true)}>+ Nuevo evento</button>
               </div>
             </div>
           </div>
@@ -129,22 +123,8 @@ export function DashboardView({
                       else if(start&&end&&now>=start&&now<=end){const dayNum=Math.floor((now-start)/(1000*60*60*24))+1;const totalDays=Math.floor((end-start)/(1000*60*60*24))+1;countdown={label:`Día ${dayNum} de ${totalDays}`,clr:"#166534",bg:"#f0fdf4",icon:"🟢"};}
                       else if(end&&now>end){const diff=Math.floor((now-end)/(1000*60*60*24));countdown={label:diff===0?"Terminó hoy":`Hace ${diff} día${diff!==1?"s":""}`,clr:"#6b7280",bg:"#f9fafb",icon:"✓"};}
                       return(
-                        <div key={ev.id}
-                          onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}
-                          style={{background:"#fff",border:"1px solid #e9eef5",borderRadius:12,
-                            padding:"20px 22px",cursor:"pointer",transition:"all .18s cubic-bezier(.4,0,.2,1)",
-                            position:"relative",overflow:"hidden",
-                            boxShadow:"0 1px 4px rgba(0,0,57,.05)"}}
-                          onMouseEnter={e=>{
-                            e.currentTarget.style.transform="translateY(-3px)";
-                            e.currentTarget.style.boxShadow=`0 12px 36px ${sec.clr}22,0 2px 8px rgba(0,0,0,.06)`;
-                            e.currentTarget.style.borderColor=`${sec.clr}40`;
-                          }}
-                          onMouseLeave={e=>{
-                            e.currentTarget.style.transform="";
-                            e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,57,.05)";
-                            e.currentTarget.style.borderColor="#e9eef5";
-                          }}>
+                        <div key={ev.id} className="dash-ev-card"
+                          onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}>
                           {/* Left bar */}
                           <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:`linear-gradient(180deg,${sec.clr},${sec.clr}88)`}}/>
                           {/* Top row */}
