@@ -123,6 +123,16 @@ export function DashboardView({
                       const kindLbl=ev.kind==="roadshow"?"Inbound":ev.kind==="outbound"?"Outbound":"Conferencia";
                       const totalMtgs=(ev.roadshow?.meetings||ev.meetings||[]).length;
                       const pct=totalMtgs>0?Math.round(ev.conf/totalMtgs*100):0;
+                      // Countdown
+                      const dateFrom=ev.roadshow?.trip?.arrivalDate||ev.outbound?.destinations?.[0]?.dateFrom||ev.config?.eventDates?.split("–")?.[0]?.trim()||"";
+                      const dateTo=ev.roadshow?.trip?.departureDate||ev.outbound?.destinations?.at(-1)?.dateTo||"";
+                      const now=new Date();now.setHours(0,0,0,0);
+                      const start=dateFrom?new Date(dateFrom+"T00:00:00"):null;
+                      const end=dateTo?new Date(dateTo+"T23:59:59"):null;
+                      let countdown=null;
+                      if(start&&now<start){const diff=Math.ceil((start-now)/(1000*60*60*24));countdown={label:diff===1?"Mañana":`En ${diff} días`,clr:"#1e5ab0",bg:"#eff6ff",icon:"⏳"};}
+                      else if(start&&end&&now>=start&&now<=end){const dayNum=Math.floor((now-start)/(1000*60*60*24))+1;const totalDays=Math.floor((end-start)/(1000*60*60*24))+1;countdown={label:`Día ${dayNum} de ${totalDays}`,clr:"#166534",bg:"#f0fdf4",icon:"🟢"};}
+                      else if(end&&now>end){const diff=Math.floor((now-end)/(1000*60*60*24));countdown={label:diff===0?"Terminó hoy":`Hace ${diff} día${diff!==1?"s":""}`,clr:"#6b7280",bg:"#f9fafb",icon:"✓"};}
                       return(
                         <div key={ev.id}
                           onClick={()=>{setDashboardView(false);handleOpenEvent(ev.id);}}
@@ -155,7 +165,8 @@ export function DashboardView({
                           </div>
                           {/* Name */}
                           <div style={{fontFamily:"Playfair Display,serif",fontSize:17,color:"#000039",fontWeight:700,marginBottom:ev.fund?4:10,lineHeight:1.2,letterSpacing:"-.01em"}}>{ev.name}</div>
-                          {ev.fund&&<div style={{fontSize:10.5,color:"#7a8fa8",marginBottom:10,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".03em"}}>{ev.fund}</div>}
+                          {ev.fund&&<div style={{fontSize:10.5,color:"#7a8fa8",marginBottom:countdown?6:10,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".03em"}}>{ev.fund}</div>}
+                          {countdown&&<div style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:6,background:countdown.bg,border:`1px solid ${countdown.clr}20`,marginBottom:10,fontSize:10,fontWeight:700,color:countdown.clr,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".03em"}}>{countdown.icon} {countdown.label}</div>}
                           {/* Progress bar (if has meetings) */}
                           {totalMtgs>0&&(
                             <div style={{marginBottom:10}}>
