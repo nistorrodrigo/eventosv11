@@ -136,6 +136,10 @@ html,body{background:var(--ink)}
   .sec-hdr{font-size:8px}
   .grid-wrap{-webkit-overflow-scrolling:touch}
   .grid-tbl .th-co{min-width:80px;font-size:8px}
+  .rs-subtabs{scrollbar-width:none;-ms-overflow-style:none}.rs-subtabs::-webkit-scrollbar{display:none}
+  .rs-subtabs-stats{display:none!important}
+  .day-hdr-bar{padding:10px 14px!important;border-radius:8px!important}
+  .mtg-day-card{padding:10px 12px!important;border-radius:8px!important}
 }
 @media(max-width:480px){
   .hdr{padding:0 8px}

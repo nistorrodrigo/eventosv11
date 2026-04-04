@@ -86,7 +86,7 @@ export function RoadshowInboundTab({
           {/* Trip Setup */}
           <div className="card" style={{marginBottom:14}}>
             <div className="card-t">🧳 Datos del Viaje</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+            <div className="g3" style={{gap:10,marginBottom:10}}>
               <div><div className="lbl">Cliente / Inversor</div><input className="inp" value={roadshow.trip.clientName} onChange={e=>upTrip("clientName",e.target.value)} placeholder="John Smith"/></div>
               <div><div className="lbl">Fondo / Firma</div><input className="inp" value={roadshow.trip.fund} onChange={e=>upTrip("fund",e.target.value)} placeholder="Merrill Lynch AM"/></div>
               <div><div className="lbl">Hotel</div><input className="inp" value={roadshow.trip.hotel} onChange={e=>upTrip("hotel",e.target.value)} placeholder="Holiday Inn"/></div>
@@ -172,11 +172,11 @@ export function RoadshowInboundTab({
           </div>
 
           {/* Sub-tabs */}
-          <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)"}}>
+          <div className="rs-subtabs" style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid rgba(30,90,176,.1)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
             {[["schedule","📅 Agenda"],["bookings",`📬 Reservas${pendingCount>0?" ("+pendingCount+")":""}`],["investor","👤 Inversor"],["companies","🏢 Empresas"],["travel","🗺️ Recorrido"],["emails","✉️ Emails"],["export","📄 Exportar"],["activitylog","🕐 Historial"]].map(([id,lbl])=>(
-              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative"}} onClick={()=>setRsSubTab(id)}>{lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
+              <button key={id} className={`ntab${rsSubTab===id?" on":""}`} style={{height:38,fontSize:10,position:"relative",flexShrink:0}} onClick={()=>setRsSubTab(id)}>{lbl}{id==="bookings"&&pendingCount>0&&rsSubTab!=="bookings"&&<span style={{position:"absolute",top:4,right:4,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>}</button>
             ))}
-            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4}}>
+            <div className="rs-subtabs-stats" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10,paddingBottom:4,paddingRight:4,flexShrink:0}}>
               <span style={{fontSize:10,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace"}}>{confirmed} ✓</span>
               <span style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>{tentative} ⏳</span>
             </div>
@@ -277,7 +277,7 @@ export function RoadshowInboundTab({
                   const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
                   return(
                     <div style={{marginBottom:12}}>
-                      <div style={{background:"#000039",borderRadius:10,padding:"14px 18px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div className="day-hdr-bar" style={{background:"#000039",borderRadius:10,padding:"14px 18px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                         <div>
                           <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"rgba(255,255,255,.45)",letterSpacing:".15em",textTransform:"uppercase",marginBottom:4}}>{DN[dayDate.getDay()]} · {dayDate.toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>
                           <div style={{fontFamily:"Playfair Display,serif",fontSize:18,color:"#fff",fontWeight:400}}>Agenda del día</div>
@@ -325,7 +325,7 @@ export function RoadshowInboundTab({
                             const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
                             const isConf=m.status==="confirmed";
                             return(
-                              <div key={m.id} onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
+                              <div key={m.id} className="mtg-day-card" onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
                                 style={{background:"#fff",border:`1px solid ${clr}30`,borderRadius:10,padding:"14px 16px",cursor:"pointer",position:"relative",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,57,.04)",transition:"all .15s"}}
                                 onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 4px 16px ${clr}22`;e.currentTarget.style.borderColor=`${clr}55`;}}
                                 onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,57,.04)";e.currentTarget.style.borderColor=`${clr}30`;}}>
