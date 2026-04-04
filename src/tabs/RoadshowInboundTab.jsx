@@ -62,6 +62,19 @@ export function RoadshowInboundTab({
         const EXPENSE_CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
         const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:"",receipt:null,receiptName:null});
         const [expEdit,setExpEdit]=useState(null);
+        const [weather,setWeather]=useState(null); // {temp, icon, desc}
+        useEffect(()=>{
+          if(!rsDayFilter)return;setWeather(null);
+          // Buenos Aires: -34.6037, -58.3816
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=-34.60&longitude=-58.38&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=America/Argentina/Buenos_Aires&start_date=${rsDayFilter}&end_date=${rsDayFilter}`)
+            .then(r=>r.json()).then(d=>{
+              if(!d.daily)return;
+              const code=d.daily.weathercode?.[0]||0;
+              const tMax=d.daily.temperature_2m_max?.[0];const tMin=d.daily.temperature_2m_min?.[0];
+              const WMO={0:"☀️ Despejado",1:"🌤 Mayormente despejado",2:"⛅ Parcialmente nublado",3:"☁️ Nublado",45:"🌫 Niebla",48:"🌫 Niebla",51:"🌧 Llovizna",53:"🌧 Llovizna",55:"🌧 Llovizna",61:"🌧 Lluvia",63:"🌧 Lluvia moderada",65:"🌧 Lluvia fuerte",80:"🌦 Chaparrones",81:"🌦 Chaparrones",82:"⛈ Tormenta",95:"⛈ Tormenta",96:"⛈ Tormenta con granizo"};
+              setWeather({temp:`${Math.round(tMin)}°–${Math.round(tMax)}°`,desc:WMO[code]||"—"});
+            }).catch(()=>{});
+        },[rsDayFilter]);
         const [bookingsLoading,setBookingsLoading]=useState(false);
         const [pendingCount,setPendingCount]=useState(0);
         // Fetch pending count every 30s
@@ -319,9 +332,14 @@ export function RoadshowInboundTab({
                           <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:9,color:"rgba(255,255,255,.45)",letterSpacing:".15em",textTransform:"uppercase",marginBottom:4}}>{DN[dayDate.getDay()]} · {dayDate.toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}</div>
                           <div style={{fontFamily:"Playfair Display,serif",fontSize:18,color:"#fff",fontWeight:400}}>Agenda del día</div>
                         </div>
-                        <div style={{textAlign:"right"}}>
+                        <div style={{textAlign:"right",display:"flex",alignItems:"center",gap:14}}>
+                          {weather&&<div style={{fontSize:10,color:"rgba(255,255,255,.6)",fontFamily:"IBM Plex Mono,monospace",textAlign:"right",lineHeight:1.4}}>
+                            <div>{weather.desc}</div><div style={{color:"rgba(255,255,255,.4)"}}>{weather.temp}</div>
+                          </div>}
+                          <div>
                           <div style={{fontSize:22,fontWeight:700,color:"#fff",fontFamily:"Playfair Display,serif"}}>{dayMtgs.length}</div>
                           <div style={{fontSize:9,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".1em"}}>reuniones</div>
+                          </div>
                         </div>
                       </div>
                       {dayMtgs.length>0&&(
