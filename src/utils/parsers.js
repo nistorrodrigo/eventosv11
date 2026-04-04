@@ -134,3 +134,44 @@ export function parseDBInvestorsFile(arrayBuffer, XLSX){
   }));
   return imported.length?imported:null;
 }
+
+// Parse roadshow meetings Excel → returns {meetings, skipped}
+export function parseRoadshowMeetingsFile(arrayBuffer, XLSX, companyMap){
+  const wb=XLSX.read(arrayBuffer,{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  const COL_KEYS=["fecha","date","hora","hour","time","compañ","company","empresa","tipo","type","direc","location","lugar","estado","status","notas","notes"];
+  let hdrRowIdx=0;
+  for(let i=0;i<Math.min(rows.length,6);i++){const rowStr=rows[i].map(c=>String(c||"").toLowerCase());if(rowStr.filter(cell=>COL_KEYS.some(k=>cell.includes(k))).length>=3){hdrRowIdx=i;break;}}
+  const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c||"").trim()));
+  if(!dataRows.length) return null;
+  const hdr=rows[hdrRowIdx].map(h=>String(h||"").toLowerCase().trim());
+  const ci=(...keys)=>hdr.findIndex(h=>keys.some(k=>h.includes(k)));
+  const datC=ci("fecha","date"),hourC=ci("hora","hour","time"),coC=ci("compañía","compania","company","empresa"),typeC=ci("tipo","type"),locC=ci("dirección","direccion","location","lugar","address"),statC=ci("estado","status"),notesC=ci("notas","notes","nota");
+  const newMtgs=[];let skipped=0;
+  dataRows.forEach((r,i)=>{
+    const rawDate=String(r[datC]||"").trim();const rawHour=String(r[hourC>=0?hourC:2]||"").trim();
+    if(!rawDate||rawDate==="Fecha"||rawDate==="Date")return;
+    let dateStr="";
+    if(/^\d{5}$/.test(rawDate)){dateStr=new Date(Math.round((parseFloat(rawDate)-25569)*86400*1000)).toISOString().slice(0,10);}
+    else if(/\d{4}-\d{2}-\d{2}/.test(rawDate)){dateStr=rawDate.slice(0,10);}
+    else if(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/.test(rawDate)){const m=rawDate.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);dateStr=`${m[3].length===2?"20"+m[3]:m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;}
+    else{skipped++;return;}
+    let hour=9;const numVal=parseFloat(rawHour);
+    if(!isNaN(numVal)&&numVal>0&&numVal<1){hour=Math.round(numVal*24);}
+    else{const pm=rawHour.match(/pm/i),am=rawHour.match(/am/i),hM=rawHour.match(/(\d{1,2})(?:[:h\.,](\d{0,2}))?/);if(hM){hour=parseInt(hM[1]);if(pm&&hour<12)hour+=12;else if(am&&hour===12)hour=0;else if(!pm&&!am&&hour<8)hour+=12;}}
+    hour=Math.max(7,Math.min(20,hour));
+    const rawCoName=coC>=0?String(r[coC]||"").trim():"";const rawCoLow=rawCoName.toLowerCase();
+    const co=rawCoLow?([...companyMap.entries()].find(([k])=>k.includes(rawCoLow)||rawCoLow.includes(k))||[])[1]:null;
+    const typeRaw=typeC>=0?String(r[typeC]||"").toLowerCase():"company";
+    const type=typeRaw.includes("internal")||typeRaw.includes("ls")||typeRaw.includes("almuerzo")||typeRaw.includes("lunch")?"ls_internal":"company";
+    const locRaw=locC>=0?String(r[locC]||"").trim():"";const locLow=locRaw.toLowerCase();
+    let loc="ls_office",locCustom="";
+    if(locLow.includes("hq")||locLow.includes("headquarters"))loc="hq";
+    else if(locLow.includes("latin securities")||locLow.includes("arenales"))loc="ls_office";
+    else if(locRaw.length>4){loc="custom";locCustom=locRaw;}
+    const statRaw=statC>=0?String(r[statC]||"tentative").toLowerCase():"tentative";
+    const status=statRaw.includes("confirm")||statRaw.includes("✅")?"confirmed":statRaw.includes("cancel")||statRaw.includes("❌")?"cancelled":"tentative";
+    newMtgs.push({id:`rsm-xl-${Date.now()}-${i}`,date:dateStr,hour,duration:60,type,companyId:co?.id||"",title:!co?rawCoName:"",location:loc,locationCustom:locCustom,status,notes:notesC>=0?String(r[notesC]||"").trim():"",attendeeIds:[]});
+  });
+  return newMtgs.length?{meetings:newMtgs,skipped}:null;
+}

@@ -3,10 +3,11 @@ import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } fro
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
-import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile } from "./src/utils/parsers.js";
+import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
 import { EventProvider } from "./src/contexts/EventContext.jsx";
+import { supabaseRetry } from "./src/utils/retry.js";
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
@@ -467,137 +468,29 @@ export default function App(){
     if(hotel) patchTrip.hotel=hotel;
     return{patchTrip,matchedCos:matched};
   }
+  // handleRsMeetingsExcel → parsing in src/utils/parsers.js
   function handleRsMeetingsExcel(e){
-    const file=e.target.files?.[0]; if(!file) return;
+    const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const wb=_XLSX.read(ev.target.result,{type:"array"});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=_XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-        // Smart header detection: find the row that has AT LEAST 3 column-like keywords
-        // This avoids false positives from subtitle rows like "agenda de compañías"
-        const COL_KEYS=["fecha","date","hora","hour","time","compañ","company","empresa",
-                        "tipo","type","direc","location","lugar","estado","status","notas","notes"];
-        let hdrRowIdx=0;
-        for(let i=0;i<Math.min(rows.length,6);i++){
-          const rowStr=rows[i].map(c=>String(c||"").toLowerCase());
-          const hits=rowStr.filter(cell=>COL_KEYS.some(k=>cell.includes(k))).length;
-          if(hits>=3){hdrRowIdx=i;break;}
-        }
-        const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r.some(c=>String(c||"").trim()));
-        if(!dataRows.length){toast("Archivo vacío o sin filas de datos.");return;}
-        const hdr=rows[hdrRowIdx].map(h=>String(h||"").toLowerCase().trim());
-        // Flexible column matching — accepts Spanish OR English headers
-        const ci=(...keys)=>{const idx=hdr.findIndex(h=>keys.some(k=>h.includes(k)));return idx;};
-        const datC  = ci("fecha","date");
-        const diaC  = ci("día","dia","day");
-        const hourC = ci("hora","hour","time");
-        const coC   = ci("compañía","compania","company","empresa");
-        const typeC = ci("tipo","type");
-        const locC  = ci("dirección","direccion","location","lugar","address");
-        const statC = ci("estado","status");
-        const notesC= ci("notas","notes","nota");
-
-        const rsCoMap=new Map((roadshow.companies||[]).map(c=>[c.name.toLowerCase(),c]));
-        const newMtgs=[];let skipped=0;
-        dataRows.forEach((r,i)=>{
-          const rawDate=String(r[datC]||"").trim();
-          const rawHour=String(r[hourC>=0?hourC:2]||"").trim();
-          if(!rawDate||rawDate==="Fecha"||rawDate==="Date") return; // skip re-header rows
-          // Parse date — DD/MM/YYYY, YYYY-MM-DD, or Excel serial
-          let dateStr="";
-          if(/^\d{5}$/.test(rawDate)){
-            const d=new Date(Math.round((parseFloat(rawDate)-25569)*86400*1000));
-            dateStr=d.toISOString().slice(0,10);
-          } else if(/\d{4}-\d{2}-\d{2}/.test(rawDate)){
-            dateStr=rawDate.slice(0,10);
-          } else if(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/.test(rawDate)){
-            const m=rawDate.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-            const y=m[3].length===2?"20"+m[3]:m[3];
-            dateStr=`${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
-          } else { skipped++; return; }
-          // Parse hour — handles ALL Excel formats:
-          // - Excel time fraction: 0.375 = 9:00, 0.5 = 12:00, 0.625 = 15:00
-          // - String: "09:00", "9:00", "15:00", "9", "15", "3pm", "3 PM"
-          // - Smart 12h: if hour < 8 → assume PM (add 12). No meetings at 3am.
-          let hour=9;
-          const numVal=parseFloat(rawHour);
-          if(!isNaN(numVal)&&numVal>0&&numVal<1){
-            // Excel time fraction (e.g. 0.375 = 9:00)
-            hour=Math.round(numVal*24);
-          } else {
-            const pmMatch=rawHour.match(/pm/i);
-            const amMatch=rawHour.match(/am/i);
-            const hMatch=rawHour.match(/(\d{1,2})(?:[:h\.,](\d{0,2}))?/);
-            if(hMatch){
-              hour=parseInt(hMatch[1]);
-              if(pmMatch&&hour<12) hour+=12;
-              else if(amMatch&&hour===12) hour=0;
-              else if(!pmMatch&&!amMatch&&hour<8) hour+=12; // 3:00 → 15:00
-            }
-          }
-          hour=Math.max(7,Math.min(20,hour)); // clamp to 7am-8pm
-          // Match company against roadshow companies list
-          const rawCoName=coC>=0?String(r[coC]||"").trim():"";
-          const rawCoLow=rawCoName.toLowerCase();
-          const co=rawCoLow?([...rsCoMap.entries()].find(([k])=>k.includes(rawCoLow)||rawCoLow.includes(k))||[])[1]:null;
-          // Type: "Company Visit" → company, anything with "internal/ls/almuerzo/lunch" → ls_internal
-          const typeRaw=typeC>=0?String(r[typeC]||"").toLowerCase():"company";
-          const type=typeRaw.includes("internal")||typeRaw.includes("intern")||typeRaw.includes("ls")||typeRaw.includes("almuerzo")||typeRaw.includes("lunch")||typeRaw.includes("network")?"ls_internal":"company";
-          // Location: if it contains a street address, store as custom; "hq" → hq; otherwise ls_office
-          const locRaw=locC>=0?String(r[locC]||"").trim():"";
-          const locLow=locRaw.toLowerCase();
-          let loc="ls_office", locCustom="";
-          if(locLow.includes("hq")||locLow.includes("headquarters")) loc="hq";
-          else if(locLow.includes("latin securities")||locLow.includes("arenales")||locLow.includes("ls office")||locLow.includes("oficina latin")) loc="ls_office";
-          else if(locRaw.length>4){ loc="custom"; locCustom=locRaw; } // real address → custom
-          // Status: "✅ Confirmado" / "confirmed" / "tentativo" etc.
-          const statRaw=statC>=0?String(r[statC]||"tentative").toLowerCase():"tentative";
-          const status=statRaw.includes("confirm")||statRaw.includes("✅")?"confirmed":statRaw.includes("cancel")||statRaw.includes("❌")?"cancelled":"tentative";
-          const notes=notesC>=0?String(r[notesC]||"").trim():"";
-          newMtgs.push({
-            id:`rsm-xl-${Date.now()}-${i}`,
-            date:dateStr, hour, duration:60, type,
-            companyId:co?.id||"", title:!co?rawCoName:"",
-            location:loc, locationCustom:locCustom, status, notes,
-            attendeeIds:[]
-          });
-        });
-        if(!newMtgs.length){toast("No se pudieron importar reuniones. Revisá el formato."+(skipped?" ("+skipped+" filas sin fecha)":""));return;}
-        // Find companies that already have meetings
-        const existingCos=new Set(roadshow.meetings.filter(m=>m.companyId).map(m=>m.companyId));
-        const newCosInFile=new Set(newMtgs.filter(m=>m.companyId).map(m=>m.companyId));
-        const overlap=[...newCosInFile].filter(id=>existingCos.has(id));
-        let finalMeetings=[...roadshow.meetings];
-        let replaced=0, added=0, skippedConflict=0;
-        if(overlap.length>0){
-          const coNames=overlap.map(id=>{const c=roadshow.companies.find(x=>x.id===id);return c?c.name:id;});
-          const doReplace=confirm(`Las siguientes compañías ya tienen reuniones:\n\n${coNames.join("\n")}\n\n¿Reemplazar con las reuniones del Excel? (las existentes se borrarán)\n\nCancelar = solo agregar las nuevas sin borrar nada.`);
-          if(doReplace){
-            // Remove existing meetings for those companies
-            finalMeetings=finalMeetings.filter(m=>!overlap.includes(m.companyId));
-            replaced=overlap.length;
-          }
-        }
-        // Add new meetings — skip time conflicts only for non-replaced slots
-        newMtgs.forEach(nm=>{
-          const conflict=finalMeetings.some(ex=>ex.date===nm.date&&ex.hour===nm.hour);
-          if(conflict) skippedConflict++;
-          else { finalMeetings.push(nm); added++; }
-        });
-        saveRoadshow({...roadshow,meetings:finalMeetings});
-        const msg=[
-          `✅ ${added} reunión(es) importada(s).`,
-          replaced?`${replaced} compañía(s) reemplazadas.`:"",
-          skipped?`${skipped} filas sin fecha ignoradas.`:"",
-          skippedConflict?`${skippedConflict} omitidas por conflicto de horario.`:"",
-        ].filter(Boolean).join(" ");
-        toast(msg);
-      }catch(err){toastErr("Error leyendo el archivo: "+err.message);}
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value="";
+    reader.onload=ev=>{try{
+      const rsCoMap=new Map((roadshow.companies||[]).map(c=>[c.name.toLowerCase(),c]));
+      const result=parseRoadshowMeetingsFile(ev.target.result,_XLSX,rsCoMap);
+      if(!result){toast("No se pudieron importar reuniones.");return;}
+      const {meetings:newMtgs,skipped}=result;
+      // Merge: handle overlapping companies
+      const existingCos=new Set(roadshow.meetings.filter(m=>m.companyId).map(m=>m.companyId));
+      const newCosInFile=new Set(newMtgs.filter(m=>m.companyId).map(m=>m.companyId));
+      const overlap=[...newCosInFile].filter(id=>existingCos.has(id));
+      let finalMeetings=[...roadshow.meetings];let replaced=0,added=0,skippedConflict=0;
+      if(overlap.length>0){
+        const coNames=overlap.map(id=>(roadshow.companies.find(x=>x.id===id))?.name||id);
+        if(confirm(`Compañías con reuniones existentes:\n${coNames.join("\n")}\n\n¿Reemplazar?`)){finalMeetings=finalMeetings.filter(m=>!overlap.includes(m.companyId));replaced=overlap.length;}
+      }
+      newMtgs.forEach(nm=>{if(finalMeetings.some(ex=>ex.date===nm.date&&ex.hour===nm.hour))skippedConflict++;else{finalMeetings.push(nm);added++;}});
+      saveRoadshow({...roadshow,meetings:finalMeetings});
+      toast([`✅ ${added} reunión(es) importada(s).`,replaced?`${replaced} reemplazadas.`:"",skipped?`${skipped} sin fecha.`:"",skippedConflict?`${skippedConflict} conflicto.`:""].filter(Boolean).join(" "));
+    }catch(err){toastErr("Error: "+err.message);}};
+    reader.readAsArrayBuffer(file);e.target.value="";
   }
   // ─── Global DB: Excel import ──────────────────────────────────────
   // handleDBCompaniesExcel → parsing in src/utils/parsers.js
@@ -937,10 +830,12 @@ Daily Summary — ${dayLabel}
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
-    _lastSaveId.current=id+"-"+JSON.stringify(data).length; // mark to skip realtime echo
+    _lastSaveId.current=id+"-"+JSON.stringify(data).length;
     setSyncStatus("syncing");
-    await supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id});
-    setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
+    try{
+      await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id}));
+      setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
+    }catch(err){setSyncStatus("idle");console.error("[CloudSave] Failed after retries:",err.message);}
   }
   async function cloudDeleteEvent(evId){
     if(!authUser) return;
