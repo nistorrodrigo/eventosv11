@@ -1033,10 +1033,13 @@ Daily Summary — ${dayLabel}
   const hasEvents=events.length>0;
 
   if(authLoading) return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:16}}>
-      <div style={{width:36,height:36,border:"3px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
-      <div style={{color:"#7a8fa8",fontSize:12,fontFamily:"IBM Plex Mono,monospace"}}>Cargando...</div>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0e1a",flexDirection:"column",gap:20}}>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}"}</style>
+      <div style={{width:56,height:56,background:"linear-gradient(135deg,#1e5ab0,#3399ff)",borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(30,90,176,.4)",animation:"fadeIn .5s ease-out"}}>
+        <span style={{color:"#fff",fontSize:22,fontWeight:800,fontFamily:"IBM Plex Mono,monospace"}}>LS</span>
+      </div>
+      <div style={{width:28,height:28,border:"2.5px solid rgba(30,90,176,.3)",borderTopColor:"#3399ff",borderRadius:"50%",animation:"spin 0.7s linear infinite"}}/>
+      <div style={{color:"#4a5a7a",fontSize:10,fontFamily:"IBM Plex Mono,monospace",letterSpacing:".15em",textTransform:"uppercase",animation:"fadeIn .8s ease-out"}}>Latin Securities</div>
     </div>
   );
 
