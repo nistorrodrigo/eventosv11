@@ -327,7 +327,10 @@ export function _exportDriverItinerary({filterDate, roadshow, travelCache, tripD
 <div class="hdr"><div><div class="ls1">Latin Securities</div><div class="ls2">Roadshow · Driver Itinerary</div></div><div style="text-align:right;font-size:9pt;color:#6b7280"><div style="font-weight:700;color:#000039;font-size:11pt">${fund}</div><div>${hotel}</div></div></div>
 ${dayBlocks}
 <div class="note">⚠ Los horarios de salida/regreso al hotel son estimativos. ${travelNote}</div>
-<div class="footer"><span>Latin Securities · Confidential</span><span>${fund} · Driver Itinerary</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px">
+<div class="footer" style="margin:0;border:none;padding:0;flex:1"><span>Latin Securities · Confidential</span><span>${fund} · Driver Itinerary</span></div>
+<div style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(`tel:${roadshow.trip?.visitors?.[0]?.phone||""}`)}" width="60" height="60" style="border-radius:4px;opacity:.7"/><div style="font-size:6pt;color:#9ca3af">Contacto</div></div>
+</div>
 </body></html>`;
   openPrint(html);
 }
@@ -376,7 +379,14 @@ export function _exportCompanyBrief({co, roadshow, openPrint}){
 ${mtgContacts.length?`<div class="section"><div class="sec-label">Company Representatives</div>${mtgContacts.map(c=>`<div class="contact-row"><span style="font-weight:600">${c.name}</span><span style="color:#6b7280">${c.title||""}</span><span style="color:#374151;font-size:9.5pt">${c.email||""}</span></div>`).join("")}</div>`:""}
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px"><div><div class="sec-label" style="margin-bottom:6px">📋 Pre-meeting notes</div><div class="notes-box">${(mtg?.notes||co.notes||"—").replace(/</g,"&lt;")}</div></div><div><div class="sec-label" style="margin-bottom:6px">✅ Post-meeting notes</div><div class="post-box">${(mtg?.postNotes||"").replace(/</g,"&lt;")||"<span style='color:#9ca3af;font-style:italic'>Complete after the meeting</span>"}</div></div></div>
 ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div><div style="font-size:10.5pt">${co.hqAddress}</div></div>`:""}
-<div class="footer"><span>Latin Securities · Confidential</span><span>${co.name} · ${trip.fund||trip.clientName||""}</span></div></body></html>`;
+<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px">
+  <div class="footer" style="margin:0;border:none;padding:0;flex:1"><span>Latin Securities · Confidential</span></div>
+  <div style="text-align:center">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`mailto:${lsCont?.email||"info@latinsecurities.ar"}?subject=Meeting+${encodeURIComponent(co.name)}+${encodeURIComponent(trip.fund||"")}`)}${lsCont?.email?"":"&color=1e5ab0"}" width="80" height="80" style="border-radius:6px"/>
+    <div style="font-size:7pt;color:#9ca3af;margin-top:2px">Contactar LS</div>
+  </div>
+</div>
+</body></html>`;
   openPrint(html);
 }
 
