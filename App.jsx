@@ -4,6 +4,7 @@ import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
+import { FocusTrap } from "./src/components/FocusTrap.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
 async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
@@ -1253,15 +1254,17 @@ Daily Summary — ${dayLabel}
         )}
         </div>
       </div>
-      <nav className="nav">
-        {TABS.map(t=><button key={t.id} className={`ntab${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}
+      <nav className="nav" role="tablist" aria-label="Navegación principal">
+        {TABS.map(t=><button key={t.id} role="tab" aria-selected={tab===t.id} className={`ntab${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}
       </nav>
     </header>
 
     {/* NEW EVENT MODAL */}
     {showEvMgr&&(
-      <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}>
-        <div className="modal" style={{maxWidth:440}}>
+      <div className="overlay" role="dialog" aria-modal="true" aria-label="Gestión de eventos"
+        onClick={e=>{if(e.target===e.currentTarget)setShowEvMgr(false);}}
+        onKeyDown={e=>{if(e.key==="Escape")setShowEvMgr(false);}}>
+        <FocusTrap><div className="modal" style={{maxWidth:440}}>
           <div className="modal-hdr"><div className="modal-title">Gestión de Eventos</div></div>
           <div className="modal-body">
             <div style={{marginBottom:16}}>
@@ -1308,7 +1311,7 @@ Daily Summary — ${dayLabel}
             </div>
           </div>
           <div className="modal-footer"><button className="btn bo bs" onClick={()=>setShowEvMgr(false)}>Cerrar</button></div>
-        </div>
+        </div></FocusTrap>
       </div>
     )}
 

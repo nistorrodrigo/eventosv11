@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
 import { SkeletonCard } from "../components/Skeleton.jsx";
+import { FocusTrap } from "../components/FocusTrap.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -1324,9 +1325,10 @@ export function RoadshowInboundTab({
 
           {/* ── WhatsApp Bulk Modal ─────────────────────────────── */}
           {waBulkModal&&(
-            <div className="overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
-              onClick={e=>{if(e.target===e.currentTarget)setWaBulkModal(null);}}>
-              <div className="modal" style={{maxWidth:560,width:"95%",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+            <div className="overlay" role="dialog" aria-modal="true" aria-label="WhatsApp Bulk" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}
+              onClick={e=>{if(e.target===e.currentTarget)setWaBulkModal(null);}}
+              onKeyDown={e=>{if(e.key==="Escape")setWaBulkModal(null);}}>
+              <FocusTrap><div className="modal" style={{maxWidth:560,width:"95%",maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
                 <div className="modal-hdr">
                   <div className="modal-title">💬 WhatsApp Bulk — {waBulkModal.dateLabel}</div>
                   <button className="modal-x" onClick={()=>setWaBulkModal(null)}>✕</button>
@@ -1360,7 +1362,7 @@ export function RoadshowInboundTab({
                   }}>📋 Copiar todos</button>}
                   <button className="btn bo bs" style={{fontSize:10}} onClick={()=>setWaBulkModal(null)}>Cerrar</button>
                 </div>
-              </div>
+              </div></FocusTrap>
             </div>
           )}
         </div>
