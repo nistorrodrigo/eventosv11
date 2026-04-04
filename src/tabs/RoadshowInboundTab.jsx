@@ -325,7 +325,22 @@ export function RoadshowInboundTab({
                         </div>
                       </div>
                       {dayMtgs.length>0&&(
-                        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                          {/* A3: Bulk confirm day */}
+                          {dayMtgs.some(m=>m.status==="tentative")&&<button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>{
+                            const tent=dayMtgs.filter(m=>m.status==="tentative").length;
+                            const now2=new Date().toISOString();
+                            const updated=(roadshow.meetings||[]).map(m=>m.date===rsDayFilter&&m.status==="tentative"?{...m,status:"confirmed",changeLog:[...(m.changeLog||[]),{at:now2,field:"status",from:"tentative",to:"confirmed"}]}:m);
+                            saveRoadshow({...roadshow,meetings:updated});
+                            toastOk(`✅ ${tent} reunión(es) confirmadas`);
+                          }}>✅ Confirmar día ({dayMtgs.filter(m=>m.status==="tentative").length})</button>}
+                          {/* A4: Copy day agenda to clipboard */}
+                          <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>{
+                            const dayLabel2=dayDate.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
+                            const lines=dayMtgs.map(m=>{const co2=m.type==="company"?rsCoById.get(m.companyId):null;const name2=co2?.name||(m.lsType||m.title||"Reunión");const loc=m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co2?.hqAddress||"HQ"):(m.locationCustom||"TBD");return`${fmtH(m.hour)} · ${name2} · 📍 ${loc} · ${m.status==="confirmed"?"✅":"◌"}`;});
+                            const txt=`📅 *Agenda ${dayLabel2}*\n${roadshow.trip.fund||""}\n\n${lines.join("\n")}`;
+                            navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Agenda del día copiada"));
+                          }}>📋 Copiar agenda</button>
                           <button className="btn bo bs" style={{fontSize:9,gap:4,display:"inline-flex",alignItems:"center"}} onClick={()=>{
                             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" y ");
                             const fund=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
@@ -1092,7 +1107,20 @@ export function RoadshowInboundTab({
             const fmtAmt=(n,cur)=>new Intl.NumberFormat("es-AR",{style:"currency",currency:cur,minimumFractionDigits:0,maximumFractionDigits:2}).format(n);
             return(
               <div>
-                <div className="sec-hdr" style={{marginBottom:10}}>💰 Gastos del roadshow</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div className="sec-hdr" style={{margin:0,border:"none",paddingBottom:0}}>💰 Gastos del roadshow</div>
+                  {expenses.length>0&&<button className="btn bo bs" style={{fontSize:9}} onClick={async()=>{
+                    const XLSX=await getXLSX();if(!XLSX)return;
+                    const rows=[["Fecha","Categoría","Descripción","Monto","Moneda","Pagó","Notas","Comprobante"],...expenses.map(e=>[e.date,e.category,e.description,e.amount,e.currency,e.paidBy||"",e.notes||"",e.receiptName||""])];
+                    const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:12},{wch:16},{wch:30},{wch:12},{wch:8},{wch:16},{wch:30},{wch:20}];
+                    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Gastos");
+                    // Add totals by currency
+                    const totRows=[[""],["TOTALES POR MONEDA"],...Object.entries(byCurrency).map(([cur,t])=>["",cur,"","",t])];
+                    XLSX.utils.sheet_add_aoa(ws,totRows,{origin:-1});
+                    XLSX.writeFile(wb,`Gastos_${(roadshow.trip.fund||"Roadshow").replace(/[^a-zA-Z0-9]/g,"_")}.xlsx`);
+                    toastOk("✅ Gastos exportados a Excel");
+                  }}>📥 Exportar Excel</button>}
+                </div>
                 {/* Totals */}
                 {Object.keys(byCurrency).length>0&&(
                   <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
