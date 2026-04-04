@@ -5,6 +5,7 @@ import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
 import { SkeletonCard } from "../components/Skeleton.jsx";
 import { FocusTrap } from "../components/FocusTrap.jsx";
 import { WeekCalendar } from "../components/WeekCalendar.jsx";
+import { EmptyState } from "../components/EmptyState.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -339,7 +340,7 @@ export function RoadshowInboundTab({
                           }}>💬 WhatsApp Bulk</button>
                         </div>
                       )}
-                      {dayMtgs.length===0?(<div style={{textAlign:"center",padding:"28px 20px",color:"var(--dim)",fontSize:12}}>Sin reuniones este día</div>):(
+                      {dayMtgs.length===0?(<EmptyState icon="calendar" title="Sin reuniones este día" subtitle="Hacé click en la grilla o usá + Nueva reunión para agendar."/>):(
                         <div style={{display:"flex",flexDirection:"column",gap:8}}>
                           {dayMtgs.map((m)=>{
                             const co=m.type==="company"?rsCoById.get(m.companyId):null;
@@ -576,7 +577,7 @@ export function RoadshowInboundTab({
             <div>
               <div className="sec-hdr" style={{marginBottom:10}}>📬 Reservas online</div>
               {bookingsLoading?<div style={{display:"flex",flexDirection:"column",gap:10}}>{[1,2,3].map(i=><SkeletonCard key={i} lines={2}/>)}</div>:(
-                bookings.length===0?<div className="card" style={{textAlign:"center",padding:"30px 20px",color:"var(--dim)"}}><div style={{fontSize:28,marginBottom:8}}>📭</div><div style={{fontSize:13}}>No hay reservas todavía.</div><div style={{fontSize:11,marginTop:6}}>Publicá el link de reserva desde la pestaña Exportar.</div></div>:(
+                bookings.length===0?<div className="card"><EmptyState icon="inbox" title="Sin reservas online" subtitle="Publicá el link de reserva desde la pestaña Exportar para que las empresas agenden reuniones."/></div>:(
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {["pending","approved","rejected"].map(status=>{
                       const group=bookings.filter(b=>b.status===status);
@@ -1104,7 +1105,7 @@ export function RoadshowInboundTab({
                   </div>
                 </div>
                 {/* List */}
-                {expenses.length===0?<div className="card" style={{textAlign:"center",padding:"30px 20px",color:"var(--dim)"}}><div style={{fontSize:28,marginBottom:8}}>💰</div><div style={{fontSize:13}}>Sin gastos registrados.</div></div>:(
+                {expenses.length===0?<div className="card"><EmptyState icon="money" title="Sin gastos registrados" subtitle="Usá el formulario de arriba para registrar transfers, comidas, hotel y más."/></div>:(
                   <div className="card" style={{padding:0,overflow:"hidden"}}>
                     <table className="tbl">
                       <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th style={{textAlign:"right"}}>Monto</th><th>Pagó</th><th></th></tr></thead>
@@ -1309,10 +1310,7 @@ export function RoadshowInboundTab({
                 <h2 className="pg-h" style={{fontSize:16,marginBottom:4}}>🕐 Activity Feed</h2>
                 <p className="pg-s" style={{marginBottom:14}}>Timeline de cambios en este roadshow.</p>
                 {feed.length===0?(
-                  <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
-                    <div style={{fontSize:32,marginBottom:10}}>📋</div>
-                    <div>No hay actividad registrada aún.</div>
-                  </div>
+                  <div className="card"><EmptyState icon="timeline" title="Sin actividad aún" subtitle="Creá o modificá reuniones para ver el historial de cambios acá."/></div>
                 ):(
                   <div>
                     {days.map(day=>(
