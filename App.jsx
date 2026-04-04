@@ -361,11 +361,22 @@ export default function App(){
     const s=new Date(trip.arrivalDate+"T12:00:00"),e=new Date(trip.departureDate+"T12:00:00");
     for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6)workDays.push(d.toISOString().slice(0,10));}
     const BOOK_HOURS=[9,9.5,10,10.5,11,11.5,12,12.5,14,14.5,15,15.5,16,16.5,17,17.5];
+    const minMeetingMin=45; // minimum viable meeting duration
+    const allBusy=new Set([...busyMtgs,...busyBookings]);
     const newSlots=[];
     for(const day of workDays){
+      // Build sorted list of busy start times for this day to find "next event" efficiently
+      const dayBusyStarts=[...(roadshow.meetings||[]).filter(m=>m.date===day&&m.status!=="cancelled").map(m=>m.hour),
+        ...(existingBookings||[]).filter(b=>b.slot_date===day).map(b=>b.slot_hour)].sort((a,b)=>a-b);
       for(const h of BOOK_HOURS){
         const key=`${day}-${h}`;
-        if(!busyMtgs.has(key)&&!busyBookings.has(key)) newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
+        if(allBusy.has(key)) continue;
+        // Check: is there at least minMeetingMin free from this slot?
+        const nextEvent=dayBusyStarts.find(t=>t>h);
+        const freeUntil=nextEvent!=null?nextEvent:18; // end of day
+        const freeMin=(freeUntil-h)*60;
+        if(freeMin<minMeetingMin) continue; // not enough time for a viable meeting
+        newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
       }
     }
     // Delete old slots for this event
