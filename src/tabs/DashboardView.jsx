@@ -48,7 +48,7 @@ export function DashboardView({
         </div>
 
         {/* ══ HERO ══ */}
-        <div style={{background:"linear-gradient(165deg,#000039 0%,#091040 55%,#0e1852 100%)",padding:"52px 40px 76px",position:"relative",overflow:"hidden"}}>
+        <div className="dash-hero" style={{background:"linear-gradient(165deg,#000039 0%,#091040 55%,#0e1852 100%)",padding:"52px 40px 76px",position:"relative",overflow:"hidden"}}>
           {/* Diagonal grid decoration */}
           <div style={{position:"absolute",inset:0,opacity:.04,backgroundImage:"repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)",backgroundSize:"30px 30px",pointerEvents:"none"}}/>
           {/* Accent line */}
@@ -57,7 +57,7 @@ export function DashboardView({
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
               <div>
                 <div style={{fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"rgba(255,255,255,.3)",letterSpacing:".28em",textTransform:"uppercase",marginBottom:14}}>Buenos Aires · Latin Securities</div>
-                <h1 style={{fontFamily:"Playfair Display,serif",fontSize:42,fontWeight:400,color:"#fff",margin:"0 0 10px",letterSpacing:"-.02em",lineHeight:1.1}}>Roadshow &amp; Event Manager</h1>
+                <h1 className="dash-title" style={{fontFamily:"Playfair Display,serif",fontSize:42,fontWeight:400,color:"#fff",margin:"0 0 10px",letterSpacing:"-.02em",lineHeight:1.1}}>Roadshow &amp; Event Manager</h1>
                 <p style={{fontSize:12,color:"rgba(255,255,255,.38)",fontFamily:"IBM Plex Mono,monospace",margin:0,letterSpacing:".07em"}}>Institutional Sales · Gestión de agenda y exportación</p>
               </div>
               <div style={{display:"flex",gap:10,alignSelf:"flex-end",paddingBottom:4}}>
@@ -72,11 +72,11 @@ export function DashboardView({
         </div>
 
         {/* ══ MAIN CONTENT ══ */}
-        <div style={{maxWidth:1200,margin:"-22px auto 0",padding:"0 40px 60px",position:"relative"}}>
+        <div className="dash-content" style={{maxWidth:1200,margin:"-22px auto 0",padding:"0 40px 60px",position:"relative"}}>
 
           {/* ── Stats card ── */}
           {hasEvents&&(
-            <div style={{display:"flex",gap:0,marginBottom:36,background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,57,.09),0 1px 3px rgba(0,0,0,.05)"}}>
+            <div className="dash-stats" style={{display:"flex",gap:0,marginBottom:36,background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,57,.09),0 1px 3px rgba(0,0,0,.05)"}}>
               {[
                 {lbl:"Total",     val:events.length,                                            clr:"#000039"},
                 {lbl:"En curso",  val:dashEvents.filter(e=>e.state==="active").length,          clr:"#166534"},
@@ -117,7 +117,7 @@ export function DashboardView({
                     <div style={{flex:1,height:1,background:"linear-gradient(90deg,"+sec.clr+"25,transparent)"}}/>
                   </div>
                   {/* Cards grid */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))",gap:12}}>
+                  <div className="dash-ev-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(310px,1fr))",gap:12}}>
                     {evs.map(ev=>{
                       const kindIcon=ev.kind==="roadshow"?"🗺️":ev.kind==="outbound"?"✈️":"🏛";
                       const kindLbl=ev.kind==="roadshow"?"Inbound":ev.kind==="outbound"?"Outbound":"Conferencia";

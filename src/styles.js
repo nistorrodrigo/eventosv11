@@ -140,6 +140,13 @@ html,body{background:var(--ink)}
   .rs-subtabs-stats{display:none!important}
   .day-hdr-bar{padding:10px 14px!important;border-radius:8px!important}
   .mtg-day-card{padding:10px 12px!important;border-radius:8px!important}
+  .dash-hero{padding:32px 16px 52px!important}
+  .dash-title{font-size:26px!important}
+  .dash-content{padding:0 14px 40px!important;margin-top:-16px!important}
+  .dash-stats{flex-wrap:wrap!important;border-radius:10px!important;margin-bottom:20px!important}
+  .dash-stats>div{flex:0 0 33.33%!important;padding:12px 8px!important;border-bottom:1px solid #f0f3f8}
+  .dash-stats>div>div:first-child{font-size:20px!important}
+  .dash-ev-grid{grid-template-columns:1fr!important;gap:10px!important}
 }
 @media(max-width:480px){
   .hdr{padding:0 8px}
@@ -151,6 +158,11 @@ html,body{background:var(--ink)}
   .sv{font-size:18px}
   .overlay{padding:6px 4px}
   .modal{border-radius:6px}
+  .dash-hero{padding:24px 12px 40px!important}
+  .dash-title{font-size:22px!important}
+  .dash-content{padding:0 10px 30px!important}
+  .dash-stats>div{flex:0 0 50%!important;padding:10px 6px!important}
+  .dash-stats>div>div:first-child{font-size:18px!important}
 }
 `;
 
