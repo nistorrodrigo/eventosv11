@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { downloadBlob, saveEvents } from "../storage.jsx";
 import { CSS } from "../styles.js";
+import { useAuth } from "../contexts/AuthContext.jsx";
 
 export function DashboardView({
   events, dashEvents, setEvents, saveEvents,
@@ -9,10 +10,6 @@ export function DashboardView({
   createEvent, duplicateEvent, setEvPassword,
   cloudDeleteEvent, handleOpenEvent,
   activeEv, setActiveEv, config,
-  authUser, authView, setAuthView,
-  authEmail, setAuthEmail, authPwd, setAuthPwd,
-  authName, setAuthName, authErr, setAuthErr, authBusy,
-  signIn, signUp, signOut,
   dashboardView, setDashboardView,
   showEvMgr, setShowEvMgr,
   showSearch, setShowSearch, globalSearch, setGlobalSearch,
@@ -24,6 +21,7 @@ export function DashboardView({
   setKioskFb, setRsDayFilter,
   setTab, setRsSubTab,
 }){
+  const { authUser, signOut } = useAuth();
   return(
     <div className="app"><style>{CSS}</style>
       <div style={{minHeight:"100vh",background:"#f2f5fb",fontFamily:"'Lora',Georgia,serif"}}>

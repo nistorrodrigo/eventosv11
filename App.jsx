@@ -5,6 +5,7 @@ import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.jsx"
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.js";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
+import { useAuth } from "./src/contexts/AuthContext.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
 async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
@@ -62,19 +63,12 @@ import { LibraryTab } from "./src/tabs/LibraryTab.jsx";
 
 export default function App(){
   // ── Events (persistence) ──────────────────────────────────────
-  // ── Auth state ───────────────────────────────────────────────
-  const [authUser,setAuthUser]   = useState(null);
-  const [authLoading,setAuthLoading] = useState(true);
+  // ── Auth (from context) ──────────────────────────────────────
+  const { authUser, authLoading, authView, setAuthView, authEmail, setAuthEmail, authPwd, setAuthPwd, authName, setAuthName, authErr, setAuthErr, authBusy, signIn, signUp, signOut } = useAuth();
   const [pwaPrompt,setPwaPrompt] = useState(null);
   const [pwaInstalled,setPwaInstalled] = useState(
     window.matchMedia?.('(display-mode: standalone)').matches || false
   );
-  const [authView,setAuthView]   = useState("login"); // "login"|"signup"
-  const [authEmail,setAuthEmail] = useState("");
-  const [authPwd,setAuthPwd]     = useState("");
-  const [authName,setAuthName]   = useState("");
-  const [authErr,setAuthErr]     = useState("");
-  const [authBusy,setAuthBusy]   = useState(false);
   const [globalDB,setGlobalDB] = useState(()=>loadDB());
   function saveGlobalDB(db){setGlobalDB(db);saveDB(db);cloudSaveGlobalDB(db);}
   const [dbTab,setDbTab]       = useState("companies");  // companies | investors | fondos
@@ -874,22 +868,11 @@ Daily Summary — ${dayLabel}
     return()=>window.removeEventListener('beforeinstallprompt',handler);
   },[]);
 
+    // Load from cloud when auth user changes (auth state managed by AuthContext)
+    const [cloudLoaded,setCloudLoaded]=useState(false);
     useEffect(()=>{
-    // Safety timeout: if Supabase doesn't respond in 8s (e.g. paused project), show login
-    const safetyTimer = setTimeout(()=>setAuthLoading(false), 8000);
-    supabase.auth.getSession().then(({data:{session}})=>{
-      clearTimeout(safetyTimer);
-      setAuthUser(session?.user||null);
-      if(session?.user) loadFromCloud(session.user.id);
-      else setAuthLoading(false);
-    }).catch(()=>{ clearTimeout(safetyTimer); setAuthLoading(false); });
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,session)=>{
-      setAuthUser(session?.user||null);
-      if(session?.user) loadFromCloud(session.user.id);
-      else setAuthLoading(false);
-    });
-    return()=>{ clearTimeout(safetyTimer); subscription.unsubscribe(); };
-  },[]);// eslint-disable-line
+      if(authUser&&!cloudLoaded){loadFromCloud(authUser.id);setCloudLoaded(true);}
+    },[authUser]);// eslint-disable-line
 
   async function loadFromCloud(userId){
     // Load events
@@ -911,7 +894,6 @@ Daily Summary — ${dayLabel}
     // Load library
     const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
     if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
-    setAuthLoading(false);
   }
 
   async function cloudSaveEvent(ev){
@@ -928,23 +910,7 @@ Daily Summary — ${dayLabel}
     await supabase.from("ls_global_db").upsert({user_id:authUser.id,data:db});
   }
 
-  async function signIn(){
-    setAuthBusy(true);setAuthErr("");
-    const{error}=await supabase.auth.signInWithPassword({email:authEmail,password:authPwd});
-    if(error) setAuthErr(error.message);
-    setAuthBusy(false);
-  }
-  async function signUp(){
-    setAuthBusy(true);setAuthErr("");
-    const{error}=await supabase.auth.signUp({email:authEmail,password:authPwd,options:{data:{display_name:authName}}});
-    if(error) setAuthErr(error.message);
-    else setAuthErr("✅ Revisá tu email para confirmar la cuenta, luego iniciá sesión.");
-    setAuthBusy(false);
-  }
-  async function signOut(){
-    await supabase.auth.signOut();
-    setAuthUser(null);setAuthLoading(false);
-  }
+  // signIn, signUp, signOut → now in AuthContext
 
   // ── Wrap saveEvents to also sync to cloud ───────────────────
   // ─── Travel time (OSRM + Nominatim, free, App-level so async setState works) ──
@@ -1166,12 +1132,7 @@ Daily Summary — ${dayLabel}
       createEvent={createEvent} duplicateEvent={duplicateEvent} setEvPassword={setEvPassword}
       cloudDeleteEvent={cloudDeleteEvent} handleOpenEvent={handleOpenEvent}
       activeEv={activeEv} setActiveEv={setActiveEv} config={config}
-      authUser={authUser} authView={authView} setAuthView={setAuthView}
-      authEmail={authEmail} setAuthEmail={setAuthEmail}
-      authPwd={authPwd} setAuthPwd={setAuthPwd}
-      authName={authName} setAuthName={setAuthName}
-      authErr={authErr} setAuthErr={setAuthErr} authBusy={authBusy}
-      signIn={signIn} signUp={signUp} signOut={signOut}
+      /* auth props removed — DashboardView uses useAuth() context */
       dashboardView={dashboardView} setDashboardView={setDashboardView}
       showEvMgr={showEvMgr} setShowEvMgr={setShowEvMgr}
       showSearch={showSearch} setShowSearch={setShowSearch}
