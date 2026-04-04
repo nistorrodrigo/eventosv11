@@ -1139,6 +1139,15 @@ export function RoadshowInboundTab({
                     XLSX.writeFile(wb,`Gastos_${(roadshow.trip.fund||"Roadshow").replace(/[^a-zA-Z0-9]/g,"_")}.xlsx`);
                     toastOk("✅ Gastos exportados a Excel");
                   }}>📥 Exportar Excel</button>}
+                  {expenses.length>0&&<button className="btn bo bs" style={{fontSize:9}} onClick={()=>{
+                    const fund=roadshow.trip.fund||roadshow.trip.clientName||"Roadshow";
+                    const fmtAmt2=(n,cur)=>new Intl.NumberFormat("es-AR",{style:"currency",currency:cur,minimumFractionDigits:0}).format(n);
+                    const now2=new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+                    const rows=expenses.sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`<tr><td style="padding:6px 10px;font-family:monospace;font-size:10pt;white-space:nowrap">${new Date(e.date+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</td><td style="padding:6px 10px;font-size:10pt">${e.category}</td><td style="padding:6px 10px;font-size:10pt">${e.description}${e.notes?" — "+e.notes:""}</td><td style="padding:6px 10px;text-align:right;font-weight:700;font-family:monospace;font-size:10pt">${fmtAmt2(e.amount,e.currency)}</td><td style="padding:6px 10px;font-size:9pt;color:#6b7280">${e.paidBy||""}</td>${e.receipt?`<td style="padding:6px 10px;font-size:9pt"><a href="${e.receipt}" target="_blank">📎</a></td>`:`<td></td>`}</tr>`).join("");
+                    const totals=Object.entries(byCurrency).map(([cur,t])=>`<tr style="font-weight:700;background:#f0f4f8"><td colspan="3" style="padding:8px 10px;text-align:right">Total ${cur}</td><td style="padding:8px 10px;text-align:right;font-family:monospace">${fmtAmt2(t,cur)}</td><td colspan="2"></td></tr>`).join("");
+                    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gastos — ${fund}</title><style>*{box-sizing:border-box;margin:0;padding:0}@page{margin:15mm}body{font-family:Calibri,sans-serif;font-size:11pt;color:#111;padding:20px}h1{font-size:16pt;color:#000039;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#000039;color:#fff;padding:8px 10px;text-align:left;font-size:9pt;text-transform:uppercase;letter-spacing:.06em}td{border-bottom:1px solid #e9eef5}.footer{margin-top:24px;font-size:8pt;color:#9ca3af;display:flex;justify-content:space-between}</style></head><body><h1>Gastos — ${fund}</h1><div style="font-size:10pt;color:#6b7280;margin-bottom:16px">Generado el ${now2} · ${expenses.length} gastos</div><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th style="text-align:right">Monto</th><th>Pagó</th><th></th></tr></thead><tbody>${rows}${totals}</tbody></table><div class="footer"><span>Latin Securities · Confidential</span><span>${fund}</span></div></body></html>`;
+                    openPrint(html);
+                  }}>📄 Exportar PDF</button>}
                 </div>
                 {/* Totals */}
                 {Object.keys(byCurrency).length>0&&(
@@ -1268,12 +1277,25 @@ export function RoadshowInboundTab({
                       <span style={{fontSize:12,fontWeight:700,color:"var(--cream)"}}>{tmpl.title}</span>
                     </div>
                     <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                      {roadshow.companies.filter(c=>c.active).slice(0,8).map(co=>(
-                        <button key={co.id} className="btn bo bs" style={{fontSize:9}} onClick={()=>{
-                          const text=tmpl.gen(co);
-                          navigator.clipboard.writeText(text).then(()=>toastOk(`✅ ${tmpl.title} para ${co.name} copiado`));
-                        }}>{co.ticker||co.name.slice(0,8)}</button>
-                      ))}
+                      {roadshow.companies.filter(c=>c.active).slice(0,8).map(co=>{
+                        const contacts=(co.contacts||[]).filter(c=>c.email);
+                        const hasResend=!!roadshow.trip?.resendKey;
+                        return(<div key={co.id} style={{display:"inline-flex",gap:2}}>
+                          <button className="btn bo bs" style={{fontSize:9}} onClick={()=>{
+                            const text=tmpl.gen(co);
+                            navigator.clipboard.writeText(text).then(()=>toastOk(`✅ ${tmpl.title} para ${co.name} copiado`));
+                          }}>{co.ticker||co.name.slice(0,8)}</button>
+                          {hasResend&&contacts.length>0&&<button className="btn bo bs" style={{fontSize:9,padding:"2px 5px",color:"#1e5ab0"}} title={`Enviar a ${contacts.map(c=>c.email).join(", ")}`} onClick={async()=>{
+                            const text=tmpl.gen(co);const subject=text.split("\n")[0].replace("Subject: ","");const body=text.split("\n").slice(2).join("\n");
+                            const to=contacts.map(c=>c.email);
+                            const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
+                            try{
+                              const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${roadshow.trip.resendKey}`},body:JSON.stringify({from,to,subject,text:body,reply_to:lsCont?.email})});
+                              if(res.ok)toastOk(`✅ Email enviado a ${to.join(", ")}`);else toastErr("Error: "+(await res.text()));
+                            }catch(err){toastErr("Error de red: "+err.message);}
+                          }}>📧</button>}
+                        </div>);
+                      })}
                     </div>
                   </div>
                 ))}
@@ -1320,6 +1342,26 @@ export function RoadshowInboundTab({
                   <div className="ex-card-ico">🔬</div>
                   <div className="ex-card-t">Reporte con feedback</div>
                   <div className="ex-card-s">Interés por empresa, topics, next steps, follow-ups pendientes. Para uso interno.</div>
+                  <div style={{display:"flex",gap:6,marginTop:6}} onClick={e=>e.stopPropagation()}>
+                    <button className="btn bo bs" style={{fontSize:8}} onClick={exportPostRoadshowReport}>🖨 Imprimir/PDF</button>
+                    <button className="btn bo bs" style={{fontSize:8}} onClick={()=>{
+                      // Generate same HTML and download as .doc
+                      const {_exportPostRoadshowReport}=require("../../src/utils/exporters.js");
+                      // Simpler: call openPrint but with downloadBlob instead
+                      const fn=`PostRoadshow_${(roadshow.trip.fund||"Report").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;
+                      // We need the HTML - regenerate it
+                      import("../../src/utils/exporters.js").then(mod=>{
+                        // Use a trick: temporarily override openPrint to capture HTML
+                        mod._exportPostRoadshowReport({roadshow,openPrint:html=>{
+                          const blob=new Blob([html],{type:"application/msword"});
+                          const url=URL.createObjectURL(blob);const a=document.createElement("a");
+                          a.href=url;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a);
+                          setTimeout(()=>URL.revokeObjectURL(url),5000);
+                          toastOk("✅ Word descargado");
+                        }});
+                      });
+                    }}>📄 Word</button>
+                  </div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportDriverItinerary(null)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportDriverItinerary(null);}}>
                   <div className="ex-card-ico">🚗</div>
