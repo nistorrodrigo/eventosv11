@@ -780,6 +780,7 @@ Daily Summary — ${dayLabel}
     if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
   }
 
+  const _pendingSave=useRef(null); // queued event for retry
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
@@ -787,9 +788,20 @@ Daily Summary — ${dayLabel}
     setSyncStatus("syncing");
     try{
       await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id}));
-      setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
-    }catch(err){setSyncStatus("idle");console.error("[CloudSave] Failed after retries:",err.message);}
+      setSyncStatus("synced");_pendingSave.current=null;setTimeout(()=>setSyncStatus("idle"),2000);
+    }catch(err){
+      setSyncStatus("offline");
+      _pendingSave.current=ev; // queue for retry when back online
+      toastWarn("⚠ Sin conexión — los cambios se guardarán cuando vuelva internet.");
+      console.error("[CloudSave] Failed:",err.message);
+    }
   }
+  // Retry pending saves when connection returns
+  useEffect(()=>{
+    const retry=()=>{if(_pendingSave.current&&navigator.onLine){cloudSaveEvent(_pendingSave.current);}};
+    window.addEventListener("online",retry);
+    return()=>window.removeEventListener("online",retry);
+  },[authUser]);
   async function cloudDeleteEvent(evId){
     if(!authUser) return;
     await supabase.from("ls_events").delete().eq("id",evId).eq("user_id",authUser.id);
@@ -1131,8 +1143,8 @@ Daily Summary — ${dayLabel}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
-        {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando en la nube...":"Sincronizado"}>
-          {syncStatus==="syncing"?"⟳ Sync...":"✓ Synced"}
+        {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":syncStatus==="offline"?"#dc2626":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando...":syncStatus==="offline"?"Sin conexión — cambios pendientes":"Sincronizado"}>
+          {syncStatus==="syncing"?"⟳ Sync...":syncStatus==="offline"?"⚡ Offline":"✓ Synced"}
         </span>}
         {"Notification" in window&&Notification.permission==="default"&&(
           <button className="btn bs" title="Activar recordatorios 30 min antes de cada reunión"
