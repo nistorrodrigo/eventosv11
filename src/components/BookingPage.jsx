@@ -59,15 +59,15 @@ export default function BookingPage({eventId}){
   const page={minHeight:"100vh",background:"#f0f4f8",fontFamily:FONT,color:"#1a1a2e"};
   const container={maxWidth:620,margin:"0 auto",padding:"24px 16px"};
   const card={background:"#fff",borderRadius:12,padding:"20px 24px",marginBottom:16,boxShadow:"0 1px 6px rgba(0,0,57,.06)"};
-  const hdr={background:"#000039",borderRadius:12,padding:"24px 28px",marginBottom:20,color:"#fff",textAlign:"center"};
+  const hdr={background:"#000039",borderRadius:12,padding:"24px 20px",marginBottom:20,color:"#fff",textAlign:"center"};
   const slotBtn=(sel)=>({
-    padding:"8px 14px",borderRadius:8,border:sel?"2px solid "+BLUE:"1px solid #d1d5db",
-    background:sel?"#e8f0fe":"#fff",cursor:"pointer",fontSize:13,fontWeight:sel?700:400,
-    fontFamily:MONO,color:sel?BLUE:"#374151",transition:"all .15s"
+    padding:"10px 16px",borderRadius:8,border:sel?"2px solid "+BLUE:"1px solid #d1d5db",
+    background:sel?"#e8f0fe":"#fff",cursor:"pointer",fontSize:14,fontWeight:sel?700:400,
+    fontFamily:MONO,color:sel?BLUE:"#374151",transition:"all .15s",minWidth:54,textAlign:"center"
   });
-  const inputStyle={width:"100%",padding:"10px 12px",borderRadius:8,border:"1px solid #d1d5db",fontSize:13,fontFamily:FONT,boxSizing:"border-box"};
+  const inputStyle={width:"100%",padding:"12px 14px",borderRadius:8,border:"1px solid #d1d5db",fontSize:16,fontFamily:FONT,boxSizing:"border-box"};
   const labelStyle={fontSize:10,fontWeight:700,color:"#6b7280",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4,display:"block",fontFamily:MONO};
-  const btnPrimary={padding:"12px 28px",borderRadius:10,border:"none",background:BLUE,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:FONT};
+  const btnPrimary={padding:"14px 28px",borderRadius:10,border:"none",background:BLUE,color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:FONT,width:"100%"};
 
   // ── Loading / Error ──
   if(loading) return <div style={page}><div style={container}><div style={hdr}><div style={{fontSize:28,marginBottom:8}}>⏳</div><div>Cargando horarios...</div></div></div></div>;
