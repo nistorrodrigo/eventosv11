@@ -1,7 +1,7 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef } from "react";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
-import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict } from "../travel.js";
+import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
@@ -34,6 +34,8 @@ export function RoadshowInboundTab({
   calcAllTravel, calcDayTravel,
 }){
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
+        const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
+        const [editLegVal,setEditLegVal]=useState("");
         // Helper to patch a company field inline (used in meeting modal)
         window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
@@ -402,7 +404,10 @@ export function RoadshowInboundTab({
                                     // This slot is in the gap between mA and mB
                                     if(h>=aEnd&&h<mB.hour){
                                       const dayT=travelCache[date]||{};
-                                      travelInfo=dayT[`${date}-${pi}`]||null;
+                                      const _chipKey=`${date}-${pi}`;
+                                      const _chipOverrideSec=roadshow.travelOverrides?.[_chipKey];
+                                      const _chipDeptH=mA.hour+(mA.duration||60)/60;
+                                      travelInfo=dayT[_chipKey]||((_chipOverrideSec!=null)?{...applyBATraffic(_chipOverrideSec,_chipDeptH,null),source:"manual"}:null);
                                       // Only show on first gap slot
                                       if(h===aEnd) break;
                                       else {travelInfo=null;break;}
@@ -772,7 +777,12 @@ export function RoadshowInboundTab({
                         const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
                         const addr=getMeetingAddress(m,co,roadshow.trip.officeAddress);
                         const endHour=m.hour+Math.floor(dur/60);
-                        const travelData=mi<dayMtgs.length-1?dayTravel[`${date}-${mi}`]:null;
+                        const _travelKey=`${date}-${mi}`;
+                        const _overrideSec=roadshow.travelOverrides?.[_travelKey];
+                        const _deptH=m.hour+dur/60;
+                        const travelData=mi<dayMtgs.length-1
+                          ?(dayTravel[_travelKey]||((_overrideSec!=null)?{...applyBATraffic(_overrideSec,_deptH,null),source:"manual"}:null))
+                          :null;
                         const nextM=mi<dayMtgs.length-1?dayMtgs[mi+1]:null;
                         const conflict=nextM?checkTravelConflict(m,nextM,travelData?.durationSec??null,dur):null;
                         return(
@@ -806,20 +816,68 @@ export function RoadshowInboundTab({
                             {nextM&&(
                               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,paddingLeft:2}}>
                                 <div style={{width:16,display:"flex",justifyContent:"center"}}><div style={{width:1,height:20,background:conflict?.conflict?"var(--red)":conflict?.warning?"#e8850a":"rgba(30,90,176,.15)"}}/></div>
-                                <div style={{flex:1,display:"flex",alignItems:"center",gap:6,fontSize:10}}>
-                                  {travelData?(
+                                <div style={{flex:1,display:"flex",alignItems:"center",gap:6,fontSize:10,flexWrap:"wrap"}}>
+                                  {editingLeg?.date===date&&editingLeg?.idx===mi?(
+                                    /* ── inline manual input ── */
+                                    <>
+                                      <span style={{color:"var(--dim)"}}>🚗 Tiempo base (min):</span>
+                                      <input
+                                        autoFocus
+                                        type="number" min="1" max="120"
+                                        value={editLegVal}
+                                        onChange={e=>setEditLegVal(e.target.value)}
+                                        onKeyDown={e=>{
+                                          if(e.key==="Enter"){
+                                            const v=parseInt(editLegVal);
+                                            if(v>0){
+                                              const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
+                                              saveRoadshow({...roadshow,travelOverrides:overrides});
+                                              // Also update travelCache so it shows immediately
+                                              setTravelCache(prev=>({...prev,[date]:{...(prev[date]||{}),
+                                                [_travelKey]:{...applyBATraffic(v*60,_deptH,null),source:"manual"}}}));
+                                            }
+                                            setEditingLeg(null);
+                                          }
+                                          if(e.key==="Escape") setEditingLeg(null);
+                                        }}
+                                        style={{width:56,padding:"2px 6px",borderRadius:4,border:"1px solid var(--gold)",background:"var(--ink3)",color:"var(--cream)",fontFamily:"IBM Plex Mono,monospace",fontSize:11}}
+                                      />
+                                      <button className="btn bg bs" style={{fontSize:9,padding:"2px 8px"}}
+                                        onClick={()=>{
+                                          const v=parseInt(editLegVal);
+                                          if(v>0){
+                                            const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
+                                            saveRoadshow({...roadshow,travelOverrides:overrides});
+                                            setTravelCache(prev=>({...prev,[date]:{...(prev[date]||{}),
+                                              [_travelKey]:{...applyBATraffic(v*60,_deptH,null),source:"manual"}}}));
+                                          }
+                                          setEditingLeg(null);
+                                        }}>✓</button>
+                                      <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>setEditingLeg(null)}>✕</button>
+                                      <span style={{fontSize:9,color:"var(--dim)"}}>Se aplica tráfico CABA → rango</span>
+                                    </>
+                                  ):travelData?(
                                     <>
                                       <span style={{fontFamily:"IBM Plex Mono,monospace",color:conflict?.conflict?"var(--red)":conflict?.warning?"#e8850a":"var(--grn)",fontWeight:700}}>🚗 {travelData.durationText}</span>
-                                      <span style={{color:"var(--dim)"}}>· {travelData.distanceText}</span>
+                                      {travelData.distanceText&&<span style={{color:"var(--dim)"}}>· {travelData.distanceText}</span>}
                                       {travelData.source==="osrm+traffic"&&<span style={{fontSize:8,color:"#6ee7b7",fontFamily:"IBM Plex Mono,monospace",padding:"1px 4px",border:"1px solid rgba(110,231,183,.3)",borderRadius:3}}>tráfico BA est.</span>}
+                                      {travelData.source==="manual"&&<span style={{fontSize:8,color:"var(--gold)",fontFamily:"IBM Plex Mono,monospace",padding:"1px 4px",border:"1px solid rgba(234,179,8,.3)",borderRadius:3}}>manual</span>}
                                       {conflict?.conflict&&<span style={{color:"var(--red)",fontWeight:700}}>⚠ CONFLICTO — solo {conflict.gapMin} min entre reuniones</span>}
                                       {conflict?.warning&&!conflict.conflict&&<span style={{color:"#e8850a"}}>⚡ Justo — {conflict.gapMin} min de margen</span>}
                                       {!conflict&&<span style={{color:"var(--grn)"}}>✓ OK ({Math.floor((nextM.hour*60)-(m.hour*60+dur)-travelData.durationSec/60)} min de margen)</span>}
+                                      <button title="Editar tiempo de traslado" onClick={()=>{setEditLegVal(String(Math.round((travelData.baseSec||travelData.durationSec)/60)));setEditingLeg({date,idx:mi});}}
+                                        style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"0 2px",lineHeight:1}}>✏️</button>
                                     </>
                                   ):(
-                                    <span style={{color:"var(--dim)",fontStyle:"italic"}}>
-                                      {Math.round((nextM.hour-m.hour)*60-dur)} min entre reuniones — presioná Calcular para estimar traslado
-                                    </span>
+                                    <>
+                                      <span style={{color:"var(--dim)",fontStyle:"italic"}}>
+                                        {Math.round((nextM.hour-m.hour)*60-dur)} min entre reuniones
+                                      </span>
+                                      <button className="btn bo bs" style={{fontSize:9,gap:3,padding:"2px 8px"}}
+                                        onClick={()=>{setEditLegVal("10");setEditingLeg({date,idx:mi});}}>
+                                        ✏️ Ingresar manualmente
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>

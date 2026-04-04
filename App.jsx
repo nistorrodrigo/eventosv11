@@ -1055,10 +1055,16 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
       const dayMtgs=(meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
       if(!dayMtgs.length) return null;
       const dayT=travelCache[date]||{};
+      const _overridesMap=roadshow.travelOverrides||{};
+      const getTravel=(key,deptH)=>{
+        if(dayT[key]) return dayT[key];
+        const ov=_overridesMap[key];
+        return ov!=null?{...applyBATraffic(ov,deptH,null),source:"manual"}:null;
+      };
       const fmtDate=new Date(date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
       // Header block
       const firstAddr=getMeetingAddress(dayMtgs[0],rsCoMap.get(dayMtgs[0].companyId),trip.officeAddress);
-      const leg0=dayT[`${date}-0`]; // hotel→first meeting not in cache, but first inter-meeting is
+      const leg0=getTravel(`${date}-0`, dayMtgs[0].hour); // hotel→first meeting
       // Estimate hotel pickup: first meeting - (first travel if known as proxy) - 15min buffer
       // Since we don't geocode hotel, use the first OSRM leg as a rough proxy if available
       const hotelTravelMin=leg0?.durationSec?Math.ceil(leg0.durationSec/60)+5:20; // fallback 20 min
@@ -1116,7 +1122,7 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
 
         // Travel gap to next meeting
         if(mi<dayMtgs.length-1){
-          const tData=dayT[`${date}-${mi}`];
+          const tData=getTravel(`${date}-${mi}`, m.hour+dur/60);
           const nextM=dayMtgs[mi+1];
           const gapMin=Math.round((nextM.hour-m.hour)*60-dur);
           const tMin=tData?Math.ceil(tData.durationSec/60):null;
@@ -1140,7 +1146,7 @@ ${co.hqAddress?`<div class="section"><div class="sec-label">Company Address</div
       // Return to hotel
       const lastM=dayMtgs[dayMtgs.length-1];
       const returnH=addMinutes(lastM.hour,dur);
-      const lastLeg=dayT[`${date}-${dayMtgs.length-2}`]; // last inter-meeting leg
+      const lastLeg=getTravel(`${date}-${dayMtgs.length-2}`, dayMtgs[dayMtgs.length-2]?.hour+dur/60);
       const returnMin=lastLeg?Math.ceil(lastLeg.durationSec/60)+5:20;
       rows+=`<tr class="gap-row"><td></td><td colspan="2"><div class="gap-line">🚗 traslado ≈ ${returnMin} min</div></td></tr>
       <tr class="hotel-row">
