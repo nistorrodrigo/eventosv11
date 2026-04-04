@@ -6,6 +6,7 @@ import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoad
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile } from "./src/utils/parsers.js";
 import { FocusTrap } from "./src/components/FocusTrap.jsx";
 import { useAuth } from "./src/contexts/AuthContext.jsx";
+import { EventProvider } from "./src/contexts/EventContext.jsx";
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.jsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
 let _XLSX=null;
@@ -1597,6 +1598,7 @@ Daily Summary — ${dayLabel}
       </div>
     )}
 
+    <EventProvider value={{roadshow,saveRoadshow,currentEvent,config,tripDays,rsCoById,travelCache,setTravelCache,globalDB,saveGlobalDB}}>
     <Suspense fallback={<div style={{padding:"40px 20px",textAlign:"center",color:"var(--dim)"}}><div style={{width:24,height:24,border:"2px solid #1e5ab0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin .6s linear infinite",margin:"0 auto 12px"}}/></div>}>
     <main className="body tab-enter" key={tab}>
 
@@ -2847,8 +2849,8 @@ Daily Summary — ${dayLabel}
       )}
 
       {tab==="roadshow"&&<TabErrorBoundary name="Roadshow Inbound"><RoadshowInboundTab
-        roadshow={roadshow} saveRoadshow={saveRoadshow}
-        config={config} events={events} globalDB={globalDB} saveGlobalDB={saveGlobalDB}
+        /* roadshow, saveRoadshow, config, globalDB, saveGlobalDB, tripDays, rsCoById, currentEvent, travelCache, setTravelCache → from EventContext */
+        events={events}
         rsSubTab={rsSubTab} setRsSubTab={setRsSubTab}
         rsDayFilter={rsDayFilter} setRsDayFilter={setRsDayFilter}
         kioskMode={kioskMode} setKioskMode={setKioskMode}
@@ -2862,11 +2864,9 @@ Daily Summary — ${dayLabel}
         icsImportModal={icsImportModal} setIcsImportModal={setIcsImportModal}
         rsMtgsExcelRef={rsMtgsExcelRef} rsExcelRef={rsExcelRef}
         rsShowParser={rsShowParser} setRsShowParser={setRsShowParser}
-        rsCoById={rsCoById} rsCoMapForTravel={rsCoMapForTravel} tripDays={tripDays}
-        currentEvent={currentEvent}
+        rsCoMapForTravel={rsCoMapForTravel}
         dragMtg={dragMtg} setDragMtg={setDragMtg}
         rsEmailParser={rsEmailParser} setRsEmailParser={setRsEmailParser}
-        travelCache={travelCache} setTravelCache={setTravelCache}
         travelLoading={travelLoading} setTravelLoading={setTravelLoading}
         rsBySlot={rsBySlot} rsOverlapSet={rsOverlapSet}
         search={search} setSearch={setSearch}
@@ -2952,6 +2952,7 @@ Daily Summary — ${dayLabel}
 
     </main>
     </Suspense>
+    </EventProvider>
   </div>
   );
 }

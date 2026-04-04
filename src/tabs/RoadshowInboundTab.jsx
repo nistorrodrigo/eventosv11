@@ -4,6 +4,7 @@ import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
 import { SkeletonCard } from "../components/Skeleton.jsx";
 import { FocusTrap } from "../components/FocusTrap.jsx";
+import { useEvent } from "../contexts/EventContext.jsx";
 import { WeekCalendar } from "../components/WeekCalendar.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
@@ -19,7 +20,7 @@ let _XLSX_TAB=null;
 async function getXLSX(){if(!_XLSX_TAB)_XLSX_TAB=await import("xlsx");return _XLSX_TAB;}
 
 export function RoadshowInboundTab({
-  roadshow, saveRoadshow, config, events, globalDB, saveGlobalDB,
+  events,
   rsSubTab, setRsSubTab, rsDayFilter, setRsDayFilter,
   kioskMode, setKioskMode, kioskIdx, setKioskIdx,
   kioskFb, setKioskFb, kioskFbData, setKioskFbData,
@@ -28,13 +29,12 @@ export function RoadshowInboundTab({
   rsDailyEmailModal, setRsDailyEmailModal,
   icsImportModal, setIcsImportModal, rsMtgsExcelRef, rsExcelRef,
   rsShowParser, setRsShowParser,
-  rsCoById, rsCoMapForTravel, tripDays,
+  rsCoMapForTravel,
   exportCompanyBrief, exportRoadshowSummary, exportPostRoadshowReport, exportDriverItinerary,
   // lsCont is computed internally from config + roadshow.trip.lsContactIdx
-  currentEvent,
   dragMtg, setDragMtg,
   rsEmailParser, setRsEmailParser,
-  travelCache, setTravelCache, travelLoading, setTravelLoading,
+  travelLoading, setTravelLoading,
   rsBySlot, rsOverlapSet,
   search, setSearch,
   exportBookingPage, exportRoadshowICS, exportRoadshowPDF, exportRoadshowWord,
@@ -42,6 +42,7 @@ export function RoadshowInboundTab({
   calcAllTravel, calcDayTravel,
   publishBookingSlots,
 }){
+        const {roadshow,saveRoadshow,currentEvent,config,tripDays,rsCoById,travelCache,setTravelCache,globalDB,saveGlobalDB}=useEvent();
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Fuzzy duplicate detection helper
         const normalize=s=>(s||"").toLowerCase().replace(/[^a-záéíóúñ0-9]/g,"").trim();
