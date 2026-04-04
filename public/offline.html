@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sin conexión — LS Event Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0e1a;font-family:Calibri,Arial,sans-serif;color:#e8eaf0;padding:20px}
+.card{text-align:center;max-width:380px}
+.icon{font-size:48px;margin-bottom:16px}
+h1{font-size:20px;font-weight:700;margin-bottom:8px}
+p{color:#7a8fa8;font-size:13px;line-height:1.6;margin-bottom:20px}
+button{padding:10px 24px;background:#1e5ab0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+button:hover{background:#2564c4}
+.sub{color:#3a4a6a;font-size:10px;font-family:'IBM Plex Mono',monospace;margin-top:24px;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">📡</div>
+  <h1>Sin conexión</h1>
+  <p>No hay conexión a internet. Verificá tu conexión y volvé a intentar.</p>
+  <button onclick="window.location.reload()">🔄 Reintentar</button>
+  <div class="sub">LS Event Manager · Latin Securities</div>
+</div>
+</body>
+</html>
