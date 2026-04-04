@@ -436,11 +436,33 @@ export function RoadshowInboundTab({
                                 <td key={date}
                                   rowSpan={rows}
                                   onClick={()=>{if(dragMtg)return;!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null});}}
-                                  onDragOver={e=>{if(dragMtg&&!mtg&&!isWE){e.preventDefault();e.currentTarget.style.background="rgba(30,90,176,.18)";}}}
-                                  onDragLeave={e=>{e.currentTarget.style.background="";}}
-                                  onDrop={e=>{
-                                    e.currentTarget.style.background="";
+                                  onDragOver={e=>{
                                     if(!dragMtg||mtg||isWE) return;
+                                    e.preventDefault();
+                                    const dur2=roadshow.trip.meetingDuration||60;
+                                    const endH=h+dur2/60;
+                                    // Check for conflicts with other meetings on this day
+                                    const dayMtgs=(roadshow.meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled"&&m.id!==dragMtg.id);
+                                    const conflict=dayMtgs.some(m=>{const mEnd=m.hour+(m.duration||dur2)/60;return(h<mEnd&&endH>m.hour);});
+                                    // Check gap to nearest meeting
+                                    const nextMtg=dayMtgs.filter(m=>m.hour>=endH).sort((a,b)=>a.hour-b.hour)[0];
+                                    const prevMtg=dayMtgs.filter(m=>(m.hour+(m.duration||dur2)/60)<=h).sort((a,b)=>b.hour-a.hour)[0];
+                                    const gapToNext=nextMtg?Math.round((nextMtg.hour-endH)*60):null;
+                                    const tight=gapToNext!==null&&gapToNext<30;
+                                    e.currentTarget.style.background=conflict?"rgba(220,38,38,.2)":tight?"rgba(234,179,8,.15)":"rgba(30,90,176,.18)";
+                                    // Show hint via title
+                                    e.currentTarget.title=conflict?"⚠ Conflicto: se superpone con otra reunión":tight?`⚡ Ajustado: ${gapToNext} min hasta la siguiente`:"✓ Disponible";
+                                  }}
+                                  onDragLeave={e=>{e.currentTarget.style.background="";e.currentTarget.title="";}}
+                                  onDrop={e=>{
+                                    e.currentTarget.style.background="";e.currentTarget.title="";
+                                    if(!dragMtg||mtg||isWE) return;
+                                    // Warn on conflict
+                                    const dur2=roadshow.trip.meetingDuration||60;
+                                    const endH2=h+dur2/60;
+                                    const dayMtgs2=(roadshow.meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled"&&m.id!==dragMtg.id);
+                                    const hasConflict=dayMtgs2.some(m=>{const mEnd=m.hour+(m.duration||dur2)/60;return(h<mEnd&&endH2>m.hour);});
+                                    if(hasConflict&&!confirm("⚠ Esta reunión se superpone con otra. ¿Mover igual?")){setDragMtg(null);return;}
                                     const updated=(roadshow.meetings||[]).map(m=>m.id===dragMtg.id?{...m,date,hour:h,changeLog:[...(m.changeLog||[]),{at:new Date().toISOString(),field:"moved",from:`${dragMtg.origDate} ${fmtHour(dragMtg.origHour)}`,to:`${date} ${fmtHour(h)}`}]}:m);
                                     saveRoadshow({...roadshow,meetings:updated});
                                     // Auto-recalculate travel for affected days
