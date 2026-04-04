@@ -4,6 +4,7 @@ import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.jsx";
 import { SkeletonCard } from "../components/Skeleton.jsx";
 import { FocusTrap } from "../components/FocusTrap.jsx";
+import { WeekCalendar } from "../components/WeekCalendar.jsx";
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
@@ -43,6 +44,7 @@ export function RoadshowInboundTab({
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
+        const [agendaView,setAgendaView]=useState("table"); // "table" | "calendar"
         const [waBulkModal,setWaBulkModal]=useState(null); // { date, items:[{contact,company,meeting,message,waUrl}] }
         const [bookings,setBookings]=useState([]);
         const [bookingsLoading,setBookingsLoading]=useState(false);
@@ -227,7 +229,11 @@ export function RoadshowInboundTab({
                     );
                   })}
                 </div>
-                <div style={{marginLeft:"auto"}}>
+                <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
+                  <div style={{display:"flex",borderRadius:5,overflow:"hidden",border:"1px solid rgba(30,90,176,.18)"}}>
+                    <button style={{padding:"3px 8px",fontSize:9,border:"none",cursor:"pointer",fontFamily:"IBM Plex Mono,monospace",background:agendaView==="table"?"#1e5ab0":"transparent",color:agendaView==="table"?"#fff":"var(--dim)"}} onClick={()=>setAgendaView("table")} title="Vista tabla">▤</button>
+                    <button style={{padding:"3px 8px",fontSize:9,border:"none",borderLeft:"1px solid rgba(30,90,176,.18)",cursor:"pointer",fontFamily:"IBM Plex Mono,monospace",background:agendaView==="calendar"?"#1e5ab0":"transparent",color:agendaView==="calendar"?"#fff":"var(--dim)"}} onClick={()=>{setAgendaView("calendar");setRsDayFilter(null);}} title="Vista calendario">📅</button>
+                  </div>
                   <button className="btn bo bs" style={{fontSize:9,gap:4,borderColor:"rgba(30,90,176,.3)"}} title="Modo día — vista simplificada para celular"
                     onClick={()=>{
                       const today=new Date().toISOString().slice(0,10);
@@ -264,7 +270,20 @@ export function RoadshowInboundTab({
                 </div>
               </div>
 
-              {/* Calendar grid */}
+              {/* Week Calendar View */}
+              {agendaView==="calendar"&&tripDays.length>0&&(
+                <WeekCalendar
+                  tripDays={tripDays}
+                  meetings={roadshow.meetings||[]}
+                  companies={roadshow.companies||[]}
+                  meetingDuration={roadshow.trip.meetingDuration||60}
+                  rsCoById={rsCoById}
+                  onClickMeeting={m=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
+                  onClickSlot={({date,hour})=>setRsMtgModal({date,hour,meeting:null})}
+                />
+              )}
+
+              {/* Table grid (original view) */}
               {tripDays.length===0?(
                 <div className="card" style={{textAlign:"center",padding:"40px 20px",color:"var(--dim)"}}>
                   <div style={{fontSize:32,marginBottom:8}}>📅</div>
