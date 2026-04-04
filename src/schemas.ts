@@ -92,15 +92,23 @@ export const RoadshowSchema = z.object({
   travelOverrides: z.record(z.number()).default({}),
 });
 
+// ── TypeScript Types (inferred from Zod schemas) ──
+export type Contact = z.infer<typeof ContactSchema>;
+export type Company = z.infer<typeof CompanySchema>;
+export type Meeting = z.infer<typeof MeetingSchema>;
+export type Expense = z.infer<typeof ExpenseSchema>;
+export type Trip = z.infer<typeof TripSchema>;
+export type Roadshow = z.infer<typeof RoadshowSchema>;
+
 // ── Validation helpers ──
-export function validateMeeting(data) {
+export function validateMeeting(data: unknown) {
   return MeetingSchema.safeParse(data);
 }
 
-export function validateCompany(data) {
+export function validateCompany(data: unknown) {
   return CompanySchema.safeParse(data);
 }
 
-export function validateExpense(data) {
+export function validateExpense(data: unknown) {
   return ExpenseSchema.safeParse(data);
 }

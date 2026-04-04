@@ -1,6 +1,6 @@
 // ── schemas.test.js — Unit tests for Zod validation schemas ──────
 import { describe, it, expect } from "vitest";
-import { validateMeeting, validateCompany, validateExpense, ContactSchema, MeetingSchema, CompanySchema, ExpenseSchema, TripSchema } from "../schemas.js";
+import { validateMeeting, validateCompany, validateExpense, ContactSchema, MeetingSchema, CompanySchema, ExpenseSchema, TripSchema } from "../schemas.ts";
 
 describe("ContactSchema", () => {
   it("validates a complete contact", () => {
