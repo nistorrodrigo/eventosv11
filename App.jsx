@@ -95,12 +95,12 @@ export default function App(){
   const _cloudSaveTimer=useRef(null);
   const _unlockedEvents=useRef(new Set()); // events unlocked by password this session
   function saveCurrentEvent(patch){
+    _lastLocalEdit.current=Date.now();
     setEvents(prev=>{
-      const next=prev.map(e=>e.id===activeEv?{...e,...patch}:e);
+      const next=prev.map(e=>e.id===activeEv?{...e,...patch,_updatedAt:Date.now()}:e);
       saveEvents(next);
       const updated=next.find(e=>e.id===activeEv);
       if(updated){
-        // Debounce: only push to Supabase after 1.5s of no changes
         clearTimeout(_cloudSaveTimer.current);
         _cloudSaveTimer.current=setTimeout(()=>cloudSaveEvent(updated),1500);
       }
@@ -734,6 +734,11 @@ Daily Summary — ${dayLabel}
             const r=payload.new;
             // Skip if this is our own save (avoid echo)
             if(_lastSaveId.current===r.id+"-"+JSON.stringify(r.data).length) return;
+            // Conflict detection: if we edited locally in the last 5 seconds, warn
+            const timeSinceLocalEdit=Date.now()-_lastLocalEdit.current;
+            if(timeSinceLocalEdit<5000&&r.id===activeEv){
+              toastWarn("⚠ Otro dispositivo modificó este evento. Se aplicaron los cambios remotos.");
+            }
             const updated={id:r.id,name:r.name,kind:r.kind,...r.data};
             setEvents(prev=>{
               const exists=prev.find(e=>e.id===r.id);
@@ -797,6 +802,7 @@ Daily Summary — ${dayLabel}
   }
 
   const _pendingSave=useRef(null); // queued event for retry
+  const _lastLocalEdit=useRef(0); // timestamp of last local edit
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
