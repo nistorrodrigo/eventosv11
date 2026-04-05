@@ -16,6 +16,10 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
   const [postNotes,setPostNotes]=useState(meeting?.postNotes||"");
+  const [voiceNote,setVoiceNote]=useState(meeting?.voiceNote||null); // base64 audio
+  const [recording,setRecording]=useState(false);
+  const mediaRecRef=useRef(null);
+  const chunksRef=useRef([]);
   const [actualReps,setActualReps]=useState(meeting?.actualAttendees||null); // null=not set, []|[ids]=checked
   const [changeNotif,setChangeNotif]=useState(null); // {msg,contact} after save
   const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
@@ -34,7 +38,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
     const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,postNotes,actualAttendees:actualReps,meetingFormat,
+      location:loc,locationCustom:locCustom,status,notes,postNotes,voiceNote,actualAttendees:actualReps,meetingFormat,
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
@@ -200,6 +204,38 @@ Latin Securities`;
             <textarea className="inp" style={{minHeight:60,resize:"vertical",borderColor:postNotes?"rgba(58,140,92,.4)":"",background:postNotes?"rgba(58,140,92,.03)":""}}
               value={postNotes} onChange={e=>setPostNotes(e.target.value)}
               placeholder="Puntos clave discutidos, intereses del inversor, próximos pasos..."/>
+          </div>
+          {/* Voice note */}
+          <div style={{display:"flex",gap:8,alignItems:"center",marginTop:6}}>
+            {!recording?(
+              <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={async()=>{
+                try{
+                  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+                  const mr=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported("audio/webm")?"audio/webm":"audio/mp4"});
+                  chunksRef.current=[];
+                  mr.ondataavailable=e=>{if(e.data.size>0)chunksRef.current.push(e.data);};
+                  mr.onstop=()=>{
+                    const blob=new Blob(chunksRef.current,{type:mr.mimeType});
+                    stream.getTracks().forEach(t=>t.stop());
+                    if(blob.size>3*1024*1024){setRecording(false);return;} // max 3MB
+                    const reader=new FileReader();
+                    reader.onload=()=>setVoiceNote(reader.result);
+                    reader.readAsDataURL(blob);
+                  };
+                  mediaRecRef.current=mr;mr.start();setRecording(true);
+                }catch{/* mic permission denied */}
+              }}>🎙 Grabar nota de voz</button>
+            ):(
+              <button className="btn bd bs" style={{fontSize:9,gap:4,animation:"pulse .8s infinite"}} onClick={()=>{
+                mediaRecRef.current?.stop();setRecording(false);
+              }}>⏹ Detener grabación</button>
+            )}
+            {voiceNote&&!recording&&(
+              <>
+                <audio src={voiceNote} controls style={{height:28,flex:1}}/>
+                <button style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:10}} onClick={()=>setVoiceNote(null)}>✕</button>
+              </>
+            )}
           </div>
           {/* AI Summary */}
           {mode==="edit"&&(notes||postNotes)&&(
