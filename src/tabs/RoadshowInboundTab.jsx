@@ -444,7 +444,11 @@ export function RoadshowInboundTab({
                               const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
                               const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
                               try{
-                                const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email})});
+                                // Generate brief attachment
+                              const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
+                              const briefB64=btoa(unescape(encodeURIComponent(briefHtml)));
+                              const attachments=[{filename:`Brief_${co.ticker||co.name.replace(/\s/g,"_")}.html`,content:briefB64}];
+                              const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email,attachments})});
                                 if(res.ok)sent++;else failed++;
                               }catch{failed++;}
                             }
