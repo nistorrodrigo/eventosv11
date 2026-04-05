@@ -1,5 +1,3 @@
-  name: CI — Build & Test
-
 on:
   push:
     branches: [main]
@@ -16,12 +14,5 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx tsc --noEmit --pretty 2>/dev/null || true
       - run: npx vitest run --reporter=verbose
       - run: npm run build
-      - name: Build size check
-        run: |
-          echo "## Bundle sizes" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -lh dist/assets/*.js | awk '{print $5, $9}' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
