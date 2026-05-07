@@ -10,7 +10,7 @@ import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
-import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic } from "../travel.js";
+import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
@@ -143,6 +143,31 @@ export function RoadshowInboundTab({
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
               <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6° Piso, CABA"/></div>
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
+            </div>
+
+            {/* Trip Mode: in-person / virtual / hybrid */}
+            <div style={{marginBottom:10,background:"rgba(123,53,176,.04)",border:"1px solid rgba(123,53,176,.15)",borderRadius:7,padding:"10px 12px"}}>
+              <div className="lbl" style={{marginBottom:6}}>🌐 Modalidad del roadshow</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {[["in_person","🏛 Presencial","Reuniones físicas en BA"],["virtual","💻 Virtual","Todo por Zoom/Teams/Meet"],["hybrid","🔀 Híbrido","Mezcla presenciales y virtuales"]].map(([v,l,desc])=>(
+                  <button key={v} className={`btn bs ${(roadshow.trip.mode||"in_person")===v?"bg":"bo"}`} style={{fontSize:10,flex:1,minWidth:120,flexDirection:"column",alignItems:"flex-start",gap:2,padding:"7px 10px"}} onClick={()=>upTrip("mode",v)} title={desc}>
+                    <div style={{fontWeight:700}}>{l}</div>
+                    <div style={{fontSize:8,opacity:.75,fontWeight:400}}>{desc}</div>
+                  </button>
+                ))}
+              </div>
+              {(roadshow.trip.mode==="virtual"||roadshow.trip.mode==="hybrid")&&(
+                <div style={{marginTop:8}}>
+                  <div className="lbl" style={{marginBottom:3,fontSize:9}}>🔗 Link por defecto (se sugiere para cada nueva reunión virtual)</div>
+                  <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}}
+                    value={roadshow.trip.defaultMeetingLink||""}
+                    onChange={e=>upTrip("defaultMeetingLink",e.target.value)}
+                    placeholder="https://us02web.zoom.us/j/1234567890 (opcional, se autocompleta al crear reuniones)"/>
+                  {roadshow.trip.defaultMeetingLink&&(()=>{const p=detectMeetingPlatform(roadshow.trip.defaultMeetingLink);return(
+                    <div style={{fontSize:10,color:"var(--dim)",marginTop:3}}>{PLATFORM_ICONS[p]} Plataforma detectada: <strong style={{color:"var(--gold)"}}>{PLATFORM_LABELS[p]}</strong></div>
+                  );})()}
+                </div>
+              )}
             </div>
 
             {/* Resend email key */}
@@ -425,7 +450,7 @@ export function RoadshowInboundTab({
                           {/* A4: Copy day agenda to clipboard */}
                           <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>{
                             const dayLabel2=dayDate.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
-                            const lines=dayMtgs.map(m=>{const co2=m.type==="company"?rsCoById.get(m.companyId):null;const name2=co2?.name||(m.lsType||m.title||"Reunión");const loc=m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co2?.hqAddress||"HQ"):(m.locationCustom||"TBD");return`${fmtH(m.hour)} · ${name2} · 📍 ${loc} · ${m.status==="confirmed"?"✅":"◌"}`;});
+                            const lines=dayMtgs.map(m=>{const co2=m.type==="company"?rsCoById.get(m.companyId):null;const name2=co2?.name||(m.lsType||m.title||"Reunión");const isV=m.location==="virtual";const loc=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co2?.hqAddress||"HQ"):(m.locationCustom||"TBD");return`${fmtH(m.hour)} · ${name2} · ${isV?"💻":"📍"} ${loc}${isV&&m.meetingLink?" · 🔗 "+m.meetingLink:""} · ${m.status==="confirmed"?"✅":"◌"}`;});
                             const txt=`📅 *Agenda ${dayLabel2}*\n${roadshow.trip.fund||""}\n\n${lines.join("\n")}`;
                             navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Agenda del día copiada"));
                           }}>📋 Copiar agenda</button>
@@ -439,13 +464,15 @@ export function RoadshowInboundTab({
                               const co=m.type==="company"?rsCoById.get(m.companyId):null;if(!co)continue;
                               const emails=(co.contacts||[]).filter(c=>c.email).map(c=>c.email);if(!emails.length)continue;
                               const dateStr=dayDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
-                              const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
+                              const isV=m.location==="virtual";
+                              const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
                               const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
-                              const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
+                              const linkLine=isV&&m.meetingLink?`\nMeeting Link: ${m.meetingLink}`:"";
+                              const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}${linkLine}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
                               const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
                               try{
                                 // Generate brief attachment
-                              const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
+                              const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}${isV&&m.meetingLink?`<br><strong>Meeting Link:</strong> <a href="${m.meetingLink}">${m.meetingLink}</a>`:""}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
                               const briefB64=btoa(unescape(encodeURIComponent(briefHtml)));
                               const attachments=[{filename:`Brief_${co.ticker||co.name.replace(/\s/g,"_")}.html`,content:briefB64}];
                               const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email,attachments})});
@@ -466,11 +493,14 @@ export function RoadshowInboundTab({
                               const allC=co.contacts||[];
                               const selIds=m.attendeeIds||[];
                               const reps=(selIds.length?allC.filter(c=>selIds.includes(c.id)):allC).filter(c=>c.name);
-                              const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co.hqAddress||co.name+" HQ"):(m.locationCustom||"A confirmar");
+                              const isV=m.location==="virtual";
+                              const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co.hqAddress||co.name+" HQ"):(m.locationCustom||"A confirmar");
                               reps.forEach(r=>{
                                 if(!r.phone) return;
                                 const firstName=r.name.split(" ")[0];
-                                const msg=`Hola ${firstName}, buen día 👋\n\nTe escribo para confirmar la reunión de mañana:\n\n📅 *${co.name}*\n🗓 ${dayLabel}\n🕐 ${fmtH(m.hour)} hs\n📍 ${locStr}\n👤 ${visitors||fund}\n\n¿Nos confirmás asistencia?\n\nSaludos,\n${lsCont.name||fund}`;
+                                const linkLine=isV&&m.meetingLink?`\n🔗 ${m.meetingLink}`:"";
+                                const locIcon=isV?"💻":"📍";
+                                const msg=`Hola ${firstName}, buen día 👋\n\nTe escribo para confirmar la reunión de mañana:\n\n📅 *${co.name}*\n🗓 ${dayLabel}\n🕐 ${fmtH(m.hour)} hs\n${locIcon} ${locStr}${linkLine}\n👤 ${visitors||fund}\n\n¿Nos confirmás asistencia?\n\nSaludos,\n${lsCont.name||fund}`;
                                 const digits=r.phone.replace(/[^\d]/g,"");
                                 items.push({contact:r,company:co,meeting:m,message:msg,waUrl:"https://wa.me/"+digits+"?text="+encodeURIComponent(msg)});
                               });
@@ -488,7 +518,8 @@ export function RoadshowInboundTab({
                             const allC=co?.contacts||[];
                             const selIds=m.attendeeIds||[];
                             const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
-                            const locStr=m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
+                            const isVirt=m.location==="virtual";
+                            const locStr=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
                             const isConf=m.status==="confirmed";
                             return(
                               <div key={m.id} className="mtg-day-card" onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
@@ -507,7 +538,8 @@ export function RoadshowInboundTab({
                                       <div style={{fontFamily:"Playfair Display,serif",fontSize:14,fontWeight:700,color:"#000039",lineHeight:1.2}}>{co?co.name:(m.lsType||m.title||"Reunión interna")}</div>
                                     </div>
                                     {reps.length>0&&<div style={{fontSize:10,color:"#374151",marginBottom:3}}>{reps.map(r=>r.name+(r.title?" · "+r.title:"")).join(" — ")}</div>}
-                                    <div style={{fontSize:10,color:"#6b7280"}}>📍 {locStr}{m.meetingFormat&&m.meetingFormat!=="Meeting"?" · 🍽 "+m.meetingFormat:""}</div>
+                                    <div style={{fontSize:10,color:"#6b7280"}}>{isVirt?"💻":"📍"} {locStr}{m.meetingFormat&&m.meetingFormat!=="Meeting"?" · 🍽 "+m.meetingFormat:""}</div>
+                                    {isVirt&&m.meetingLink&&<div style={{fontSize:10,marginTop:2}}><a href={m.meetingLink} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:"#1e5ab0",textDecoration:"underline",fontFamily:"IBM Plex Mono,monospace",wordBreak:"break-all"}}>🔗 Unirse a la reunión</a></div>}
                                     {m.notes&&<div style={{fontSize:10,color:"#6b7280",marginTop:4,paddingTop:4,borderTop:"1px solid #f3f4f6",lineHeight:1.5}}>📋 {m.notes}</div>}
                                     {m.postNotes&&<div style={{fontSize:10,color:"#166534",marginTop:3,lineHeight:1.5}}>✅ {m.postNotes}</div>}
                                   </div>
@@ -692,7 +724,7 @@ export function RoadshowInboundTab({
                       const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
                       const d=new Date(m.date+"T12:00:00");
                       const dayStr=d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
-                      const locL=m.location==="ls_office"?"LS":m.location==="hq"?(co?co.ticker+" HQ":"HQ"):(m.locationCustom||"Otro");
+                      const locL=m.location==="virtual"?(PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?"LS":m.location==="hq"?(co?co.ticker+" HQ":"HQ"):(m.locationCustom||"Otro");
                       return(
                         <div key={m.id} style={{border:`1px solid ${clr}44`,borderRadius:7,padding:"8px 11px",background:`${clr}08`,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}
                           onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}>
@@ -751,9 +783,9 @@ export function RoadshowInboundTab({
                                     if(!coId){
                                       coId="co_"+Date.now();
                                       const newCo={id:coId,name:b.company,hqAddress:"",ticker:"",sector:"",contacts:[{id:"rep_"+Date.now(),name:b.contact_name,title:"",email:b.email,phone:b.phone||""}]};
-                                      saveRoadshow({...roadshow,companies:[...(roadshow.companies||[]),newCo],meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||"ls_office",locationCustom:"",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                      saveRoadshow({...roadshow,companies:[...(roadshow.companies||[]),newCo],meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(roadshow.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
                                     }else{
-                                      saveRoadshow({...roadshow,meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||"ls_office",locationCustom:"",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                      saveRoadshow({...roadshow,meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(roadshow.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
                                     }
                                     fetchBookings();fetchPendingCount();
                                   }}>✅ Aprobar + crear reunión</button>

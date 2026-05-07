@@ -1,6 +1,38 @@
 // ── travel.js — geocoding and travel routing utilities ──
 
+// Detect virtual meeting platform from a Zoom/Teams/Meet/Webex link
+export function detectMeetingPlatform(link){
+  if(!link) return "other";
+  const u=link.toLowerCase();
+  if(u.includes("zoom.us")||u.includes("zoom.com")) return "zoom";
+  if(u.includes("teams.microsoft")||u.includes("teams.live")) return "teams";
+  if(u.includes("meet.google")||u.includes("hangouts.google")) return "meet";
+  if(u.includes("webex.com")) return "webex";
+  return "other";
+}
+
+export const PLATFORM_LABELS={zoom:"Zoom",teams:"Microsoft Teams",meet:"Google Meet",webex:"Webex",other:"Reunión virtual"};
+export const PLATFORM_ICONS={zoom:"🟦",teams:"🟪",meet:"🟩",webex:"🟧",other:"💻"};
+
+export function isVirtualMeeting(m){
+  return m?.location==="virtual";
+}
+
+// Single source of truth for meeting display location string
+export function getMeetingLocationLabel(m, co, trip, opts={}){
+  if(m?.location==="virtual"){
+    const plat=m.meetingPlatform||detectMeetingPlatform(m.meetingLink||"");
+    const label=PLATFORM_LABELS[plat]||PLATFORM_LABELS.other;
+    if(opts.short) return PLATFORM_ICONS[plat]+" "+label;
+    return (PLATFORM_ICONS[plat]||"💻")+" "+label;
+  }
+  if(m?.location==="ls_office") return trip?.officeAddress||"Arenales 707, 6° Piso, CABA";
+  if(m?.location==="hq") return co?(co.hqAddress||co.name+" HQ"):"HQ";
+  return m?.locationCustom||"TBD";
+}
+
 export function getMeetingAddress(m, co, officeAddress){
+  if(m.location==="virtual") return ""; // no physical address for virtual
   if(m.fullAddress) return m.fullAddress;
   if(m.location==="ls_office") return officeAddress||"Arenales 707, 6° Piso, CABA, Argentina";
   if(m.location==="hq") return co?.hqAddress||co?.locationCustom||co?.name+", Buenos Aires, Argentina";
@@ -107,6 +139,16 @@ export function openGoogleMapsDirections(from, to){
 
 // Check if two consecutive meetings have a potential conflict (not enough travel time)
 export function checkTravelConflict(m1, m2, travelSec, durationMin){
+  // Virtual meetings need no travel time — only check overlap
+  if(isVirtualMeeting(m1)&&isVirtualMeeting(m2)){
+    const gap=(m2.hour-m1.hour)*60-(durationMin||60);
+    return gap<0?{conflict:true,gapMin:gap,travelMin:0}:null;
+  }
+  // Mixed virtual/in-person: 5 min cushion for context switch
+  if(isVirtualMeeting(m1)||isVirtualMeeting(m2)){
+    const gap=(m2.hour-m1.hour)*60-(durationMin||60);
+    return gap<0?{conflict:true,gapMin:gap,travelMin:0}:gap<5?{warning:true,gapMin:gap,travelMin:0}:null;
+  }
   const gap=(m2.hour-m1.hour)*60-(durationMin||60);
   if(travelSec==null) return gap<15?{warning:true,gapMin:gap}:null;
   const travelMin=Math.ceil(travelSec/60);

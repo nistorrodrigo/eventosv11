@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
+import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
 
 export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onExportICS,onClose}){
   const [type,setType]=useState(meeting?.type||"company");
@@ -11,8 +12,12 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   const [selectedDate,setSelectedDate]=useState(meeting?.date||date||"");
   const [h,setH]=useState(String(meeting?.hour??hour??9));
   const [dur,setDur]=useState(String(meeting?.duration||60));
-  const [loc,setLoc]=useState(meeting?.location||"ls_office");
+  const tripMode=trip?.mode||"in_person";
+  const defaultLoc=tripMode==="virtual"?"virtual":"ls_office";
+  const [loc,setLoc]=useState(meeting?.location||defaultLoc);
   const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
+  const [meetingLink,setMeetingLink]=useState(meeting?.meetingLink||"");
+  const [meetingPlatform,setMeetingPlatform]=useState(meeting?.meetingPlatform||detectMeetingPlatform(meeting?.meetingLink||trip?.defaultMeetingLink||""));
   const [status,setStatus]=useState(meeting?.status||"tentative");
   const [notes,setNotes]=useState(meeting?.notes||"");
   const [postNotes,setPostNotes]=useState(meeting?.postNotes||"");
@@ -38,7 +43,10 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
     const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
-      location:loc,locationCustom:locCustom,status,notes,postNotes,voiceNote,actualAttendees:actualReps,meetingFormat,
+      location:loc,locationCustom:locCustom,
+      meetingLink:loc==="virtual"?meetingLink.trim():"",
+      meetingPlatform:loc==="virtual"?(meetingPlatform||detectMeetingPlatform(meetingLink)):"other",
+      status,notes,postNotes,voiceNote,actualAttendees:actualReps,meetingFormat,
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
@@ -68,7 +76,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       const primaryContact=mtgContacts[0]||contacts[0];
       const fmtH=hv=>{const hh=Math.floor(hv);const mm=Math.round((hv-hh)*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');};
       const newDate=new Date(m.date+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
-      const locStr=m.location==='ls_office'?(trip.officeAddress||'Arenales 707, 6° Piso, CABA'):m.location==='hq'?(co?co.hqAddress||co.name+' HQ':'HQ'):(m.locationCustom||'TBD');
+      const locStr=m.location==='virtual'?(`${PLATFORM_LABELS[m.meetingPlatform]||'Reunión virtual'}${m.meetingLink?' — '+m.meetingLink:''}`):m.location==='ls_office'?(trip.officeAddress||'Arenales 707, 6° Piso, CABA'):m.location==='hq'?(co?co.hqAddress||co.name+' HQ':'HQ'):(m.locationCustom||'TBD');
       const fund=trip.fund||trip.clientName||'nuestro cliente';
       const visitorNames=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(' ')[0]).join(' y ')||fund;
       const coName=co?co.name:(m.lsType||m.title||'la reunión');
@@ -136,22 +144,48 @@ Latin Securities`;
               </select></div>
           </div>
           <div style={{marginBottom:12}}><div className="lbl">Lugar</div>
-            <select className="sel" value={loc} onChange={e=>setLoc(e.target.value)}>
+            <select className="sel" value={loc} onChange={e=>{
+              const nl=e.target.value;setLoc(nl);
+              if(nl==="virtual"&&!meetingLink&&trip?.defaultMeetingLink){
+                setMeetingLink(trip.defaultMeetingLink);
+                setMeetingPlatform(detectMeetingPlatform(trip.defaultMeetingLink));
+              }
+            }}>
               <option value="ls_office">🏛 Nuestras oficinas (LS)</option>
               <option value="hq">🏢 Sede de la empresa</option>
               <option value="custom">📍 Otro lugar</option>
+              <option value="virtual">💻 Virtual (Zoom / Teams / Meet)</option>
             </select>
+            {loc==="virtual"&&(
+              <div style={{marginTop:6,background:"rgba(123,53,176,.05)",border:"1px solid rgba(123,53,176,.18)",borderRadius:7,padding:"8px 10px"}}>
+                <div className="lbl" style={{marginBottom:3,fontSize:9}}>🔗 Link de la reunión</div>
+                <input className="inp" style={{fontSize:11,fontFamily:"IBM Plex Mono,monospace"}} value={meetingLink}
+                  onChange={e=>{const v=e.target.value;setMeetingLink(v);setMeetingPlatform(detectMeetingPlatform(v));}}
+                  placeholder="https://zoom.us/j/... | https://teams.microsoft.com/... | https://meet.google.com/..."/>
+                <div style={{display:"flex",gap:6,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
+                  <div className="lbl" style={{margin:0,fontSize:9}}>Plataforma:</div>
+                  {[["zoom","🟦 Zoom"],["teams","🟪 Teams"],["meet","🟩 Meet"],["webex","🟧 Webex"],["other","💻 Otra"]].map(([v,l])=>(
+                    <button key={v} type="button" className={`btn bs ${meetingPlatform===v?"bg":"bo"}`} style={{fontSize:9,padding:"2px 7px"}} onClick={()=>setMeetingPlatform(v)}>{l}</button>
+                  ))}
+                  {meetingLink&&(
+                    <a href={meetingLink} target="_blank" rel="noreferrer" style={{marginLeft:"auto",fontSize:10,color:"var(--gold)",textDecoration:"underline"}}>↗ Probar link</a>
+                  )}
+                </div>
+              </div>
+            )}
             {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}
             {loc==="hq"&&selCo&&(
               <input className="inp" style={{marginTop:5,fontSize:11}} value={selCo.hqAddress||""} placeholder={`Dirección HQ de ${selCo.name}...`}
                 onChange={e=>{/* update company hqAddress inline */const patch=e.target.value;if(typeof window.__rsCoPatch==="function")window.__rsCoPatch(selCo.id,"hqAddress",patch);}}
               />
             )}
-            <div style={{marginTop:5}}>
-              <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa</div>
-              <input className="inp" style={{fontSize:11}} value={fullAddr} onChange={e=>setFullAddr(e.target.value)}
-                placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6° Piso, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
-            </div>
+            {loc!=="virtual"&&(
+              <div style={{marginTop:5}}>
+                <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa</div>
+                <input className="inp" style={{fontSize:11}} value={fullAddr} onChange={e=>setFullAddr(e.target.value)}
+                  placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6° Piso, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
+              </div>
+            )}
           </div>
           <div className="g2" style={{gap:10,marginBottom:12}}>
             <div><div className="lbl">Estado</div>

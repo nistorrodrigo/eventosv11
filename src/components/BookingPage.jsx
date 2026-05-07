@@ -28,11 +28,12 @@ export default function BookingPage({eventId}){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState(null);
   const [selected,setSelected]=useState(null); // {id,slot_date,slot_hour}
-  const [form,setForm]=useState({company:"",name:"",email:"",phone:"",location:"ls_office",notes:""});
+  const [form,setForm]=useState({company:"",name:"",email:"",phone:"",location:"ls_office",notes:"",meetingLink:""});
   const [submitting,setSubmitting]=useState(false);
   const [done,setDone]=useState(null); // {confirmCode}
   const [eventLabel,setEventLabel]=useState("");
   const [officeAddr,setOfficeAddr]=useState("");
+  const [tripMode,setTripMode]=useState("in_person");
 
   // Fetch slots
   async function loadSlots(){
@@ -40,7 +41,16 @@ export default function BookingPage({eventId}){
     const {data,error:err}=await supabase.from("roadshow_slots").select("*").eq("event_id",eventId).order("slot_date").order("slot_hour");
     if(err){setError("No se pudieron cargar los horarios.");setLoading(false);return;}
     setSlots(data||[]);
-    if(data?.length){setEventLabel(data[0].event_label||"");setOfficeAddr(data[0].office_address||"");}
+    if(data?.length){
+      const lbl=data[0].event_label||"";
+      // Mode encoded as " [VIRTUAL]" or " [HYBRID]" suffix in event_label
+      const modeMatch=lbl.match(/\s*\[(VIRTUAL|HYBRID)\]\s*$/);
+      const mode=modeMatch?modeMatch[1].toLowerCase():(data[0].trip_mode||"in_person");
+      setEventLabel(lbl.replace(/\s*\[(VIRTUAL|HYBRID)\]\s*$/,"").trim());
+      setOfficeAddr(data[0].office_address||"");
+      setTripMode(mode);
+      if(mode==="virtual") setForm(f=>({...f,location:"virtual"}));
+    }
     setLoading(false);
   }
   useEffect(()=>{loadSlots();const iv=setInterval(loadSlots,60000);return()=>clearInterval(iv);},[eventId]);
@@ -57,10 +67,12 @@ export default function BookingPage({eventId}){
     const confirmCode="RS-"+Date.now().toString(36).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
     const ownerId=selected.owner_id;
     // Insert booking
+    const linkSuffix=form.location==="virtual"&&form.meetingLink.trim()?` · 🔗 ${form.meetingLink.trim()}`:"";
     const {error:insErr}=await supabase.from("roadshow_bookings").insert({
       event_id:eventId, slot_date:selected.slot_date, slot_hour:selected.slot_hour,
       company:form.company.trim(), contact_name:form.name.trim(), email:form.email.trim(),
-      phone:form.phone.trim()||null, location_pref:form.location, notes:form.notes.trim()||null,
+      phone:form.phone.trim()||null, location_pref:form.location,
+      notes:(form.notes.trim()+linkSuffix).trim()||null,
       confirm_code:confirmCode, owner_id:ownerId
     });
     if(insErr){setSubmitting(false);setError("Error al reservar. Intentá de nuevo.");return;}
@@ -100,6 +112,8 @@ export default function BookingPage({eventId}){
       <div className="bp-hdr">
         <div style={{fontFamily:"Playfair Display,serif",fontSize:22,marginBottom:4}}>Reservar reunión</div>
         <div style={{fontSize:13,opacity:.7}}>{eventLabel}</div>
+        {tripMode==="virtual"&&<div style={{fontSize:11,marginTop:8,padding:"4px 10px",background:"rgba(255,255,255,.15)",borderRadius:5,display:"inline-block"}}>💻 Roadshow virtual — todas las reuniones por videollamada</div>}
+        {tripMode==="hybrid"&&<div style={{fontSize:11,marginTop:8,padding:"4px 10px",background:"rgba(255,255,255,.15)",borderRadius:5,display:"inline-block"}}>🔀 Roadshow híbrido — presencial o virtual a elección</div>}
       </div>
 
       {/* Step 1: Pick a slot */}
@@ -132,13 +146,19 @@ export default function BookingPage({eventId}){
             <div><label className="bp-lbl">Nombre del representante *</label><input className="bp-inp" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Juan Pérez"/></div>
             <div><label className="bp-lbl">Email *</label><input type="email" className="bp-inp" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="juan@empresa.com"/></div>
             <div><label className="bp-lbl">Teléfono</label><input className="bp-inp" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+54 11 1234-5678"/></div>
-            <div><label className="bp-lbl">Lugar de preferencia</label>
+            <div><label className="bp-lbl">{tripMode==="virtual"?"Modalidad":"Lugar de preferencia"}</label>
               <select className="bp-inp" value={form.location} onChange={e=>setForm({...form,location:e.target.value})}>
-                <option value="ls_office">Oficinas Latin Securities{officeAddr?" ("+officeAddr+")":""}</option>
-                <option value="hq">Nuestra sede / headquarters</option>
-                <option value="other">Otro (aclarar en notas)</option>
+                {tripMode!=="virtual"&&<option value="ls_office">Oficinas Latin Securities{officeAddr?" ("+officeAddr+")":""}</option>}
+                {tripMode!=="virtual"&&<option value="hq">Nuestra sede / headquarters</option>}
+                {tripMode!=="virtual"&&<option value="other">Otro (aclarar en notas)</option>}
+                {(tripMode==="virtual"||tripMode==="hybrid")&&<option value="virtual">💻 Reunión virtual (Zoom / Teams / Meet)</option>}
               </select>
             </div>
+            {form.location==="virtual"&&(
+              <div><label className="bp-lbl">🔗 Link de la reunión {tripMode==="virtual"?"(opcional — si no, lo coordinamos)":""}</label>
+                <input className="bp-inp" type="url" inputMode="url" value={form.meetingLink} onChange={e=>setForm({...form,meetingLink:e.target.value})} placeholder="https://zoom.us/j/... o https://teams.microsoft.com/..."/>
+              </div>
+            )}
             <div><label className="bp-lbl">Notas adicionales</label><textarea className="bp-inp" style={{resize:"vertical"}} rows={2} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Cantidad de asistentes, requerimientos especiales..."/></div>
           </div>
           <div style={{marginTop:16,textAlign:"center"}}>

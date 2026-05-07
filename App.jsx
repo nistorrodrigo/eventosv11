@@ -404,7 +404,8 @@ export default function App(){
         const freeUntil=nextEvent!=null?nextEvent:18; // end of day
         const freeMin=(freeUntil-h)*60;
         if(freeMin<minMeetingMin) continue; // not enough time for a viable meeting
-        newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
+        const modeTag=(trip.mode==="virtual"||trip.mode==="hybrid")?` [${trip.mode.toUpperCase()}]`:"";
+        newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}${modeTag}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
       }
     }
     // Delete old slots for this event
@@ -880,6 +881,11 @@ Daily Summary — ${dayLabel}
     for(const {date,dayMtgs,addrs} of dayData){
       const results={};
       for(let i=0;i<dayMtgs.length-1;i++){
+        // Skip travel calc when either side is virtual
+        if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
+          results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
+          continue;
+        }
         const o=coords[addrs[i]];const d=coords[addrs[i+1]];
         const base=(o&&d)?await osrmRoute(o,d):null;
         // Apply CABA traffic multipliers based on actual departure hour (end of previous meeting)
@@ -898,9 +904,13 @@ Daily Summary — ${dayLabel}
     if(dayMtgs.length<2){toast("Necesitás al menos 2 reuniones en ese día.");return;}
     const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
     setTravelLoading(true);
-    const coords=await geocodeAll([...new Set(addrs)]);
+    const coords=await geocodeAll([...new Set(addrs.filter(a=>a))]);
     const results={};
     for(let i=0;i<dayMtgs.length-1;i++){
+      if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
+        results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
+        continue;
+      }
       const o=coords[addrs[i]];const d=coords[addrs[i+1]];
       const base=(o&&d)?await osrmRoute(o,d):null;
       const deptHour=dayMtgs[i].hour+dur/60;

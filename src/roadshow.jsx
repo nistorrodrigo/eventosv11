@@ -1,6 +1,6 @@
 // ── roadshow.js — roadshow constants, email generators, ICS ──
 import { useState, useRef } from 'react';
-import { stripNeighborhood } from './travel.js';
+import { stripNeighborhood, PLATFORM_LABELS, PLATFORM_ICONS } from './travel.js';
 import { esc } from './storage.jsx';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -46,7 +46,7 @@ export function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const visNames=visitors.length>0?visitors.map(v=>v.name+(v.title?` (${v.title})`:"")):[(trip.clientName||"el cliente")];
   const cli=trip.fund?(trip.clientName?`${trip.fund} (${trip.clientName})`:`${trip.fund}`):(trip.clientName||"[cliente]");
   const visitorLine=visitors.length>1?`los siguientes representantes de ${cli}: ${visNames.join(", ")}`:`${visNames[0]} de ${cli}`;
-  const loc=co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Arenales 707, 6° Piso, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
+  const loc=co.location==="virtual"?`virtualmente${trip.defaultMeetingLink?" ("+(PLATFORM_LABELS[co.meetingPlatform||"other"]||"videollamada")+")":""}`:co.location==="ls_office"?`en nuestras oficinas (${trip.officeAddress||"Arenales 707, 6° Piso, CABA"})`:co.location==="hq"?`en la sede de ${co.name}`:`en ${co.locationCustom||"un lugar a coordinar"}`;
   const fmtHe=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
   const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${fmtHe(h)} hs`).join("\n")||"• A coordinar según disponibilidad";
   const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
@@ -71,8 +71,8 @@ export function rsToEntity(rs,rsCos){
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
-      const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
-      const locL=stripNeighborhood(rawLoc);
+      const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const locL=m.location==="virtual"?rawLoc:stripNeighborhood(rawLoc);
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
       // Reps: company contacts (selected) or free-text participants — sorted by last name
       const reps=(()=>{
@@ -129,9 +129,11 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     textLines.push(`── ${fmtDay(date).toUpperCase()} ──`,"");
     byDay[date].forEach(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
-      const locL=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
+      const isVirt=m.location==="virtual";
+      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
       textLines.push(`  ${fmtH(m.hour)}   ${co?co.name:(m.lsType||m.title||"Meeting")}${co?" ("+co.ticker+")":""}`);
-      textLines.push(`         📍 ${locL}`);
+      textLines.push(`         ${isVirt?"💻":"📍"} ${locL}`);
+      if(isVirt&&m.meetingLink) textLines.push(`         🔗 ${m.meetingLink}`);
       if(m.notes) textLines.push(`         📝 ${m.notes}`);
       textLines.push("");
     });
@@ -146,9 +148,11 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
   const htmlRows=days.map(date=>{
     const dayRows=byDay[date].map(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
-      const locL=m.location==="ls_office"?`LS Offices`:m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const isVirt=m.location==="virtual";
+      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?`LS Offices`:m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const reps=(()=>{const allR=co?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.filter(r=>r.name);})();
-      return `<tr style="border-bottom:1px solid #eef2f8"><td style="padding:8px 12px;font-family:monospace;font-weight:700;color:#1e5ab0;white-space:nowrap">${fmtH(m.hour)}</td><td style="padding:8px 12px"><strong style="color:#000039">${co?co.name:(m.lsType||m.title||"Meeting")}</strong>${co?` <span style="background:#3399ff;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}<br/><span style="font-size:11px;color:#7a8fa8">📍 ${locL}</span>${reps.length?`<br/><span style="font-size:11px;color:#555">👤 ${reps.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ")}</span>`:""}${m.notes?`<br/><span style="font-size:11px;color:#555;font-style:italic">📝 ${m.notes}</span>`:""}</td></tr>`;
+      const linkLine=isVirt&&m.meetingLink?`<br/><a href="${m.meetingLink}" style="font-size:11px;color:#1e5ab0;text-decoration:underline;font-family:monospace;word-break:break-all">🔗 Join meeting</a>`:"";
+      return `<tr style="border-bottom:1px solid #eef2f8"><td style="padding:8px 12px;font-family:monospace;font-weight:700;color:#1e5ab0;white-space:nowrap">${fmtH(m.hour)}</td><td style="padding:8px 12px"><strong style="color:#000039">${co?co.name:(m.lsType||m.title||"Meeting")}</strong>${co?` <span style="background:#3399ff;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}<br/><span style="font-size:11px;color:#7a8fa8">${isVirt?"💻":"📍"} ${locL}</span>${linkLine}${reps.length?`<br/><span style="font-size:11px;color:#555">👤 ${reps.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ")}</span>`:""}${m.notes?`<br/><span style="font-size:11px;color:#555;font-style:italic">📝 ${m.notes}</span>`:""}</td></tr>`;
     }).join("");
     return `<tr><td colspan="2" style="padding:10px 12px;background:#000039;color:#fff;font-weight:700;font-size:13px;letter-spacing:.04em">${fmtDay(date)}</td></tr>${dayRows}`;
   }).join("");
@@ -280,6 +284,7 @@ export function parseICS(icsText){
     const dtend=get("DTEND");
     const summary=get("SUMMARY")||"Imported Meeting";
     const location=get("LOCATION")||"";
+    const url=get("URL")||"";
     const desc=get("DESCRIPTION")||"";
     const uid=get("UID")||("imp-"+Date.now()+"-"+Math.random().toString(36).slice(2,6));
     function parseDT(dt){
@@ -305,8 +310,15 @@ export function parseICS(icsText){
     const end=parseDT(dtend);
     if(!start) return;
     const durMin=end?Math.max(30,Math.round((end.hour-start.hour)*60)):60;
+    // Detect virtual meeting from URL/location/description
+    const possibleLink=url||(/(https?:\/\/[^\s,;]+)/.exec(location)?.[1]||"")||(/(https?:\/\/[^\s,;]+)/.exec(desc)?.[1]||"");
+    const isVirtual=!!possibleLink&&/(zoom|teams\.microsoft|teams\.live|meet\.google|webex)/i.test(possibleLink);
     events.push({uid,title:summary,date:start.date,hour:Math.round(start.hour),
-      duration:durMin,locationCustom:location,notes:desc.slice(0,300)});
+      duration:durMin,
+      location:isVirtual?"virtual":undefined,
+      meetingLink:isVirtual?possibleLink:"",
+      locationCustom:isVirtual?"":location,
+      notes:desc.slice(0,300)});
   });
   return events;
 }
@@ -325,7 +337,9 @@ export function buildICS(meetings, companies, trip){
   const events=meetings.filter(m=>m.status!=="cancelled").map(m=>{
     const co=m.type==="company"?rsCoMap.get(m.companyId):null;
     const title=co?`${co.name} / ${trip.fund||trip.clientName||"Roadshow"}`:(m.lsType||m.title||"Internal Meeting");
-    const locL=m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const isVirt=m.location==="virtual";
+    const platLabel=PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting";
+    const locL=isVirt?(m.meetingLink||platLabel):m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const start=fmtDT(m.date,m.hour);
     const endHour=m.hour+Math.floor(dur/60);const endMin=dur%60;
     const d=new Date(m.date+"T"+pad(m.hour)+":00:00");
@@ -340,7 +354,10 @@ export function buildICS(meetings, companies, trip){
     const coContactLines=mtgReps.filter(r=>r.email).map(r=>`ATTENDEE;CN="${esc(r.name)}":mailto:${r.email}`).join("\r\n");
     const coContact=coContactLines||( co?.contact?.email?`ATTENDEE;CN="${esc(co.contact?.name||co.name)}":mailto:${co.contact.email}`:"");
     const seq=m.icsVersion||0;
-    return `BEGIN:VEVENT\r\nUID:${uid}\r\nSEQUENCE:${seq}\r\nDTSTAMP:${fmtNow()}\r\nLAST-MODIFIED:${fmtNow()}\r\nDTSTART:${start}\r\nDTEND:${endDT}\r\nSUMMARY:${esc(title)}\r\nLOCATION:${esc(locL)}\r\nDESCRIPTION:${esc((co?.notes||"")+( m.notes?("\n"+m.notes):""))}\r\n${attendees?attendees+"\r\n":""}${coContact?coContact+"\r\n":""}END:VEVENT`;
+    const urlLine=isVirt&&m.meetingLink?`URL:${m.meetingLink}\r\n`:"";
+    const descBase=(co?.notes||"")+( m.notes?("\n"+m.notes):"");
+    const desc=isVirt&&m.meetingLink?`${platLabel}\nJoin: ${m.meetingLink}${descBase?"\n\n"+descBase:""}`:descBase;
+    return `BEGIN:VEVENT\r\nUID:${uid}\r\nSEQUENCE:${seq}\r\nDTSTAMP:${fmtNow()}\r\nLAST-MODIFIED:${fmtNow()}\r\nDTSTART:${start}\r\nDTEND:${endDT}\r\nSUMMARY:${esc(title)}\r\nLOCATION:${esc(locL)}\r\n${urlLine}DESCRIPTION:${esc(desc)}\r\n${attendees?attendees+"\r\n":""}${coContact?coContact+"\r\n":""}END:VEVENT`;
   });
   return `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Latin Securities//Roadshow//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\n${events.join("\r\n")}\r\nEND:VCALENDAR`;
 }
@@ -390,7 +407,7 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
 .success{display:none;background:#e8f5ee;border:2px solid #3a8c5c;border-radius:10px;padding:20px;text-align:center;color:#2d5a3d}
 .success h3{font-size:16px;margin-bottom:8px}.copy-box{background:#f4f7fc;border:1px solid #dde;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;margin-top:10px;word-break:break-all}
 </style></head><body><div class="wrap">
-<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} · Buenos Aires · ${trip.arrivalDate||""} – ${trip.departureDate||""}</p></div>
+<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} · ${trip.mode==="virtual"?"Roadshow virtual":"Buenos Aires"} · ${trip.arrivalDate||""} – ${trip.departureDate||""}</p>${trip.mode==="virtual"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">💻 Todas las reuniones por videollamada</p>':trip.mode==="hybrid"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">🔀 Modalidad híbrida — presencial o virtual</p>':""}</div>
 <div class="card"><h2>Seleccioná un horario disponible</h2>
 <div id="slotContainer"></div></div>
 <div class="card" id="formCard" style="display:none"><h2>Tus datos</h2>
@@ -398,8 +415,9 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
 <div class="form-row"><label>Nombre del representante *</label><input id="fName" placeholder="Juan Pérez"/></div>
 <div class="form-row"><label>Email *</label><input id="fEmail" type="email" placeholder="jperez@empresa.com"/></div>
 <div class="form-row"><label>Teléfono (opcional)</label><input id="fPhone" placeholder="+54 11..."/></div>
-<div class="form-row"><label>Lugar de preferencia</label>
-<select id="fLoc"><option value="ls_office">Oficinas Latin Securities (${officeAddress||"Arenales 707, 6° Piso, CABA"})</option><option value="hq">Nuestra sede / headquarters</option><option value="other">Otro (aclarar en notas)</option></select></div>
+<div class="form-row"><label>${trip.mode==="virtual"?"Modalidad":"Lugar de preferencia"}</label>
+<select id="fLoc" onchange="document.getElementById('linkRow').style.display=this.value==='virtual'?'block':'none'">${trip.mode==="virtual"?"":`<option value="ls_office">Oficinas Latin Securities (${officeAddress||"Arenales 707, 6° Piso, CABA"})</option><option value="hq">Nuestra sede / headquarters</option><option value="other">Otro (aclarar en notas)</option>`}${trip.mode==="virtual"||trip.mode==="hybrid"?'<option value="virtual">💻 Reunión virtual (Zoom / Teams / Meet)</option>':""}</select></div>
+<div class="form-row" id="linkRow" style="display:${trip.mode==="virtual"?"block":"none"}"><label>🔗 Link de la reunión (opcional)</label><input id="fLink" placeholder="https://zoom.us/j/... o https://teams.microsoft.com/..."/></div>
 <div class="form-row"><label>Notas adicionales (opcional)</label><textarea id="fNotes" rows="2" placeholder="Asistentes, requerimientos especiales..."></textarea></div>
 <button class="btn-submit" id="btnSubmit" onclick="submitBooking()">✓ Confirmar solicitud</button></div>
 <div class="success" id="successBox"><h3>✅ Solicitud enviada</h3><p>Copiá el código de confirmación y enviáselo a Latin Securities:</p><div class="copy-box" id="confirmCode"></div></div>
@@ -440,7 +458,7 @@ function submitBooking(){
   if(!co||!name||!email||!selectedSlot){alert("Completá los campos obligatorios.");return;}
   taken[selectedSlot.id]={company:co,name,email,ts:Date.now()};
   localStorage.setItem("rs_taken_${trip.arrivalDate||''}${trip.departureDate||''}",JSON.stringify(taken));
-  const code=btoa(JSON.stringify({slot:selectedSlot.id,company:co,name,email,fund:FUND,loc:document.getElementById("fLoc").value,notes:document.getElementById("fNotes").value,ts:Date.now()}));
+  const code=btoa(JSON.stringify({slot:selectedSlot.id,company:co,name,email,fund:FUND,loc:document.getElementById("fLoc").value,link:document.getElementById("fLink")?.value||"",notes:document.getElementById("fNotes").value,ts:Date.now()}));
   document.getElementById("confirmCode").textContent=code;
   document.getElementById("successBox").style.display="block";
   document.getElementById("formCard").style.display="none";
@@ -488,8 +506,9 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     const ticker=co?.ticker?` (${co.ticker})`:"";
     const dur=m.duration||trip.meetingDuration||60;
     const endH=m.hour+dur/60;
-    const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
-    const locL=stripNeighborhood(rawLoc);
+    const isVirt=m.location==="virtual";
+    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const locL=isVirt?rawLoc:stripNeighborhood(rawLoc);
     const reps=(()=>{
       if(m.type!=="company") return m.participants||"";
       const allR=rm.get(m.companyId)?.contacts||[];
@@ -497,7 +516,8 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
       return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")+( r.phone?` · ${r.phone}`:"")+( r.email?` · ${r.email}`:"")).join("\n              ");
     })();
     lines.push(`  ${fmtH(m.hour)} – ${fmtH(endH)}   ${name}${ticker}`);
-    lines.push(`                📍 ${locL}`);
+    lines.push(`                ${isVirt?"💻":"📍"} ${locL}`);
+    if(isVirt&&m.meetingLink) lines.push(`                🔗 ${m.meetingLink}`);
     if(reps) lines.push(`                👤 ${reps}`);
     if(m.notes) lines.push(`                📝 ${m.notes}`);
     lines.push("");
@@ -520,8 +540,10 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     const name=co?co.name:(m.lsType||m.title||"Meeting");
     const dur=m.duration||trip.meetingDuration||60;
     const endH=m.hour+dur/60;
-    const rawLoc=m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
-    const locL=stripNeighborhood(rawLoc);
+    const isVirt=m.location==="virtual";
+    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const locL=isVirt?rawLoc:stripNeighborhood(rawLoc);
+    const linkLine=isVirt&&m.meetingLink?`<div style="font-size:12px;margin-top:2px"><a href="${m.meetingLink}" style="color:#1e5ab0;text-decoration:underline">🔗 Join meeting</a></div>`:"";
     const reps=(()=>{
       if(m.type!=="company") return m.participants||"";
       const allR=rm.get(m.companyId)?.contacts||[];
@@ -532,7 +554,8 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
       <td style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1e5ab0;white-space:nowrap;vertical-align:top;font-weight:700">${fmtH(m.hour)}<br/><span style="font-size:10px;color:#aaa;font-weight:400">${fmtH(endH)}</span></td>
       <td style="padding:10px 14px;vertical-align:top">
         <div style="font-weight:700;color:#000039;font-size:14px">${name}${co?` <span style="background:#dde8f8;color:#1e5ab0;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}</div>
-        <div style="font-size:12px;color:#555;margin-top:3px">📍 ${locL}</div>
+        <div style="font-size:12px;color:#555;margin-top:3px">${isVirt?"💻":"📍"} ${locL}</div>
+        ${linkLine}
         ${reps?`<div style="font-size:12px;color:#555;margin-top:2px">👤 ${reps}</div>`:""}
         ${m.notes?`<div style="font-size:12px;color:#888;margin-top:2px;font-style:italic">📝 ${m.notes}</div>`:""}
       </td>
