@@ -5,6 +5,44 @@ import { AuthProvider } from './src/contexts/AuthContext.tsx'
 import App from './App.jsx'
 import { initMonitoring } from './src/utils/monitoring.ts'
 initMonitoring();
+
+// ── Stale-chunk auto-recovery ───────────────────────────────────────
+// When a new deploy lands while the user has the old index.html cached,
+// dynamic imports (lazy tabs) try to fetch chunk hashes that no longer
+// exist on the CDN and throw "Failed to fetch dynamically imported
+// module". Vite emits a `vite:preloadError` event for these — catch it
+// and force a reload (only once, to avoid loops).
+if (typeof window !== 'undefined') {
+  let reloaded = false;
+  const reloadOnce = (reason) => {
+    if (reloaded) return;
+    reloaded = true;
+    console.warn('[LS EventManager] Stale chunk detected, reloading:', reason);
+    // sessionStorage flag prevents infinite reload loops
+    if (sessionStorage.getItem('ls_chunk_reload') === '1') return;
+    sessionStorage.setItem('ls_chunk_reload', '1');
+    window.location.reload();
+  };
+  // Vite emits this on dynamic-import preload failures
+  window.addEventListener('vite:preloadError', (e) => reloadOnce(e?.payload?.message || 'preload'));
+  // Generic safety net — catches "Failed to fetch dynamically imported module"
+  window.addEventListener('error', (e) => {
+    if (e?.message && /dynamically imported module|Importing a module script failed/i.test(e.message)) {
+      reloadOnce(e.message);
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = e?.reason?.message || '';
+    if (/dynamically imported module|Importing a module script failed/i.test(msg)) {
+      reloadOnce(msg);
+    }
+  });
+  // Clear the reload flag once we've successfully booted
+  window.addEventListener('load', () => {
+    setTimeout(() => sessionStorage.removeItem('ls_chunk_reload'), 5000);
+  });
+}
+
 const BookingPage = lazy(() => import('./src/components/BookingPage.jsx'))
 
 class ErrorBoundary extends React.Component {
