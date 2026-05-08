@@ -103,7 +103,7 @@ export function rsToEntity(rs,rsCos){
     ?(trip.fund||trip.clientName||"Roadshow")
     :`${trip.clientName||visitors[0]?.name||"[Client]"}${trip.fund?" — "+trip.fund:""}`;
   return{name:titleName,sub,
-    coverTitle:`${trip.fund||trip.clientName||"Roadshow"} Roadshow`,
+    coverTitle:trip.fund||trip.clientName||"Roadshow",
     coverNames:visitors.map(v=>({name:v.name,title:v.title||""})),
     coverDate:(()=>{const d=trip.arrivalDate||trip.departureDate;if(!d)return"";return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});})(),
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
