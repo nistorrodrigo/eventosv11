@@ -1,17 +1,27 @@
 // ── storage.js — persistence, zip, HTML export builders ──
 
 /* ═══════════════════════════════════════════════════════════════════
-   LATIN SECURITIES BRAND LOGO — inline SVG (vector, scales perfectly)
-   Two-petal icon: light blue (#3399ff) + dark blue (#1e5ab0) + navy shadow
-   Wordmark colour is configurable via `textColor` (navy on light bg, white on cover)
+   LATIN SECURITIES — official brand palette (Visual Identity Guidelines 2022)
+   PRIMARY (institucionales):
+     #3399ff  Pantone 2925 C  — light blue
+     #1e5ab0  Pantone 3005 C  — medium blue
+     #000039  Pantone 281 C   — deep navy
+   SECONDARY:
+     #acd484  Pantone 359 C   — green
+     #23a29e  Pantone 7473 C  — teal
+     #ebaca2  Pantone 487 C   — coral
 ═══════════════════════════════════════════════════════════════════ */
-export function lsLogoSVG({height=44,textColor="#000039"}={}){
-  // Aspect: icon 65w × 90h, total wordmark ~ 360w × 90h
+export const LS_BRAND={blue:"#3399ff",blueMid:"#1e5ab0",navy:"#000039",green:"#acd484",teal:"#23a29e",coral:"#ebaca2"};
+
+/* Two-petal brand mark + wordmark (vector — scales perfectly).
+   `textColor`  — wordmark hex (navy on light bg, white on dark)
+   `accentColor` — small "page-curl" triangle at bottom-left (navy on light, white on dark) */
+export function lsLogoSVG({height=44,textColor="#000039",accentColor="#000039"}={}){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 90" style="height:${height}px;display:block">
     <g>
       <path d="M 32 5 C 50 5, 62 22, 62 48 C 62 70, 50 86, 33 88 L 32 88 Z" fill="#3399ff"/>
       <path d="M 32 5 C 14 5, 2 22, 2 48 C 2 70, 14 86, 31 88 L 32 88 Z" fill="#1e5ab0"/>
-      <path d="M 14 75 L 30 88 L 18 65 Z" fill="#0c1939"/>
+      <path d="M 14 75 L 30 88 L 18 65 Z" fill="${accentColor}"/>
     </g>
     <text x="80" y="42" font-family="'Helvetica Neue',Arial,sans-serif" font-size="34" font-weight="800" fill="${textColor}" letter-spacing="1">LATIN</text>
     <text x="80" y="80" font-family="'Helvetica Neue',Arial,sans-serif" font-size="34" font-weight="800" fill="${textColor}" letter-spacing="1">SECURITIES</text>
@@ -19,12 +29,12 @@ export function lsLogoSVG({height=44,textColor="#000039"}={}){
 }
 
 // Compact horizontal mark (icon + single-line wordmark) for header use
-export function lsLogoCompactSVG({height=36,textColor="#000039"}={}){
+export function lsLogoCompactSVG({height=36,textColor="#000039",accentColor="#000039"}={}){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" style="height:${height}px;display:block">
     <g>
       <path d="M 22 4 C 36 4, 45 17, 45 33 C 45 47, 35 57, 23 58 L 22 58 Z" fill="#3399ff"/>
       <path d="M 22 4 C 8 4, -1 17, -1 33 C -1 47, 9 57, 21 58 L 22 58 Z" fill="#1e5ab0"/>
-      <path d="M 9 50 L 20 58 L 12 43 Z" fill="#0c1939"/>
+      <path d="M 9 50 L 20 58 L 12 43 Z" fill="${accentColor}"/>
     </g>
     <text x="58" y="29" font-family="'Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="800" fill="${textColor}" letter-spacing=".5">LATIN</text>
     <text x="58" y="52" font-family="'Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="800" fill="${textColor}" letter-spacing=".5">SECURITIES</text>
@@ -140,40 +150,40 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#111
 @page :first{margin:0;size:A4}
 .page{max-width:780px;margin:0 auto;padding:20px 24px 24px}
 .page+.page{page-break-before:always;padding-top:24px}
-/* Cover page — full-bleed navy gradient mimicking corporate template */
-.cover{width:210mm;min-height:297mm;background:linear-gradient(135deg,#1a4f9d 0%,#0c3b82 50%,#072a64 100%);color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column}
+/* Cover page — full-bleed deep navy (Pantone 281 C) per Visual Identity Guidelines 2022 */
+.cover{width:210mm;min-height:297mm;background:#000039;color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column}
 .cover-logo{padding:30mm 0 0 25mm}
 .cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
 .cover-names{margin-bottom:36px}
 .cover-name{font-size:16pt;font-weight:300;color:#fff;line-height:1.55;letter-spacing:.005em}
 .cover-title{font-size:32pt;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.1;padding-bottom:18px;border-bottom:1.5px solid rgba(255,255,255,.35)}
 .cover-foot{padding:0 25mm 30mm;display:flex;justify-content:flex-end;align-items:flex-end}
-.cover-foot .cover-date{font-size:18pt;font-weight:700;color:#7eb1ff;letter-spacing:.02em}
+.cover-foot .cover-date{font-size:18pt;font-weight:700;color:#3399ff;letter-spacing:.02em}
 /* Header */
-.ls-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:18px;border-bottom:2.5px solid #0c3b82}
+.ls-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:18px;border-bottom:2.5px solid #000039}
 .ls-wordmark{display:flex;flex-direction:column;gap:1px}
-.ls-wm1{font-size:14pt;font-weight:800;color:#0c3b82;letter-spacing:.12em;text-transform:uppercase;line-height:1}
+.ls-wm1{font-size:14pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase;line-height:1}
 .ls-wm2{font-size:6.5pt;color:#6b7280;letter-spacing:.22em;text-transform:uppercase;font-weight:500}
 .ev-info{text-align:right}
-.ev-title{font-size:12pt;font-weight:700;color:#0c3b82;line-height:1.2}
+.ev-title{font-size:12pt;font-weight:700;color:#000039;line-height:1.2}
 .ev-sub{font-size:8.5pt;color:#6b7280;margin-top:3px;line-height:1.4}
 /* Entity title */
-h1{font-size:17pt;font-weight:800;color:#0c3b82;margin:0 0 3px;letter-spacing:-.01em}
+h1{font-size:17pt;font-weight:800;color:#000039;margin:0 0 3px;letter-spacing:-.01em}
 h2{font-size:9.5pt;color:#6b7280;margin:0 0 16px;padding-bottom:9px;border-bottom:1px solid #e5e7eb;line-height:1.5}
 /* Table */
 table{width:100%;border-collapse:collapse;margin-bottom:14px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden}
-.dh{background:#0c3b82;color:#fff;font-weight:700;padding:7px 12px;font-size:10pt;letter-spacing:.06em;text-transform:uppercase}
+.dh{background:#000039;color:#fff;font-weight:700;padding:7px 12px;font-size:10pt;letter-spacing:.06em;text-transform:uppercase}
 .th th{background:#1e5ab0;color:#fff;padding:5px 10px;text-align:left;font-size:8.5pt;letter-spacing:.05em;text-transform:uppercase;font-weight:600}
 td{padding:7px 10px;border-bottom:1px solid #f3f4f6;vertical-align:top;font-size:10pt}
 tr:last-child td{border-bottom:none}
 .even td{background:#f9fafb}
-.tt{font-weight:700;color:#0c3b82;white-space:nowrap;width:68px;font-size:10.5pt}
+.tt{font-weight:700;color:#000039;white-space:nowrap;width:68px;font-size:10.5pt}
 .co-name{font-weight:700;font-size:10.5pt;color:#111827}
 .co-tick{display:inline-block;font-size:8pt;font-weight:600;color:#fff;background:#1e5ab0;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
 .reps{font-size:9pt;color:#4b5563;margin-top:2px;line-height:1.4}
 /* Footer */
 .page-footer{margin-top:18px;padding-top:10px;border-top:1.5px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;font-size:8pt;color:#9ca3af}
-.footer-brand{font-weight:700;color:#0c3b82;letter-spacing:.08em;text-transform:uppercase}
+.footer-brand{font-weight:700;color:#000039;letter-spacing:.08em;text-transform:uppercase}
 /* Print */
 @media print{
   body{padding:0}
@@ -186,7 +196,7 @@ ${(()=>{
   // Cover page — emitted only for the first entity, when we have either visitors or a title
   const e0=entities[0];
   const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))?`<div class="cover">
-    <div class="cover-logo">${lsLogoSVG({height:54,textColor:"#ffffff"})}</div>
+    <div class="cover-logo">${lsLogoSVG({height:54,textColor:"#ffffff",accentColor:"#ffffff"})}</div>
     <div class="cover-body">
       ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name">${esc(n.name)}${n.title?" – "+esc(n.title):""}</div>`).join("")}</div>`:""}
       <div class="cover-title">${esc(e0.coverTitle||meta.eventTitle||"Roadshow")}</div>
@@ -217,7 +227,7 @@ ${(()=>{
         <div>Page ${si+1} of ${e.sections.length}</div>
       </div>`;
       // Contacts strip (last page only)
-      const contactsHtml=isLastPage&&(meta.contacts||[]).length?`<div style="margin-top:14px;padding:10px 14px;border-top:2px solid #0c3b82;font-size:8.5pt;color:#374151;display:flex;align-items:center;flex-wrap:wrap;gap:10px"><strong style="color:#0c3b82;margin-right:6px">LS Contact:</strong>${(meta.contacts||[]).map(c=>`${esc(c.name)}${c.role?" · "+esc(c.role):""}${c.email?" · "+esc(c.email):""}${c.phone?" · "+esc(c.phone):""}`).join(" &nbsp;|&nbsp; ")}</div>`:"";
+      const contactsHtml=isLastPage&&(meta.contacts||[]).length?`<div style="margin-top:14px;padding:10px 14px;border-top:2px solid #000039;font-size:8.5pt;color:#374151;display:flex;align-items:center;flex-wrap:wrap;gap:10px"><strong style="color:#000039;margin-right:6px">LS Contact:</strong>${(meta.contacts||[]).map(c=>`${esc(c.name)}${c.role?" · "+esc(c.role):""}${c.email?" · "+esc(c.email):""}${c.phone?" · "+esc(c.phone):""}`).join(" &nbsp;|&nbsp; ")}</div>`:"";
       return `<div class="page">
         <div class="ls-hdr">
           ${lsLogoCompactSVG({height:36,textColor:"#000039"})}
