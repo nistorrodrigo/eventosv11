@@ -96,7 +96,12 @@ export function rsToEntity(rs,rsCos){
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
   const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}${visLine?" · "+visLine:""}`;
-  return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,
+  // Title: when 2+ visitors, show fund only (visitors are already listed in sub) so no single
+  // person "heads" the document. With 0-1 visitor, fall back to "Name — Fund".
+  const titleName=visitors.length>=2
+    ?(trip.fund||trip.clientName||"Roadshow")
+    :`${trip.clientName||visitors[0]?.name||"[Client]"}${trip.fund?" — "+trip.fund:""}`;
+  return{name:titleName,sub,
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;

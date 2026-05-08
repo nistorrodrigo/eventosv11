@@ -122,7 +122,7 @@ export function RoadshowInboundTab({
           <div className="card" style={{marginBottom:14}}>
             <div className="card-t">🧳 Datos del Viaje</div>
             <div className="g3" style={{gap:10,marginBottom:10}}>
-              <div><div className="lbl">Cliente / Inversor</div><input className="inp" value={roadshow.trip.clientName} onChange={e=>upTrip("clientName",e.target.value)} placeholder="John Smith"/></div>
+              <div><div className="lbl">Cliente / Inversor <span style={{fontWeight:400,color:"var(--dim)",fontSize:9}}>(opcional si sumás visitantes)</span></div><input className="inp" value={roadshow.trip.clientName} onChange={e=>upTrip("clientName",e.target.value)} placeholder={(roadshow.trip.visitors||[]).filter(v=>v.name).length>=2?"— dejar vacío, usá Visitantes":"John Smith"}/></div>
               <div><div className="lbl">Fondo / Firma</div><input className="inp" value={roadshow.trip.fund} onChange={e=>upTrip("fund",e.target.value)} placeholder="Merrill Lynch AM"/></div>
               <div><div className="lbl">Hotel</div><input className="inp" value={roadshow.trip.hotel} onChange={e=>upTrip("hotel",e.target.value)} placeholder="Holiday Inn"/></div>
             </div>
