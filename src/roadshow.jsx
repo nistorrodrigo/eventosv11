@@ -9,6 +9,33 @@ import { esc } from './storage.jsx';
 // Hours in 30-min increments: 8.0, 8.5, 9.0, ... 20.0
 export const ROADSHOW_HOURS =Array.from({length:25},(_,i)=>8+i*0.5);
 export function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
+
+// Format a date range; collapses to a single date when arrival===departure (e.g. one-day roadshow)
+// opts: { locale: "es-AR" | "en-US", short: bool, withYear: bool, sep: " – " }
+export function fmtDateRange(arrival, departure, opts={}){
+  const {locale="en-US",short=true,withYear=false,sep=" – "}=opts;
+  if(!arrival&&!departure) return "";
+  const oneDay=arrival&&departure&&arrival===departure;
+  const fmt=iso=>{
+    if(!iso) return "";
+    const d=new Date(iso+"T12:00:00");
+    const o=short?{month:"short",day:"numeric",...(withYear?{year:"numeric"}:{})}:{day:"numeric",month:"long",...(withYear?{year:"numeric"}:{})};
+    return d.toLocaleDateString(locale,o);
+  };
+  if(oneDay||(arrival&&!departure)) return fmt(arrival||departure);
+  if(!arrival&&departure) return fmt(departure);
+  return fmt(arrival)+sep+fmt(departure);
+}
+
+// Natural-language join: ["A"]→"A", ["A","B"]→"A and B", ["A","B","C"]→"A, B and C"
+// `connector` is the final separator ("and" / "y")
+export function joinNames(arr,connector="and"){
+  const a=(arr||[]).filter(Boolean);
+  if(!a.length) return "";
+  if(a.length===1) return a[0];
+  if(a.length===2) return `${a[0]} ${connector} ${a[1]}`;
+  return a.slice(0,-1).join(", ")+` ${connector} `+a[a.length-1];
+}
 export const RS_CLR ={"Financials":"#1e5ab0","Energy":"#e8850a","TMT":"#7b35b0","Infra":"#3a6b3a","Real Estate":"#b03535","Agro":"#3a8c5c","Consumer":"#2a7a8a","Exchange":"#374551","Industry":"#5a5a2e","Media":"#a05000","LS Internal":"#23a29e","Custom":"#666"};
 export const LS_INT_TYPES =["Research – Equities","Research – Fixed Income","Corporate Finance","Economics & Strategy","Political Analyst","Breakfast / Networking Lunch","Airport Transfer","Internal LS Meeting","Dinner","Free time"];
 export const RS_TRIP_DEF ={clientName:"",fund:"",hotel:"Holiday Inn",arrivalDate:"2026-04-18",departureDate:"2026-04-24",lsContactIdx:0,notes:"",officeAddress:"Arenales 707, 6° Piso, CABA",meetingDuration:60,visitors:[],lsTeam:[],mapsApiKey:"",resendKey:""};
@@ -51,7 +78,9 @@ export function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const slots=free.slice(0,6).map(({day,h})=>`• ${fmtD(day)} a las ${fmtHe(h)} hs`).join("\n")||"• A coordinar según disponibilidad";
   const subj=`Solicitud de reunión – ${co.name} / ${trip.fund||trip.clientName||"[cliente]"} | Latin Securities`;
   const primaryContact=(co.contacts||[])[0];
-  const body=`Estimado/a ${primaryContact?.name||co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
+  const oneDay=trip.arrivalDate&&trip.departureDate&&trip.arrivalDate===trip.departureDate;
+  const visitPhrase=oneDay?`quienes estarán visitando Buenos Aires el ${arr}`:`quienes estarán visitando Buenos Aires entre el ${arr} y el ${dep}`;
+  const body=`Estimado/a ${primaryContact?.name||co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, ${visitPhrase}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
   return{to:primaryContact?.email||co.contact?.email||"",subject:subj,body};
 }
 export function rsToEntity(rs,rsCos){
@@ -66,7 +95,7 @@ export function rsToEntity(rs,rsCos){
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
-  const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtShort(trip.arrivalDate||"2026-04-18")} – ${fmtShort(trip.departureDate||"2026-04-24")}${visLine?" · "+visLine:""}`;
+  const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}${visLine?" · "+visLine:""}`;
   return{name:`${trip.clientName||"[Client]"}${trip.fund?" — "+trip.fund:""}`,sub,
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
@@ -119,21 +148,35 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
   const client=trip.clientName||fund||"[Client]";
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const firstNames=visitors.map(v=>v.name.split(" ")[0]);
-  const greeting=firstNames.length>0?`Dear ${firstNames.join(" and ")},`:"Dear [Name],";
+  const greeting=firstNames.length>0?`Dear ${joinNames(firstNames)},`:"Dear [Name],";
+  const visitorsFull=visitors.map(v=>v.name+(v.title?` (${v.title})`:""));
+  const dateRangeStr=fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:false});
+  const oneDayTrip=trip.arrivalDate&&trip.departureDate&&trip.arrivalDate===trip.departureDate;
 
   // Build plain text agenda
   const textLines=[greeting,"",
-    `Please find below your confirmed meeting schedule for your Buenos Aires visit, ${new Date((trip.arrivalDate||"2026-04-18")+"T12:00:00").toLocaleDateString("en-US",{month:"long",day:"numeric"})}–${fmtShort(trip.departureDate||"2026-04-24")}.`,""
+    `Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} ${dateRangeStr}.`,""
   ];
+  if(visitorsFull.length>1) textLines.push(`On behalf of ${fund||"the team"}: ${joinNames(visitorsFull)}.`,"");
   days.forEach(date=>{
     textLines.push(`── ${fmtDay(date).toUpperCase()} ──`,"");
     byDay[date].forEach(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
       const isVirt=m.location==="virtual";
       const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
+      // Per-meeting attendees (company reps OR free-text participants)
+      const reps=(()=>{
+        if(m.type==="company"){
+          const allR=co?.contacts||[];
+          const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+          return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ");
+        }
+        return m.participants||"";
+      })();
       textLines.push(`  ${fmtH(m.hour)}   ${co?co.name:(m.lsType||m.title||"Meeting")}${co?" ("+co.ticker+")":""}`);
       textLines.push(`         ${isVirt?"💻":"📍"} ${locL}`);
       if(isVirt&&m.meetingLink) textLines.push(`         🔗 ${m.meetingLink}`);
+      if(reps) textLines.push(`         👤 ${reps}`);
       if(m.notes) textLines.push(`         📝 ${m.notes}`);
       textLines.push("");
     });
@@ -159,14 +202,14 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
 
   const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a">
 <p style="margin-bottom:12px">${greeting}</p>
-<p style="margin-bottom:16px">Please find below your confirmed meeting schedule for your Buenos Aires visit, <strong>${fmtShort(trip.arrivalDate||"2026-04-18")}–${fmtShort(trip.departureDate||"2026-04-24")}</strong>.</p>
+<p style="margin-bottom:8px">Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} <strong>${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}</strong>.</p>${visitorsFull.length>1?`<p style="margin-bottom:16px;font-size:13px;color:#5a6a7a">On behalf of <strong>${fund||"the team"}</strong>: ${joinNames(visitorsFull)}.</p>`:'<p style="margin-bottom:16px"></p>'}
 <table style="width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #dde">${htmlRows}</table>
 <p style="margin-bottom:4px">Should you need to make any changes, please don't hesitate to reach out.</p>
 <p style="margin-top:20px">Best regards,<br/><strong>${lsContact?.name||"[LS Contact]"}</strong><br/>${lsContact?.role||"Institutional Sales"}<br/>Latin Securities${lsContact?.email?`<br/>${lsContact.email}`:""}</p>
 </div>`;
 
   const toAddrs=visitors.filter(v=>v.email).map(v=>v.email).join(", ");
-  const subject=`Buenos Aires Meeting Schedule — ${fund||client} | ${fmtShort(trip.arrivalDate||"")}–${fmtShort(trip.departureDate||"")}`;
+  const subject=`Buenos Aires Meeting Schedule — ${fund||client} | ${fmtDateRange(trip.arrivalDate||"",trip.departureDate||"",{locale:"en-US",short:true})}`;
 
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
   function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}
@@ -407,7 +450,7 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
 .success{display:none;background:#e8f5ee;border:2px solid #3a8c5c;border-radius:10px;padding:20px;text-align:center;color:#2d5a3d}
 .success h3{font-size:16px;margin-bottom:8px}.copy-box{background:#f4f7fc;border:1px solid #dde;border-radius:6px;padding:10px;font-family:monospace;font-size:11px;margin-top:10px;word-break:break-all}
 </style></head><body><div class="wrap">
-<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} · ${trip.mode==="virtual"?"Roadshow virtual":"Buenos Aires"} · ${trip.arrivalDate||""} – ${trip.departureDate||""}</p>${trip.mode==="virtual"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">💻 Todas las reuniones por videollamada</p>':trip.mode==="hybrid"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">🔀 Modalidad híbrida — presencial o virtual</p>':""}</div>
+<div class="hdr"><h1>📅 Solicitar horario de reunión</h1><p>${fund} · ${trip.mode==="virtual"?"Roadshow virtual":"Buenos Aires"} · ${fmtDateRange(trip.arrivalDate||"",trip.departureDate||"",{locale:"es-AR",short:false})}</p>${trip.mode==="virtual"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">💻 Todas las reuniones por videollamada</p>':trip.mode==="hybrid"?'<p style="margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.1);border-radius:5px;font-size:12px;display:inline-block">🔀 Modalidad híbrida — presencial o virtual</p>':""}</div>
 <div class="card"><h2>Seleccioná un horario disponible</h2>
 <div id="slotContainer"></div></div>
 <div class="card" id="formCard" style="display:none"><h2>Tus datos</h2>
@@ -491,7 +534,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
   const dayMtgs=(meetings||[]).filter(m=>m.date===selDay&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const firstNames=visitors.map(v=>v.name.split(" ")[0]);
-  const greeting=firstNames.length>0?`Good morning ${firstNames.join(" and ")},`:"Good morning,";
+  const greeting=firstNames.length>0?`Good morning ${joinNames(firstNames)},`:"Good morning,";
   const fund=trip.fund||(trip.clientName||"[Client]");
   const hotel=trip.hotel;
 

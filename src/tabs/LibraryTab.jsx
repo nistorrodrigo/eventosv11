@@ -204,7 +204,7 @@ export function LibraryTab({
                   if(co?.name) fundMap[fund].companies.add(co.name);
                   if(m.feedback?.interestLevel) fundMap[fund].feedbacks.push(m.feedback.interestLevel);
                 });
-                if(!fundMap[fund].events.find(e=>e.id===ev.id)) fundMap[fund].events.push({id:ev.id,name:ev.name,kind,dates:(trip.arrivalDate||"")+(trip.departureDate?" – "+trip.departureDate:"")});
+                if(!fundMap[fund].events.find(e=>e.id===ev.id)) fundMap[fund].events.push({id:ev.id,name:ev.name,kind,dates:trip.arrivalDate&&trip.departureDate&&trip.arrivalDate===trip.departureDate?trip.arrivalDate:((trip.arrivalDate||"")+(trip.departureDate?" – "+trip.departureDate:""))});
               }
               // Outbound
               if(kind==="outbound"&&ev.outbound){

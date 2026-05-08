@@ -9,7 +9,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -186,21 +186,23 @@ export function RoadshowInboundTab({
             </div>
 
 
-            {/* Visitors */}
-            <div style={{marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                <div className="lbl" style={{margin:0}}>👥 Visitantes del fondo</div>
-                <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>{const v=(roadshow.trip.visitors||[]);saveRoadshow({...roadshow,trip:{...roadshow.trip,visitors:[...v,{name:"",title:"",email:""}]}});}}>+ Agregar</button>
+            {/* Visitors — multiple people from the same fund */}
+            <div style={{marginBottom:10,background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.15)",borderRadius:7,padding:"10px 12px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                <div className="lbl" style={{margin:0,fontSize:11}}>👥 Visitantes del fondo {(roadshow.trip.visitors||[]).filter(v=>v.name).length>0&&<span style={{color:"var(--gold)",fontWeight:700}}>({(roadshow.trip.visitors||[]).filter(v=>v.name).length})</span>}</div>
+                <span style={{fontSize:10,color:"var(--dim)",fontWeight:400}}>— agregá todos los que vienen del mismo fondo</span>
+                <button className="btn bg bs" style={{fontSize:10,padding:"4px 10px",marginLeft:"auto"}} onClick={()=>{const v=(roadshow.trip.visitors||[]);saveRoadshow({...roadshow,trip:{...roadshow.trip,visitors:[...v,{name:"",title:"",email:""}]}});}}>+ Agregar visitante</button>
               </div>
-              {(roadshow.trip.visitors||[]).map((v,vi)=>(
-                <div key={vi} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
-                  <input className="inp" style={{flex:2,fontSize:11,padding:"3px 7px"}} value={v.name} placeholder="Nombre" onChange={e=>{const vs=[...(roadshow.trip.visitors||[])];vs[vi]={...vs[vi],name:e.target.value};upTrip("visitors",vs);}}/>
-                  <input className="inp" style={{flex:1.5,fontSize:11,padding:"3px 7px"}} value={v.title||""} placeholder="Cargo / Fund" onChange={e=>{const vs=[...(roadshow.trip.visitors||[])];vs[vi]={...vs[vi],title:e.target.value};upTrip("visitors",vs);}}/>
-                  <input className="inp" style={{flex:2,fontSize:11,padding:"3px 7px"}} value={v.email||""} placeholder="email@fondo.com" onChange={e=>{const vs=[...(roadshow.trip.visitors||[])];vs[vi]={...vs[vi],email:e.target.value};upTrip("visitors",vs);}}/>
-                  <button aria-label="Eliminar visitante" className="btn bd bs" style={{fontSize:9,padding:"2px 6px",flexShrink:0}} onClick={()=>{const vs=(roadshow.trip.visitors||[]).filter((_,j)=>j!==vi);upTrip("visitors",vs);}}>✕</button>
+              {(()=>{const vs=roadshow.trip.visitors||[];const rows=vs.length?vs:[{name:"",title:"",email:""}];return rows.map((v,vi)=>(
+                <div key={vi} style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
+                  <span style={{fontSize:9,color:"var(--dim)",width:18,fontFamily:"IBM Plex Mono,monospace",fontWeight:700}}>#{vi+1}</span>
+                  <input className="inp" style={{flex:2,fontSize:12,padding:"5px 9px"}} value={v.name} placeholder="Nombre completo" onChange={e=>{const cur=roadshow.trip.visitors||[];const vsArr=cur.length?[...cur]:[{name:"",title:"",email:""}];vsArr[vi]={...vsArr[vi],name:e.target.value};upTrip("visitors",vsArr);}}/>
+                  <input className="inp" style={{flex:1.5,fontSize:12,padding:"5px 9px"}} value={v.title||""} placeholder="Cargo / rol" onChange={e=>{const cur=roadshow.trip.visitors||[];const vsArr=cur.length?[...cur]:[{name:"",title:"",email:""}];vsArr[vi]={...vsArr[vi],title:e.target.value};upTrip("visitors",vsArr);}}/>
+                  <input className="inp" style={{flex:2,fontSize:12,padding:"5px 9px"}} value={v.email||""} placeholder="email@fondo.com" onChange={e=>{const cur=roadshow.trip.visitors||[];const vsArr=cur.length?[...cur]:[{name:"",title:"",email:""}];vsArr[vi]={...vsArr[vi],email:e.target.value};upTrip("visitors",vsArr);}}/>
+                  {vs.length>0&&<button aria-label="Eliminar visitante" className="btn bd bs" style={{fontSize:10,padding:"4px 8px",flexShrink:0}} onClick={()=>{const vsArr=(roadshow.trip.visitors||[]).filter((_,j)=>j!==vi);upTrip("visitors",vsArr);}}>✕</button>}
                 </div>
-              ))}
-              {!(roadshow.trip.visitors||[]).length&&<div style={{fontSize:11,color:"var(--dim)"}}>Agregá los representantes del fondo que visitan Argentina — aparecen en los emails y el ICS.</div>}
+              ));})()}
+              <div style={{fontSize:10,color:"var(--dim)",marginTop:4,fontStyle:"italic"}}>Todos los visitantes aparecen en el saludo del email, en el ICS como ATTENDEE y en los exports. Si vienen 3 personas, agregá 3 filas.</div>
             </div>
             {/* Email parser */}
             <div style={{borderTop:"1px solid rgba(30,90,176,.08)",paddingTop:10}}>
@@ -826,7 +828,7 @@ export function RoadshowInboundTab({
             return(
             <div>
               <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
               </div>
               {/* Header card */}
               <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>
@@ -834,7 +836,7 @@ export function RoadshowInboundTab({
                   <div>
                     <div style={{fontFamily:"Playfair Display,serif",fontSize:22,marginBottom:4}}>{fund}</div>
                     <div style={{fontSize:12,opacity:.85,marginBottom:8}}>
-                      {roadshow.trip.arrivalDate&&roadshow.trip.departureDate?`${new Date(roadshow.trip.arrivalDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long"})} – ${new Date(roadshow.trip.departureDate+"T12:00:00").toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}`:""}</div>
+                      {fmtDateRange(roadshow.trip.arrivalDate||"",roadshow.trip.departureDate||"",{locale:"es-AR",short:false,withYear:true})}</div>
                     {visitors.length>0&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                       {visitors.map((v,i)=>(
                         <div key={i} style={{background:"rgba(255,255,255,.15)",borderRadius:6,padding:"4px 10px",fontSize:11}}>
