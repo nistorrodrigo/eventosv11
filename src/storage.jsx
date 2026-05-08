@@ -131,8 +131,9 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#111
 /* Cover page — full-bleed deep navy (Pantone 281 C) per Visual Identity Guidelines 2022 */
 .cover{width:210mm;min-height:297mm;background:#000039;color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column}
 .cover-logo{padding:30mm 0 0 25mm}
-.cover-logo-card{display:inline-block;background:#fff;padding:14px 20px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.cover-logo-card img{height:54px;display:block}
+.cover-wordmark{display:flex;flex-direction:column;line-height:.95;letter-spacing:.04em}
+.cover-wordmark-l1{font-size:30pt;font-weight:800;color:#fff}
+.cover-wordmark-l2{font-size:30pt;font-weight:800;color:#fff;margin-top:2px}
 .cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
 .cover-names{margin-bottom:36px}
 .cover-name{font-size:16pt;font-weight:300;color:#fff;line-height:1.55;letter-spacing:.005em}
@@ -176,7 +177,7 @@ ${(()=>{
   // Cover page — emitted only for the first entity, when we have either visitors or a title
   const e0=entities[0];
   const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))?`<div class="cover">
-    <div class="cover-logo"><div class="cover-logo-card"><img src="${LS_LOGO_DATA_URL}" alt="Latin Securities"/></div></div>
+    <div class="cover-logo"><div class="cover-wordmark"><span class="cover-wordmark-l1">LATIN</span><span class="cover-wordmark-l2">SECURITIES</span></div></div>
     <div class="cover-body">
       ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name">${esc(n.name)}${n.title?" – "+esc(n.title):""}</div>`).join("")}</div>`:""}
       <div class="cover-title">${esc(e0.coverTitle||meta.eventTitle||"Roadshow")}</div>
