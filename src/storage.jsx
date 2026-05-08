@@ -94,13 +94,34 @@ export function buildPrintHTML(entities,meta={}){
     const m={'Breakfast':'#7c3aed','Lunch':'#0369a1','Dinner':'#b45309','Company Visit':'#065f46','Conference Call':'#1d4ed8','Presentation':'#7c3aed'};
     return m[t]||'#374151';
   }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Latin Securities · Schedule</title>
+  // Build doc title for browser tab + default save-as filename
+  // Format: "{Fund} Schedule {Month Day Year}" e.g. "Blackrock Schedule June 3 2026"
+  const docTitle=(()=>{
+    const e0=entities[0]||{};
+    const fund=meta.eventTitle||e0.coverTitle?.replace(/\s+Roadshow\s*$/i,"")||"Latin Securities";
+    const dateStr=meta.eventDates?String(meta.eventDates).replace(/[,]/g,""):"";
+    return `${fund} Schedule${dateStr?" "+dateStr:""}`.trim();
+  })();
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(docTitle)}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#111827;background:#fff}
 @page{margin:18mm 20mm 16mm;size:A4}
+@page :first{margin:0;size:A4}
 .page{max-width:780px;margin:0 auto;padding:20px 24px 24px}
 .page+.page{page-break-before:always;padding-top:24px}
+/* Cover page — full-bleed navy gradient mimicking corporate template */
+.cover{width:210mm;min-height:297mm;background:linear-gradient(135deg,#1a4f9d 0%,#0c3b82 50%,#072a64 100%);color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column}
+.cover-logo{padding:30mm 0 0 25mm;display:flex;align-items:center;gap:14px}
+.cover-logo .lg-mark{width:54px;height:54px;background:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#0c3b82;font-weight:900;font-size:22pt;letter-spacing:-.04em;font-family:Georgia,serif}
+.cover-logo .lg-text{font-size:24pt;font-weight:800;letter-spacing:.06em;line-height:1;text-transform:uppercase}
+.cover-logo .lg-text small{display:block;font-size:11pt;font-weight:300;letter-spacing:.18em;margin-top:3px}
+.cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
+.cover-names{margin-bottom:36px}
+.cover-name{font-size:16pt;font-weight:300;color:#fff;line-height:1.55;letter-spacing:.005em}
+.cover-title{font-size:32pt;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.1;padding-bottom:18px;border-bottom:1.5px solid rgba(255,255,255,.35)}
+.cover-foot{padding:0 25mm 30mm;display:flex;justify-content:flex-end;align-items:flex-end}
+.cover-foot .cover-date{font-size:18pt;font-weight:700;color:#7eb1ff;letter-spacing:.02em}
 /* Header */
 .ls-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:18px;border-bottom:2.5px solid #0c3b82}
 .ls-wordmark{display:flex;flex-direction:column;gap:1px}
@@ -135,7 +156,20 @@ tr:last-child td{border-bottom:none}
   .co-tick{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 ${(()=>{
-  return entities.flatMap((e,ei)=>{
+  // Cover page — emitted only for the first entity, when we have either visitors or a title
+  const e0=entities[0];
+  const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))?`<div class="cover">
+    <div class="cover-logo">
+      <div class="lg-mark">L</div>
+      <div class="lg-text">Latin<small>Securities</small></div>
+    </div>
+    <div class="cover-body">
+      ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name">${esc(n.name)}${n.title?" – "+esc(n.title):""}</div>`).join("")}</div>`:""}
+      <div class="cover-title">${esc(e0.coverTitle||meta.eventTitle||"Roadshow")}</div>
+    </div>
+    <div class="cover-foot"><div class="cover-date">${esc(e0.coverDate||meta.eventDates||"")}</div></div>
+  </div>`:"";
+  return coverHTML+entities.flatMap((e,ei)=>{
     return e.sections.map((sec,si)=>{
       const isFirstPage=ei===0&&si===0;
       const isLastPage=ei===entities.length-1&&si===e.sections.length-1;
@@ -165,7 +199,7 @@ ${(()=>{
           <img src="data:image/png;base64,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" style="height:40px;display:block;" alt="Latin Securities"/>
           <div class="ev-info"><div class="ev-title">${esc(meta.eventTitle||"LS Roadshow")}</div><div class="ev-sub">${esc(meta.eventType||"")}${meta.eventDates?" &nbsp;·&nbsp; "+esc(meta.eventDates):""}</div></div>
         </div>
-        ${isFirstPage?`<h1>${esc(e.name)}</h1><h2>${esc(e.sub)}</h2>`:""}
+        ${isFirstPage&&!coverHTML?`<h1>${esc(e.name)}</h1><h2>${esc(e.sub)}</h2>`:""}
         <table>
           <tr><td colspan="5" class="dh">${esc(sec.dayLabel)}</td></tr>
           <tr class="th"><th>Time</th><th>Company / Meeting</th><th>Type</th><th>Location</th><th>Status</th></tr>

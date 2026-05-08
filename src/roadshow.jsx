@@ -95,13 +95,17 @@ export function rsToEntity(rs,rsCos){
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
   const visitors=(trip.visitors||[]).filter(v=>v.name);
   const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
-  const sub=`${trip.fund||"Buenos Aires Roadshow"} · ${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}${visLine?" · "+visLine:""}`;
+  // Subtitle: fund + visitors only — date is already on the cover page and per-day headers
+  const sub=`${trip.fund||"Buenos Aires Roadshow"}${visLine?" · "+visLine:""}`;
   // Title: when 2+ visitors, show fund only (visitors are already listed in sub) so no single
   // person "heads" the document. With 0-1 visitor, fall back to "Name — Fund".
   const titleName=visitors.length>=2
     ?(trip.fund||trip.clientName||"Roadshow")
     :`${trip.clientName||visitors[0]?.name||"[Client]"}${trip.fund?" — "+trip.fund:""}`;
   return{name:titleName,sub,
+    coverTitle:`${trip.fund||trip.clientName||"Roadshow"} Roadshow`,
+    coverNames:visitors.map(v=>({name:v.name,title:v.title||""})),
+    coverDate:(()=>{const d=trip.arrivalDate||trip.departureDate;if(!d)return"";return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});})(),
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
