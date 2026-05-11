@@ -21,6 +21,43 @@ export const LS_LOGO_NEGATIVE_URL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgA
 // Backward-compat alias (older code paths)
 export const LS_LOGO_DATA_URL=LS_LOGO_POSITIVE_URL;
 
+/* ═══════════════════════════════════════════════════════════════════
+   COVER PAGE — reusable across all multi-page PDF exports
+═══════════════════════════════════════════════════════════════════ */
+// CSS chunk to inject into the <head> <style> of any PDF that wants a cover
+export const COVER_CSS=`@page :first{margin:0;size:A4}
+.cover{width:210mm;min-height:297mm;background:#000039;color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column;font-family:'Segoe UI',Calibri,Arial,sans-serif}
+.cover-logo{padding:30mm 0 0 25mm}
+.cover-logo img{height:64px;display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
+.cover-names{margin-bottom:34px;display:flex;flex-direction:column;gap:14px;max-width:165mm}
+.cover-name{display:block}
+.cover-name-name{font-size:17pt;font-weight:500;color:#fff;line-height:1.2;letter-spacing:.01em}
+.cover-name-title{font-size:11pt;font-weight:300;color:rgba(255,255,255,.72);line-height:1.35;margin-top:3px;letter-spacing:.015em}
+.cover-subtitle{font-size:11pt;font-weight:500;color:#3399ff;letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;font-family:'IBM Plex Mono',Consolas,monospace}
+.cover-title{font-size:32pt;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.1;padding-bottom:18px;border-bottom:1.5px solid rgba(255,255,255,.35)}
+.cover-foot{padding:0 25mm 30mm;display:flex;justify-content:flex-end;align-items:flex-end}
+.cover-foot .cover-date{font-size:18pt;font-weight:700;color:#3399ff;letter-spacing:.02em}`;
+
+// Build the cover HTML block. All fields optional — render gracefully when missing.
+//   title       — big white headline (e.g. "Blackrock")
+//   subtitle    — small uppercase label above the title (e.g. "Post-Trip Summary")
+//   names       — [{ name, title }] — the visiting delegation
+//   dateLabel   — bottom-right accent (e.g. "June 2026")
+export function buildCoverHTML({title="Roadshow",subtitle="",names=[],dateLabel=""}={}){
+  const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const nameRows=(names||[]).map(n=>`<div class="cover-name"><div class="cover-name-name">${esc(n.name)}</div>${n.title?`<div class="cover-name-title">${esc(n.title)}</div>`:""}</div>`).join("");
+  return `<div class="cover">
+    <div class="cover-logo"><img src="${LS_LOGO_NEGATIVE_URL}" alt="Latin Securities"/></div>
+    <div class="cover-body">
+      ${names.length?`<div class="cover-names">${nameRows}</div>`:""}
+      ${subtitle?`<div class="cover-subtitle">${esc(subtitle)}</div>`:""}
+      <div class="cover-title">${esc(title)}</div>
+    </div>
+    <div class="cover-foot"><div class="cover-date">${esc(dateLabel)}</div></div>
+  </div>`;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════
    PERSISTENCE — localStorage (works in real browser / Vercel)
@@ -128,21 +165,9 @@ export function buildPrintHTML(entities,meta={}){
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#111827;background:#fff}
 @page{margin:18mm 20mm 16mm;size:A4}
-@page :first{margin:0;size:A4}
 .page{max-width:780px;margin:0 auto;padding:20px 24px 24px}
 .page+.page{page-break-before:always;padding-top:24px}
-/* Cover page — full-bleed deep navy (Pantone 281 C) per Visual Identity Guidelines 2022 */
-.cover{width:210mm;min-height:297mm;background:#000039;color:#fff;padding:0;margin:0;position:relative;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact;break-after:page;display:flex;flex-direction:column}
-.cover-logo{padding:30mm 0 0 25mm}
-.cover-logo img{height:64px;display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
-.cover-names{margin-bottom:34px;display:flex;flex-direction:column;gap:14px;max-width:165mm}
-.cover-name{display:block}
-.cover-name-name{font-size:17pt;font-weight:500;color:#fff;line-height:1.2;letter-spacing:.01em}
-.cover-name-title{font-size:11pt;font-weight:300;color:rgba(255,255,255,.72);line-height:1.35;margin-top:3px;letter-spacing:.015em}
-.cover-title{font-size:32pt;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.1;padding-bottom:18px;border-bottom:1.5px solid rgba(255,255,255,.35)}
-.cover-foot{padding:0 25mm 30mm;display:flex;justify-content:flex-end;align-items:flex-end}
-.cover-foot .cover-date{font-size:18pt;font-weight:700;color:#3399ff;letter-spacing:.02em}
+${COVER_CSS}
 /* Header */
 .ls-hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:18px;border-bottom:2.5px solid #000039}
 .ls-wordmark{display:flex;flex-direction:column;gap:1px}
@@ -179,14 +204,13 @@ tr:last-child td{border-bottom:none}
 ${(()=>{
   // Cover page — emitted only for the first entity, when we have either visitors or a title
   const e0=entities[0];
-  const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))?`<div class="cover">
-    <div class="cover-logo"><img src="${LS_LOGO_NEGATIVE_URL}" alt="Latin Securities"/></div>
-    <div class="cover-body">
-      ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name"><div class="cover-name-name">${esc(n.name)}</div>${n.title?`<div class="cover-name-title">${esc(n.title)}</div>`:""}</div>`).join("")}</div>`:""}
-      <div class="cover-title">${esc(e0.coverTitle||meta.eventTitle||"Roadshow")}</div>
-    </div>
-    <div class="cover-foot"><div class="cover-date">${esc(e0.coverDate||meta.eventDates||"")}</div></div>
-  </div>`:"";
+  const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))
+    ? buildCoverHTML({
+        title:e0.coverTitle||meta.eventTitle||"Roadshow",
+        names:e0.coverNames||[],
+        dateLabel:e0.coverDate||meta.eventDates||"",
+      })
+    : "";
   return coverHTML+entities.flatMap((e,ei)=>{
     return e.sections.map((sec,si)=>{
       const isFirstPage=ei===0&&si===0;
