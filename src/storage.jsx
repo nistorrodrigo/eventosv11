@@ -136,8 +136,10 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#111
 .cover-logo{padding:30mm 0 0 25mm}
 .cover-logo img{height:64px;display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 25mm}
-.cover-names{margin-bottom:36px}
-.cover-name{font-size:16pt;font-weight:300;color:#fff;line-height:1.55;letter-spacing:.005em}
+.cover-names{margin-bottom:34px;display:flex;flex-direction:column;gap:14px;max-width:165mm}
+.cover-name{display:block}
+.cover-name-name{font-size:17pt;font-weight:500;color:#fff;line-height:1.2;letter-spacing:.01em}
+.cover-name-title{font-size:11pt;font-weight:300;color:rgba(255,255,255,.72);line-height:1.35;margin-top:3px;letter-spacing:.015em}
 .cover-title{font-size:32pt;font-weight:800;color:#fff;letter-spacing:-.01em;line-height:1.1;padding-bottom:18px;border-bottom:1.5px solid rgba(255,255,255,.35)}
 .cover-foot{padding:0 25mm 30mm;display:flex;justify-content:flex-end;align-items:flex-end}
 .cover-foot .cover-date{font-size:18pt;font-weight:700;color:#3399ff;letter-spacing:.02em}
@@ -180,7 +182,7 @@ ${(()=>{
   const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))?`<div class="cover">
     <div class="cover-logo"><img src="${LS_LOGO_NEGATIVE_URL}" alt="Latin Securities"/></div>
     <div class="cover-body">
-      ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name">${esc(n.name)}${n.title?" – "+esc(n.title):""}</div>`).join("")}</div>`:""}
+      ${(e0.coverNames||[]).length?`<div class="cover-names">${e0.coverNames.map(n=>`<div class="cover-name"><div class="cover-name-name">${esc(n.name)}</div>${n.title?`<div class="cover-name-title">${esc(n.title)}</div>`:""}</div>`).join("")}</div>`:""}
       <div class="cover-title">${esc(e0.coverTitle||meta.eventTitle||"Roadshow")}</div>
     </div>
     <div class="cover-foot"><div class="cover-date">${esc(e0.coverDate||meta.eventDates||"")}</div></div>
