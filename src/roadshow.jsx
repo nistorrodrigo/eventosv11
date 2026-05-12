@@ -214,7 +214,7 @@ export function rsToEntity(rs,rsCos,opts={}){
   tzBanner:isOtherTz?(()=>{
     const lbl=(TIMEZONES.find(t=>t.value===tz)?.label||tz).replace(/^[^ ]+ /,"");
     const off=tzOffsetLabel(tz);
-    return `All times shown in ${lbl}${off?` (${off})`:""}. Meetings take place in Buenos Aires.`;
+    return `All times shown in ${lbl}${off?` (${off})`:""}.`;
   })():""
   };
 }
@@ -263,7 +263,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     `Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} ${dateRangeStr}.`,""
   ];
   if(visitorsFull.length>1) textLines.push(`On behalf of ${fund||"the team"}: ${joinNames(visitorsFull)}.`,"");
-  if(isOtherTz) textLines.push(`⏰ All times below are shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}. Meetings in Buenos Aires.`,"");
+  if(isOtherTz) textLines.push(`⏰ All times below are shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.`,"");
   days.forEach(date=>{
     textLines.push(`── ${fmtDay(date).toUpperCase()} ──`,"");
     byDay[date].forEach(m=>{
@@ -306,7 +306,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     return `<tr><td colspan="2" style="padding:10px 12px;background:#000039;color:#fff;font-weight:700;font-size:13px;letter-spacing:.04em">${fmtDay(date)}</td></tr>${dayRows}`;
   }).join("");
 
-  const tzBanner=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>All times below shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong> Meetings take place in Buenos Aires.</p>`:"";
+  const tzBanner=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>All times below shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong></p>`:"";
   const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a">
 <p style="margin-bottom:12px">${greeting}</p>
 <p style="margin-bottom:8px">Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} <strong>${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}</strong>.</p>${visitorsFull.length>1?`<p style="margin-bottom:16px;font-size:13px;color:#5a6a7a">On behalf of <strong>${fund||"the team"}</strong>: ${joinNames(visitorsFull)}.</p>`:'<p style="margin-bottom:16px"></p>'}${tzBanner}
@@ -667,7 +667,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     greeting,"",
     `Here is your schedule for ${selDay?fmtLong(selDay):"today"}${hotel?`, as a reminder you are staying at ${hotel}`:""}.`,""
   ];
-  if(isOtherTz) lines.push(`⏰ Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}. Meetings in Buenos Aires.`,"");
+  if(isOtherTz) lines.push(`⏰ Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.`,"");
   dayMtgs.forEach(m=>{
     const co=m.type==="company"?rm.get(m.companyId):null;
     const name=co?co.name:(m.lsType||m.title||"Meeting");
@@ -730,7 +730,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     </tr>`;
   }).join("");
 
-  const tzBannerDB=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong> Meetings take place in Buenos Aires.</p>`:"";
+  const tzBannerDB=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong></p>`:"";
   const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a;line-height:1.6">
 <p style="margin-bottom:12px">${greeting}</p>
 <p style="margin-bottom:20px">Here is your schedule for <strong>${selDay?fmtLong(selDay):"today"}</strong>${hotel?`, as a reminder you are staying at <strong>${hotel}</strong>`:""}.${!dayMtgs.length?" No meetings scheduled.":""}</p>${tzBannerDB}
