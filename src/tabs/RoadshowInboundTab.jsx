@@ -1466,11 +1466,26 @@ export function RoadshowInboundTab({
                 </button>
               </div>
               <div className="sec-hdr" style={{marginBottom:8}}>📄 Agenda del Roadshow (English · formato LS)</div>
+              {/* PDF timezone — affects the agenda PDF export below. Meetings stay in BA internally. */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:"rgba(30,90,176,.04)",border:"1px solid rgba(30,90,176,.15)",borderRadius:7,flexWrap:"wrap"}}>
+                <span style={{fontSize:11,color:"var(--gold)",fontWeight:600}}>🕐 Zona horaria del PDF:</span>
+                <select className="sel" style={{fontSize:11,padding:"4px 8px",minWidth:230,maxWidth:340}} value={pdfTz} onChange={e=>setPdfTz(e.target.value)}>
+                  {TIMEZONES.map(t=>(<option key={t.value} value={t.value}>{t.label}{t.value!==BASE_TZ?" ("+tzOffsetLabel(t.value)+")":""}</option>))}
+                </select>
+                <span style={{fontSize:10,color:"var(--dim)",flex:1,minWidth:180}}>
+                  {pdfTz===BASE_TZ?"Las horas salen en hora de Buenos Aires.":"Las horas del PDF se convierten desde BA automáticamente. Reuniones siguen en BA."}
+                </span>
+              </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-                <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowPDF} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowPDF();}}>
+                <div className="ex-card" role="button" tabIndex={0} onClick={()=>{
+                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});
+                  if(!e){toast("Agregá reuniones al roadshow primero.");return;}
+                  const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
+                  openPrint(buildPrintHTML([e],meta));
+                }} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();const ent=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});if(!ent){toast("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([ent],meta));}}}>
                   <div className="ex-card-ico">📄</div>
                   <div className="ex-card-t">PDF — Agenda completa</div>
-                  <div className="ex-card-s">Formato LS, English. Para compartir con el cliente.</div>
+                  <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowSummary} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary();}}>
                   <div className="ex-card-ico">📊</div>
