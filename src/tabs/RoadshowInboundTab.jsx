@@ -9,7 +9,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -55,6 +55,7 @@ export function RoadshowInboundTab({
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
         const [agendaView,setAgendaView]=useState("table"); // "table" | "calendar"
+        const [pdfTz,setPdfTz]=useState(BASE_TZ); // target tz for the PDF export
         const [waBulkModal,setWaBulkModal]=useState(null);
         const [libPicker,setLibPicker]=useState(false); // library company picker modal
         const [libSelected,setLibSelected]=useState(new Set());
@@ -827,8 +828,17 @@ export function RoadshowInboundTab({
             const STATUS_LBL={confirmed:"✅ Confirmado",tentative:"⏳ Tentativo",cancelled:"❌ Cancelado"};
             return(
             <div>
-              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Sin reuniones.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};openPrint(buildPrintHTML([e],meta));}}>📄 PDF agenda</button>
+              <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>🕐 zona horaria del PDF:</span>
+                <select className="sel" style={{fontSize:10,padding:"3px 8px",minWidth:200,height:"auto"}} value={pdfTz} onChange={e=>setPdfTz(e.target.value)}>
+                  {TIMEZONES.map(t=>(<option key={t.value} value={t.value}>{t.label}{t.value!==BASE_TZ?" ("+tzOffsetLabel(t.value)+")":""}</option>))}
+                </select>
+                <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
+                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});
+                  if(!e){toast("Sin reuniones.");return;}
+                  const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};
+                  openPrint(buildPrintHTML([e],meta));
+                }}>📄 PDF agenda</button>
               </div>
               {/* Header card */}
               <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>

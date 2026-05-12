@@ -242,6 +242,7 @@ ${(()=>{
           <div class="ev-info"><div class="ev-title">${esc(meta.eventTitle||"LS Roadshow")}</div><div class="ev-sub">${esc(meta.eventType||"")}${meta.eventDates?" &nbsp;·&nbsp; "+esc(meta.eventDates):""}</div></div>
         </div>
         ${isFirstPage&&!coverHTML?`<h1>${esc(e.name)}</h1><h2>${esc(e.sub)}</h2>`:""}
+        ${isFirstPage&&e.tzBanner?`<div style="background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;padding:9px 14px;font-size:9.5pt;color:#1e5ab0;margin-bottom:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact">⏰ <strong>${esc(e.tzBanner)}</strong></div>`:""}
         <table>
           <tr><td colspan="5" class="dh">${esc(sec.dayLabel)}</td></tr>
           <tr class="th"><th>Time</th><th>Company / Meeting</th><th>Type</th><th>Location</th><th>Status</th></tr>

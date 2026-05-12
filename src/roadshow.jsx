@@ -146,14 +146,25 @@ export function genRSEmail(co,trip,meetings,lsContact,tripDays){
   const body=`Estimado/a ${primaryContact?.name||co.contact?.name||"[Nombre del contacto]"},\n\nMe comunico desde Latin Securities para coordinar una reunión entre el equipo de ${co.name} y ${visitorLine||cli}, ${visitPhrase}, hospedándose en el ${trip.hotel||"[hotel]"}.\n\nNos gustaría solicitar una reunión de aproximadamente ${trip.meetingDuration||60} minutos. La misma podría realizarse ${loc}, según la conveniencia del equipo.\n\nLes proponemos los siguientes horarios disponibles:\n${slots}\n\nEn caso de preferir otro horario, quedamos totalmente disponibles para ajustar la agenda.\n\nMuchas gracias y saludos cordiales,\n\n${lsContact?.name||"[Nombre LS]"}\n${lsContact?.role||"Institutional Sales"}\nLatin Securities${lsContact?.email?"\n"+lsContact.email:""}${lsContact?.phone?" · "+lsContact.phone:""}`;
   return{to:primaryContact?.email||co.contact?.email||"",subject:subj,body};
 }
-export function rsToEntity(rs,rsCos){
+export function rsToEntity(rs,rsCos,opts={}){
   const{trip,meetings}=rs;
+  const tz=opts.tz||BASE_TZ;
+  const isOtherTz=tz!==BASE_TZ;
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
-  const byDay={};(meetings||[]).forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
-  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+  // Group by target-tz date so meetings that cross midnight under conversion
+  // (BA evening → Tokyo next day, etc.) land in the right day section.
+  const byDay={};(meetings||[]).forEach(m=>{
+    const d=isOtherTz?dateInTZ(m.date,m.hour,tz):m.date;
+    if(!byDay[d])byDay[d]=[];byDay[d].push(m);
+  });
+  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>{
+    const ta=isOtherTz?fmtHourInTZ(a.date,a.hour,tz):a.hour;
+    const tb=isOtherTz?fmtHourInTZ(b.date,b.hour,tz):b.hour;
+    return typeof ta==="string"?ta.localeCompare(tb):ta-tb;
+  }));
   const days=Object.keys(byDay).sort();
   if(!days.length) return null;
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=(h,date)=>isOtherTz?fmtHourInTZ(date,h,tz):(()=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");})();
   const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
   const visitors=(trip.visitors||[]).filter(v=>v.name);
@@ -196,9 +207,16 @@ export function rsToEntity(rs,rsCos){
       })();
       const fmt=m.meetingFormat||"Meeting";
         const col1Name=co?(co.name+(co.ticker?" ("+co.ticker+")":"")):(m.lsType||m.title||"Meeting");
-      return{time:fmtH(m.hour),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
+      return{time:fmtH(m.hour,m.date),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
         col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col5:st};})
-  }))};
+  })),
+  // Optional banner for the PDF when times are not BA local
+  tzBanner:isOtherTz?(()=>{
+    const lbl=(TIMEZONES.find(t=>t.value===tz)?.label||tz).replace(/^[^ ]+ /,"");
+    const off=tzOffsetLabel(tz);
+    return `All times shown in ${lbl}${off?` (${off})`:""}. Meetings take place in Buenos Aires.`;
+  })():""
+  };
 }
 
 
