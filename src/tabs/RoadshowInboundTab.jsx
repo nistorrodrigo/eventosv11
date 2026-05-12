@@ -11,7 +11,7 @@ import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
 import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
-import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
+import { downloadBlob, buildPrintHTML, esc, downloadHTMLAsPDF } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
 import { KioskModal } from "../components/KioskModal.jsx";
@@ -1477,16 +1477,37 @@ export function RoadshowInboundTab({
                 </span>
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-                <div className="ex-card" role="button" tabIndex={0} onClick={()=>{
-                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});
-                  if(!e){toast("Agregá reuniones al roadshow primero.");return;}
-                  const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
-                  openPrint(buildPrintHTML([e],meta));
-                }} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();const ent=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});if(!ent){toast("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([ent],meta));}}}>
-                  <div className="ex-card-ico">📄</div>
-                  <div className="ex-card-t">PDF — Agenda completa</div>
-                  <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
-                </div>
+                {(()=>{
+                  // Build everything the export needs once; both download & print share it.
+                  const buildPdf=()=>{
+                    const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});
+                    if(!e){toast("Agregá reuniones al roadshow primero.");return null;}
+                    const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
+                    const html=buildPrintHTML([e],meta);
+                    const fund=(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow").replace(/[^a-zA-Z0-9]+/g,"_");
+                    const dateStr=tripDays[0]?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}).replace(/[,]/g,"").replace(/\s+/g,"_"):"";
+                    const tzSuffix=pdfTz!==BASE_TZ?"_"+(TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"):"";
+                    return{html,filename:`${fund}_Schedule_${dateStr}${tzSuffix}.pdf`};
+                  };
+                  const onDownload=async()=>{
+                    const r=buildPdf();if(!r)return;
+                    try{toast("⏳ Generando PDF...");await downloadHTMLAsPDF(r.html,r.filename);toastOk("✅ PDF descargado");}
+                    catch(err){toastErr("Error al generar PDF — usá la opción 'Vista previa' como alternativa");console.error(err);}
+                  };
+                  const onPreview=()=>{const r=buildPdf();if(r)openPrint(r.html);};
+                  return(<>
+                    <div className="ex-card" role="button" tabIndex={0} onClick={onDownload} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onDownload();}}}>
+                      <div className="ex-card-ico">💾</div>
+                      <div className="ex-card-t">PDF — Descargar directo</div>
+                      <div className="ex-card-s">Sin diálogo de impresión{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
+                    </div>
+                    <div className="ex-card" role="button" tabIndex={0} onClick={onPreview} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onPreview();}}}>
+                      <div className="ex-card-ico">📄</div>
+                      <div className="ex-card-t">PDF — Vista previa</div>
+                      <div className="ex-card-s">Abre diálogo de impresión (más nítido, texto seleccionable).</div>
+                    </div>
+                  </>);
+                })()}
                 <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowSummary} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary();}}>
                   <div className="ex-card-ico">📊</div>
                   <div className="ex-card-t">Resumen ejecutivo</div>

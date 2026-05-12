@@ -96,6 +96,44 @@ export function downloadBlob(name,content,type){const blob=new Blob([content],{t
 ═══════════════════════════════════════════════════════════════════ */
 export const esc =s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
+// ── Direct PDF download (lazy-loads html2pdf.js, ~140kB gzip — only fetched on first use) ──
+// Renders the HTML offscreen and triggers a real .pdf download instead of going through
+// the browser's print dialog. The visual fidelity is good for the LS agenda layout; multi-page
+// breaks are respected via the existing CSS page-break rules.
+let _html2pdf=null;
+export async function downloadHTMLAsPDF(html, filename, opts={}){
+  if(!_html2pdf){
+    const mod=await import("html2pdf.js");
+    _html2pdf=mod.default||mod;
+  }
+  // Render into a hidden iframe so the source HTML's <style> / @page rules apply cleanly
+  // and the cover-page full-bleed layout is preserved. iframe gets removed on completion.
+  const iframe=document.createElement("iframe");
+  iframe.style.cssText="position:fixed;left:-99999px;top:0;width:210mm;height:297mm;border:0;visibility:hidden";
+  document.body.appendChild(iframe);
+  await new Promise(res=>{
+    iframe.onload=res;
+    iframe.srcdoc=html;
+  });
+  // Give the iframe a moment to lay out (fonts, images decode)
+  await new Promise(r=>setTimeout(r,200));
+  const root=iframe.contentDocument.body;
+  try{
+    await _html2pdf().set({
+      margin:0,
+      filename:filename||"document.pdf",
+      image:{type:"jpeg",quality:.95},
+      html2canvas:{scale:2,useCORS:true,letterRendering:true,backgroundColor:"#ffffff"},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
+      pagebreak:{mode:["css","legacy"]},
+      ...opts,
+    }).from(root).save();
+  }finally{
+    // Slight delay before removal to let html2pdf finish reading DOM
+    setTimeout(()=>iframe.remove(),500);
+  }
+}
+
 export function openPrint(html){
   const w=window.open("","_blank");
   if(w){w.document.write(html);w.document.close();w.focus();return;}
