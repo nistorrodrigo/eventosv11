@@ -10,6 +10,69 @@ import { esc } from './storage.jsx';
 export const ROADSHOW_HOURS =Array.from({length:25},(_,i)=>8+i*0.5);
 export function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
 
+// ── Timezone support ───────────────────────────────────────────────
+// Base timezone for all stored meeting times: Buenos Aires (UTC-3, no DST)
+export const BASE_TZ="America/Argentina/Buenos_Aires";
+// Curated list of timezones useful for investor roadshows
+export const TIMEZONES=[
+  {value:BASE_TZ,label:"🇦🇷 Buenos Aires · BA time",short:"BA"},
+  {value:"America/New_York",label:"🇺🇸 New York · ET",short:"ET"},
+  {value:"America/Chicago",label:"🇺🇸 Chicago · CT",short:"CT"},
+  {value:"America/Los_Angeles",label:"🇺🇸 Los Angeles · PT",short:"PT"},
+  {value:"America/Sao_Paulo",label:"🇧🇷 São Paulo · BRT",short:"BRT"},
+  {value:"America/Santiago",label:"🇨🇱 Santiago",short:"CL"},
+  {value:"Europe/London",label:"🇬🇧 London · UK time",short:"UK"},
+  {value:"Europe/Madrid",label:"🇪🇸 Madrid · CET",short:"CET"},
+  {value:"Europe/Zurich",label:"🇨🇭 Zurich · CET",short:"CET"},
+  {value:"Asia/Dubai",label:"🇦🇪 Dubai · GST",short:"GST"},
+  {value:"Asia/Hong_Kong",label:"🇭🇰 Hong Kong · HKT",short:"HKT"},
+  {value:"Asia/Singapore",label:"🇸🇬 Singapore · SGT",short:"SGT"},
+  {value:"Asia/Tokyo",label:"🇯🇵 Tokyo · JST",short:"JST"},
+];
+
+// Format a BA-time meeting (`date` YYYY-MM-DD + `baHour` decimal 14.5)
+// in the target timezone. Returns "HH:mm" (24h). When targetTz === BASE_TZ
+// we skip the conversion to avoid any rounding quirks.
+export function fmtHourInTZ(date, baHour, targetTz=BASE_TZ){
+  if(baHour==null||baHour==="") return "";
+  const hh=Math.floor(baHour);
+  const mm=Math.round((baHour-hh)*60);
+  if(!targetTz||targetTz===BASE_TZ){
+    return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");
+  }
+  try{
+    // BA is UTC-3 year-round (no DST). Build an absolute instant from this.
+    const baIso=`${date||"2026-01-01"}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00-03:00`;
+    const d=new Date(baIso);
+    return new Intl.DateTimeFormat("en-GB",{timeZone:targetTz,hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
+  }catch{
+    return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");
+  }
+}
+
+// Same instant in target TZ but returns the calendar date (YYYY-MM-DD).
+// Useful for grouping when crossing midnight (e.g. BA evening → Tokyo next day).
+export function dateInTZ(date, baHour, targetTz=BASE_TZ){
+  if(!date) return "";
+  if(!targetTz||targetTz===BASE_TZ) return date;
+  try{
+    const hh=Math.floor(baHour||0), mm=Math.round(((baHour||0)-hh)*60);
+    const baIso=`${date}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00-03:00`;
+    const d=new Date(baIso);
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:targetTz,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
+    const get=t=>parts.find(p=>p.type===t)?.value;
+    return `${get("year")}-${get("month")}-${get("day")}`;
+  }catch{ return date; }
+}
+
+// Pretty offset label for a TZ, e.g. "GMT-4" — uses current date so DST is accurate.
+export function tzOffsetLabel(tz){
+  try{
+    const parts=new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"shortOffset"}).formatToParts(new Date());
+    return parts.find(p=>p.type==="timeZoneName")?.value||"";
+  }catch{return "";}
+}
+
 // Format a date range; collapses to a single date when arrival===departure (e.g. one-day roadshow)
 // opts: { locale: "es-AR" | "en-US", short: bool, withYear: bool, sep: " – " }
 export function fmtDateRange(arrival, departure, opts={}){
@@ -145,13 +208,28 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
   const[fmt,setFmt]=useState("text"); // "text" | "html"
   const[sending,setSending]=useState(false);
   const[sendResult,setSendResult]=useState(null); // null | "ok" | "err:<msg>"
+  const[tz,setTz]=useState(BASE_TZ); // selected timezone for time rendering
+  const isOtherTz=tz!==BASE_TZ;
+  const tzLabel=(TIMEZONES.find(t=>t.value===tz)?.label||tz);
+  const tzOffset=tzOffsetLabel(tz);
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
   const{trip,meetings}=roadshow;
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  // fmtH now is tz-aware. When tz === BA we keep the original cheap formatter.
+  const fmtH=(h,date)=>fmtHourInTZ(date,h,tz);
   const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-  const byDay={};(meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
-  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+  // Group by date IN TARGET TZ (handles meetings that cross midnight when shifted).
+  // For BA tz this is identical to grouping by m.date.
+  const byDay={};(meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{
+    const d=isOtherTz?dateInTZ(m.date,m.hour,tz):m.date;
+    if(!byDay[d])byDay[d]=[];byDay[d].push(m);
+  });
+  // Sort each day by the actual instant in target TZ (using the "HH:mm" string is enough
+  // since dates within a single group share the same calendar day in target tz).
+  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>{
+    const ta=fmtHourInTZ(a.date,a.hour,tz), tb=fmtHourInTZ(b.date,b.hour,tz);
+    return ta.localeCompare(tb);
+  }));
   const days=Object.keys(byDay).sort();
   const fund=trip.fund||(trip.clientName?"":"")||"";
   const client=trip.clientName||fund||"[Client]";
@@ -167,6 +245,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     `Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} ${dateRangeStr}.`,""
   ];
   if(visitorsFull.length>1) textLines.push(`On behalf of ${fund||"the team"}: ${joinNames(visitorsFull)}.`,"");
+  if(isOtherTz) textLines.push(`⏰ All times below are shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}. Meetings in Buenos Aires.`,"");
   days.forEach(date=>{
     textLines.push(`── ${fmtDay(date).toUpperCase()} ──`,"");
     byDay[date].forEach(m=>{
@@ -182,7 +261,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
         }
         return m.participants||"";
       })();
-      textLines.push(`  ${fmtH(m.hour)}   ${co?co.name:(m.lsType||m.title||"Meeting")}${co?" ("+co.ticker+")":""}`);
+      textLines.push(`  ${fmtH(m.hour,m.date)}   ${co?co.name:(m.lsType||m.title||"Meeting")}${co?" ("+co.ticker+")":""}`);
       textLines.push(`         ${isVirt?"💻":"📍"} ${locL}`);
       if(isVirt&&m.meetingLink) textLines.push(`         🔗 ${m.meetingLink}`);
       if(reps) textLines.push(`         👤 ${reps}`);
@@ -204,21 +283,23 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
       const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?`LS Offices`:m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const reps=(()=>{const allR=co?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.filter(r=>r.name);})();
       const linkLine=isVirt&&m.meetingLink?`<br/><a href="${m.meetingLink}" style="font-size:11px;color:#1e5ab0;text-decoration:underline;font-family:monospace;word-break:break-all">🔗 Join meeting</a>`:"";
-      return `<tr style="border-bottom:1px solid #eef2f8"><td style="padding:8px 12px;font-family:monospace;font-weight:700;color:#1e5ab0;white-space:nowrap">${fmtH(m.hour)}</td><td style="padding:8px 12px"><strong style="color:#000039">${co?co.name:(m.lsType||m.title||"Meeting")}</strong>${co?` <span style="background:#3399ff;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}<br/><span style="font-size:11px;color:#7a8fa8">${isVirt?"💻":"📍"} ${locL}</span>${linkLine}${reps.length?`<br/><span style="font-size:11px;color:#555">👤 ${reps.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ")}</span>`:""}${m.notes?`<br/><span style="font-size:11px;color:#555;font-style:italic">📝 ${m.notes}</span>`:""}</td></tr>`;
+      return `<tr style="border-bottom:1px solid #eef2f8"><td style="padding:8px 12px;font-family:monospace;font-weight:700;color:#1e5ab0;white-space:nowrap">${fmtH(m.hour,m.date)}</td><td style="padding:8px 12px"><strong style="color:#000039">${co?co.name:(m.lsType||m.title||"Meeting")}</strong>${co?` <span style="background:#3399ff;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}<br/><span style="font-size:11px;color:#7a8fa8">${isVirt?"💻":"📍"} ${locL}</span>${linkLine}${reps.length?`<br/><span style="font-size:11px;color:#555">👤 ${reps.map(r=>r.name+(r.title?` (${r.title})`:"")).join(", ")}</span>`:""}${m.notes?`<br/><span style="font-size:11px;color:#555;font-style:italic">📝 ${m.notes}</span>`:""}</td></tr>`;
     }).join("");
     return `<tr><td colspan="2" style="padding:10px 12px;background:#000039;color:#fff;font-weight:700;font-size:13px;letter-spacing:.04em">${fmtDay(date)}</td></tr>${dayRows}`;
   }).join("");
 
+  const tzBanner=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>All times below shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong> Meetings take place in Buenos Aires.</p>`:"";
   const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a">
 <p style="margin-bottom:12px">${greeting}</p>
-<p style="margin-bottom:8px">Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} <strong>${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}</strong>.</p>${visitorsFull.length>1?`<p style="margin-bottom:16px;font-size:13px;color:#5a6a7a">On behalf of <strong>${fund||"the team"}</strong>: ${joinNames(visitorsFull)}.</p>`:'<p style="margin-bottom:16px"></p>'}
+<p style="margin-bottom:8px">Please find below your confirmed meeting schedule for ${oneDayTrip?"":"your "}Buenos Aires visit${oneDayTrip?" on":","} <strong>${fmtDateRange(trip.arrivalDate||"2026-04-18",trip.departureDate||"2026-04-24",{locale:"en-US",short:true})}</strong>.</p>${visitorsFull.length>1?`<p style="margin-bottom:16px;font-size:13px;color:#5a6a7a">On behalf of <strong>${fund||"the team"}</strong>: ${joinNames(visitorsFull)}.</p>`:'<p style="margin-bottom:16px"></p>'}${tzBanner}
 <table style="width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #dde">${htmlRows}</table>
 <p style="margin-bottom:4px">Should you need to make any changes, please don't hesitate to reach out.</p>
 <p style="margin-top:20px">Best regards,<br/><strong>${lsContact?.name||"[LS Contact]"}</strong><br/>${lsContact?.role||"Institutional Sales"}<br/>Latin Securities${lsContact?.email?`<br/>${lsContact.email}`:""}</p>
 </div>`;
 
   const toAddrs=visitors.filter(v=>v.email).map(v=>v.email).join(", ");
-  const subject=`Buenos Aires Meeting Schedule — ${fund||client} | ${fmtDateRange(trip.arrivalDate||"",trip.departureDate||"",{locale:"en-US",short:true})}`;
+  const tzSubjectSuffix=isOtherTz?` · times in ${(TIMEZONES.find(t=>t.value===tz)?.short||"local")}`:"";
+  const subject=`Buenos Aires Meeting Schedule — ${fund||client} | ${fmtDateRange(trip.arrivalDate||"",trip.departureDate||"",{locale:"en-US",short:true})}${tzSubjectSuffix}`;
 
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
   function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}
@@ -272,6 +353,18 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
             <div style={{flex:2,minWidth:220}}>
               <div className="lbl">Asunto</div>
               <div style={{fontSize:12,color:"var(--cream)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontWeight:600}}>{subject}</div>
+            </div>
+          </div>
+          {/* Timezone selector — convert times for investors in other zones */}
+          <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-end"}}>
+            <div style={{flex:1}}>
+              <div className="lbl" style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                🕐 Zona horaria de la agenda
+                {isOtherTz&&<span style={{fontSize:9,color:"var(--gold)",fontWeight:400}}>· se convierte desde BA automáticamente</span>}
+              </div>
+              <select className="sel" value={tz} onChange={e=>setTz(e.target.value)}>
+                {TIMEZONES.map(t=>(<option key={t.value} value={t.value}>{t.label}{t.value!==BASE_TZ?" ("+tzOffsetLabel(t.value)+")":""}</option>))}
+              </select>
             </div>
           </div>
           {/* Format toggle */}
@@ -535,8 +628,12 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
   const[fmt,setFmt]=useState("text");
   const[sending,setSending]=useState(false);
   const[sendResult,setSendResult]=useState(null);
+  const[tz,setTz]=useState(BASE_TZ);
+  const isOtherTz=tz!==BASE_TZ;
+  const tzLabel=(TIMEZONES.find(t=>t.value===tz)?.label||tz);
+  const tzOffset=tzOffsetLabel(tz);
 
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=(h,date)=>fmtHourInTZ(date,h,tz);
   const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
 
@@ -552,6 +649,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     greeting,"",
     `Here is your schedule for ${selDay?fmtLong(selDay):"today"}${hotel?`, as a reminder you are staying at ${hotel}`:""}.`,""
   ];
+  if(isOtherTz) lines.push(`⏰ Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}. Meetings in Buenos Aires.`,"");
   dayMtgs.forEach(m=>{
     const co=m.type==="company"?rm.get(m.companyId):null;
     const name=co?co.name:(m.lsType||m.title||"Meeting");
@@ -567,7 +665,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
       const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
       return sel.filter(r=>r.name).map(r=>r.name+(r.title?` (${r.title})`:"")+( r.phone?` · ${r.phone}`:"")+( r.email?` · ${r.email}`:"")).join("\n              ");
     })();
-    lines.push(`  ${fmtH(m.hour)} – ${fmtH(endH)}   ${name}${ticker}`);
+    lines.push(`  ${fmtH(m.hour,m.date)} – ${fmtH(endH,m.date)}   ${name}${ticker}`);
     lines.push(`                ${isVirt?"💻":"📍"} ${locL}`);
     if(isVirt&&m.meetingLink) lines.push(`                🔗 ${m.meetingLink}`);
     if(reps) lines.push(`                👤 ${reps}`);
@@ -603,7 +701,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
       return sel.filter(r=>r.name).map(r=>`${r.name}${r.title?` <span style="color:#7a8fa8;font-size:11px">(${r.title})</span>`:""}`).join(", ");
     })();
     return `<tr style="border-bottom:1px solid #eef2f8">
-      <td style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1e5ab0;white-space:nowrap;vertical-align:top;font-weight:700">${fmtH(m.hour)}<br/><span style="font-size:10px;color:#aaa;font-weight:400">${fmtH(endH)}</span></td>
+      <td style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1e5ab0;white-space:nowrap;vertical-align:top;font-weight:700">${fmtH(m.hour,m.date)}<br/><span style="font-size:10px;color:#aaa;font-weight:400">${fmtH(endH,m.date)}</span></td>
       <td style="padding:10px 14px;vertical-align:top">
         <div style="font-weight:700;color:#000039;font-size:14px">${name}${co?` <span style="background:#dde8f8;color:#1e5ab0;font-size:10px;padding:1px 5px;border-radius:3px;font-family:monospace">${co.ticker}</span>`:""}</div>
         <div style="font-size:12px;color:#555;margin-top:3px">${isVirt?"💻":"📍"} ${locL}</div>
@@ -614,9 +712,10 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     </tr>`;
   }).join("");
 
+  const tzBannerDB=isOtherTz?`<p style="margin-bottom:14px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;font-size:12px;color:#1e5ab0">⏰ <strong>Times shown in ${tzLabel.replace(/^[^ ]+ /,'')}${tzOffset?` (${tzOffset})`:""}.</strong> Meetings take place in Buenos Aires.</p>`:"";
   const htmlBody=`<div style="font-family:Calibri,Arial,sans-serif;max-width:600px;color:#1a2a3a;line-height:1.6">
 <p style="margin-bottom:12px">${greeting}</p>
-<p style="margin-bottom:20px">Here is your schedule for <strong>${selDay?fmtLong(selDay):"today"}</strong>${hotel?`, as a reminder you are staying at <strong>${hotel}</strong>`:""}.${!dayMtgs.length?" No meetings scheduled.":""}</p>
+<p style="margin-bottom:20px">Here is your schedule for <strong>${selDay?fmtLong(selDay):"today"}</strong>${hotel?`, as a reminder you are staying at <strong>${hotel}</strong>`:""}.${!dayMtgs.length?" No meetings scheduled.":""}</p>${tzBannerDB}
 ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #dde8f8;border-radius:8px;overflow:hidden">
   <tr><td colspan="2" style="background:#000039;color:#fff;padding:10px 14px;font-weight:700;letter-spacing:.04em">${selDay?fmtLong(selDay):""}</td></tr>
   ${mtgRows}
@@ -626,7 +725,7 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
 </div>`;
 
   const toAddrs=visitors.filter(v=>v.email).map(v=>v.email).join(", ");
-  const subject=`${fund} · Buenos Aires – Daily Schedule – ${selDay?fmtShort(selDay):""}`;
+  const subject=`${fund} · Buenos Aires – Daily Schedule – ${selDay?fmtShort(selDay):""}${isOtherTz?" · "+(TIMEZONES.find(t=>t.value===tz)?.short||"local"):""}`;
   const resendKey=trip?.resendKey||"";
 
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
@@ -656,9 +755,9 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
       <div className="modal" style={{maxWidth:680,maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
         <div className="modal-hdr"><div className="modal-title">🌅 Agenda del día</div></div>
         <div className="modal-body" style={{flex:1,overflowY:"auto"}}>
-          {/* Day selector */}
+          {/* Day + timezone selectors */}
           <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"flex-end",flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:180}}>
+            <div style={{flex:1,minWidth:140}}>
               <div className="lbl">Día</div>
               <select className="sel" value={selDay} onChange={e=>setSelDay(e.target.value)}>
                 {activeDays.map(d=>{
@@ -666,6 +765,12 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
                   const label=new Date(d+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
                   return <option key={d} value={d}>{label}{n?` · ${n} mtg${n>1?"s":""}`:""}</option>;
                 })}
+              </select>
+            </div>
+            <div style={{flex:1.5,minWidth:200}}>
+              <div className="lbl">🕐 Zona horaria</div>
+              <select className="sel" value={tz} onChange={e=>setTz(e.target.value)}>
+                {TIMEZONES.map(t=>(<option key={t.value} value={t.value}>{t.label}{t.value!==BASE_TZ?" ("+tzOffsetLabel(t.value)+")":""}</option>))}
               </select>
             </div>
             <div style={{flex:2,minWidth:220}}>
