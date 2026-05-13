@@ -1533,17 +1533,17 @@ export function RoadshowInboundTab({
                   <div className="ex-card-t">PDF — Agenda completa</div>
                   <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}. <em style={{color:"var(--dim)"}}>En el diálogo elegí "Save as PDF".</em></div>
                 </div>
-                <div className="ex-card" role="button" tabIndex={0} onClick={exportRoadshowSummary} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary();}}>
+                <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportRoadshowSummary(pdfTz)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary(pdfTz);}}>
                   <div className="ex-card-ico">📊</div>
                   <div className="ex-card-t">Resumen ejecutivo</div>
-                  <div className="ex-card-s">KPIs, cobertura por sector y agenda del viaje.</div>
+                  <div className="ex-card-s">KPIs, cobertura por sector y agenda del viaje{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
                 </div>
-                <div className="ex-card" role="button" tabIndex={0} onClick={exportPostRoadshowReport} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportPostRoadshowReport();}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
+                <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportPostRoadshowReport(pdfTz)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportPostRoadshowReport(pdfTz);}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
                   <div className="ex-card-ico">🔬</div>
                   <div className="ex-card-t">Reporte con feedback</div>
-                  <div className="ex-card-s">Interés por empresa, topics, next steps, follow-ups pendientes. Para uso interno.</div>
+                  <div className="ex-card-s">Interés por empresa, topics, next steps, follow-ups pendientes. Para uso interno{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
                   <div style={{display:"flex",gap:6,marginTop:6}} onClick={e=>e.stopPropagation()}>
-                    <button className="btn bo bs" style={{fontSize:8}} onClick={exportPostRoadshowReport}>🖨 Imprimir/PDF</button>
+                    <button className="btn bo bs" style={{fontSize:8}} onClick={()=>exportPostRoadshowReport(pdfTz)}>🖨 Imprimir/PDF</button>
                     <button className="btn bo bs" style={{fontSize:8}} onClick={()=>{
                       // Generate same HTML and download as .doc
                       const {_exportPostRoadshowReport}=require("../../src/utils/exporters.ts");

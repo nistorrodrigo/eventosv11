@@ -343,8 +343,10 @@ export default function App(){
     setRoadshow(rs);saveCurrentEvent({roadshow:rs});
   }
   // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.ts
-  function exportRoadshowSummary(){ _exportRoadshowSummary({roadshow, openPrint}); }
-  function exportPostRoadshowReport(){ _exportPostRoadshowReport({roadshow, openPrint}); }
+  // tz is optional; defaults to Buenos Aires inside the exporters. The Export subtab
+  // forwards the user-selected pdfTz so all 3 PDFs (agenda, summary, report) stay in sync.
+  function exportRoadshowSummary(tz){ _exportRoadshowSummary({roadshow, openPrint, tz}); }
+  function exportPostRoadshowReport(tz){ _exportPostRoadshowReport({roadshow, openPrint, tz}); }
   function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
   // exportRoadshowPDF removed — the agenda PDF export is now inlined in RoadshowInboundTab's
   // Export subtab so it can pick up the user-selected pdfTz. Kept the prop name out of the tab's
