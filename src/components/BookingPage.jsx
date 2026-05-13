@@ -1,5 +1,5 @@
 // ── BookingPage.jsx — Public booking page (no auth required) ──────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase.js";
 import { fmtHour as fmtH } from "../roadshow.jsx";
 
@@ -23,20 +23,42 @@ const BOOK_CSS=`@import url('https://fonts.googleapis.com/css2?family=Playfair+D
 .bp-skel{background:linear-gradient(90deg,#f0f3f8 25%,#e4e9f2 37%,#f0f3f8 63%);background-size:800px 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:8px}
 `;
 
-// Abuse mitigations for the public booking page (no auth, no captcha infra):
-//   1. Honeypot input  — non-headless bots auto-fill all inputs, so the existence of
-//      a value in `_hp` (hidden from real users) is a strong bot signal.
-//   2. Min fill-time   — real visitors take ≥ 3s to type their company/name/email.
-//                        Submit < 3s after the form mounts ⇒ very likely scripted.
-//   3. Per-browser cooldown — localStorage stamp per eventId; 30s between submits.
-//                        Stops naïve loops; trivially bypassed by clearing storage
-//                        but raises the cost of casual flooding.
-// For a real CAPTCHA layer (Cloudflare Turnstile, hCaptcha) we'd need a Vercel API
-// route to verify the token server-side before forwarding the insert. Left as a
-// follow-up.
+// Abuse mitigations for the public booking page (layered defence):
+//   1. Honeypot input        — bots auto-fill every input; `_hp` is hidden from
+//                              real users so any value = silent reject.
+//   2. Min fill-time         — real visitors take ≥ 3s; faster submit = scripted.
+//   3. Per-browser cooldown  — 30s localStorage stamp per eventId; stops loops.
+//   4. Cloudflare Turnstile  — real CAPTCHA, server-side verified via the
+//                              /api/verify-turnstile Vercel function. Activates
+//                              ONLY when `VITE_TURNSTILE_SITE_KEY` is set as an
+//                              env var at build time; otherwise we fall back to
+//                              the first three layers.
 const SUBMIT_COOLDOWN_MS=30000;
 const MIN_FILL_TIME_MS=3000;
 const ckKey=(eventId)=>`ls_book_cd_${eventId}`;
+
+// Read once at module load — bundled into the chunk. Empty string ⇒ feature off.
+const TURNSTILE_SITE_KEY = (import.meta.env?.VITE_TURNSTILE_SITE_KEY || "").trim();
+const TURNSTILE_ENABLED = !!TURNSTILE_SITE_KEY;
+const TURNSTILE_SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+
+// Idempotent script loader — only injects the <script> once even across renders.
+let _turnstileScriptPromise = null;
+function loadTurnstileScript(){
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (_turnstileScriptPromise) return _turnstileScriptPromise;
+  _turnstileScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = TURNSTILE_SCRIPT_SRC;
+    s.async = true;
+    s.defer = true;
+    s.onload = () => resolve(window.turnstile);
+    s.onerror = () => reject(new Error("turnstile_script_load_failed"));
+    document.head.appendChild(s);
+  });
+  return _turnstileScriptPromise;
+}
 
 export default function BookingPage({eventId}){
   const [slots,setSlots]=useState([]);
@@ -51,6 +73,13 @@ export default function BookingPage({eventId}){
   const [officeAddr,setOfficeAddr]=useState("");
   const [tripMode,setTripMode]=useState("in_person");
   const [formMountedAt]=useState(()=>Date.now());
+  // Cloudflare Turnstile state — token is captured in the widget callback.
+  // `tsReady` flips true once the script loads; before that the submit button
+  // disables itself so the user can't click before the challenge appears.
+  const [tsToken, setTsToken] = useState("");
+  const [tsReady, setTsReady] = useState(!TURNSTILE_ENABLED); // when disabled, treat as ready
+  const tsContainerRef = useRef(null);
+  const tsWidgetIdRef = useRef(null);
 
   // Fetch slots
   async function loadSlots(){
@@ -71,6 +100,44 @@ export default function BookingPage({eventId}){
     setLoading(false);
   }
   useEffect(()=>{loadSlots();const iv=setInterval(loadSlots,60000);return()=>clearInterval(iv);},[eventId]);
+
+  // Mount Turnstile widget once the form opens (i.e. user picked a slot).
+  // We render+destroy the widget when `selected` toggles so re-selecting a slot
+  // gives a fresh challenge — Turnstile tokens are single-use and expire in ~5min.
+  useEffect(() => {
+    if (!TURNSTILE_ENABLED) return;
+    if (!selected) { setTsToken(""); return; }
+    let cancelled = false;
+    loadTurnstileScript().then(ts => {
+      if (cancelled || !ts || !tsContainerRef.current) return;
+      // Remove a previous widget if present (re-mount on slot change)
+      if (tsWidgetIdRef.current != null) {
+        try { ts.remove(tsWidgetIdRef.current); } catch { /* noop */ }
+        tsWidgetIdRef.current = null;
+      }
+      tsWidgetIdRef.current = ts.render(tsContainerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (token) => setTsToken(token || ""),
+        "error-callback": () => setTsToken(""),
+        "expired-callback": () => setTsToken(""),
+        theme: "light",
+        size: "normal",
+      });
+      setTsReady(true);
+    }).catch(() => {
+      // Script failed to load (CSP, offline) — let user submit; the api/verify
+      // endpoint will still validate. tsReady stays false so button is disabled.
+      console.warn("[BookingPage] Turnstile script failed to load — falling back to non-CAPTCHA path");
+      setTsReady(true);
+    });
+    return () => {
+      cancelled = true;
+      if (tsWidgetIdRef.current != null && window.turnstile) {
+        try { window.turnstile.remove(tsWidgetIdRef.current); } catch { /* noop */ }
+        tsWidgetIdRef.current = null;
+      }
+    };
+  }, [selected?.id]);
 
   // Group slots by date
   const grouped={};
@@ -105,6 +172,41 @@ export default function BookingPage({eventId}){
         return;
       }
     }catch{}
+
+    // ── Turnstile gate (only if feature-flag is on) ──
+    if (TURNSTILE_ENABLED) {
+      if (!tsToken) {
+        setSubmitError("Completá la verificación anti-bots arriba antes de confirmar.");
+        return;
+      }
+      setSubmitting(true); setSubmitError(null);
+      try {
+        const r = await fetch("/api/verify-turnstile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: tsToken }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 503) {
+          // Endpoint not configured → swallow and proceed (matches behaviour
+          // when the feature is OFF on the frontend)
+          console.warn("[BookingPage] /api/verify-turnstile not configured — proceeding without server-side verification");
+        } else if (!r.ok || !data.ok) {
+          setSubmitting(false);
+          setSubmitError("La verificación anti-bots falló. Volvé a tildar el captcha y reintentá.");
+          // Reset Turnstile so the user gets a fresh challenge
+          if (window.turnstile && tsWidgetIdRef.current != null) {
+            try { window.turnstile.reset(tsWidgetIdRef.current); } catch { /* noop */ }
+          }
+          setTsToken("");
+          return;
+        }
+      } catch (err) {
+        setSubmitting(false);
+        setSubmitError("No pudimos contactar el servicio de verificación. Probá de nuevo en unos segundos.");
+        return;
+      }
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -247,14 +349,19 @@ export default function BookingPage({eventId}){
             )}
             <div><label className="bp-lbl">Notas adicionales</label><textarea className="bp-inp" style={{resize:"vertical"}} rows={2} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Cantidad de asistentes, requerimientos especiales..."/></div>
           </div>
+          {TURNSTILE_ENABLED && (
+            <div style={{marginTop:16,display:"flex",justifyContent:"center"}}>
+              <div ref={tsContainerRef} aria-label="Verificación anti-bots" />
+            </div>
+          )}
           {submitError&&(
             <div style={{marginTop:14,padding:"10px 14px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,color:"#991b1b",fontSize:13,lineHeight:1.5}}>
               ⚠ {submitError}
             </div>
           )}
           <div style={{marginTop:16,textAlign:"center"}}>
-            <button type="submit" disabled={submitting} className="bp-btn">
-              {submitting?"Reservando...":"✓ Confirmar reserva"}
+            <button type="submit" disabled={submitting||(TURNSTILE_ENABLED && (!tsReady||!tsToken))} className="bp-btn">
+              {submitting?"Reservando...":(TURNSTILE_ENABLED && !tsToken)?"Completá la verificación arriba":"✓ Confirmar reserva"}
             </button>
           </div>
         </form>
