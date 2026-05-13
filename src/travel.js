@@ -129,12 +129,12 @@ export function openGoogleMapsRoute(stops){
   const dest=encodeURIComponent(stops[stops.length-1]);
   const waypoints=stops.slice(1,-1).map(s=>encodeURIComponent(s)).join("|");
   const url=`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints?`&waypoints=${waypoints}`:""}&travelmode=driving`;
-  window.open(url,"_blank");
+  window.open(url,"_blank","noopener,noreferrer");
 }
 
 export function openGoogleMapsDirections(from, to){
   const url=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
-  window.open(url,"_blank");
+  window.open(url,"_blank","noopener,noreferrer");
 }
 
 // Check if two consecutive meetings have a potential conflict (not enough travel time)

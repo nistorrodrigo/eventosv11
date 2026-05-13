@@ -11,21 +11,31 @@ initMonitoring();
 // dynamic imports (lazy tabs) try to fetch chunk hashes that no longer
 // exist on the CDN and throw "Failed to fetch dynamically imported
 // module". Vite emits a `vite:preloadError` event for these — catch it
-// and force a reload (only once, to avoid loops).
+// and force a reload.
+//
+// Loop-prevention: stamp `ls_chunk_reload` with a timestamp. If we see
+// it again within 30s we assume the underlying problem is NOT a stale
+// chunk (CSP block, network down, real bug) and skip the reload —
+// otherwise the user would be in a tight infinite reload loop. After
+// 30s the flag is treated as expired, so a legitimate stale chunk
+// hours/days later still triggers a reload.
 if (typeof window !== 'undefined') {
+  const FLAG = 'ls_chunk_reload';
+  const COOLDOWN_MS = 30000;
   let reloaded = false;
   const reloadOnce = (reason) => {
     if (reloaded) return;
+    const prev = parseInt(sessionStorage.getItem(FLAG) || '0', 10);
+    if (prev && Date.now() - prev < COOLDOWN_MS) {
+      console.warn('[LS EventManager] Stale-chunk reload suppressed (recent reload). Reason:', reason);
+      return;
+    }
     reloaded = true;
     console.warn('[LS EventManager] Stale chunk detected, reloading:', reason);
-    // sessionStorage flag prevents infinite reload loops
-    if (sessionStorage.getItem('ls_chunk_reload') === '1') return;
-    sessionStorage.setItem('ls_chunk_reload', '1');
+    sessionStorage.setItem(FLAG, String(Date.now()));
     window.location.reload();
   };
-  // Vite emits this on dynamic-import preload failures
   window.addEventListener('vite:preloadError', (e) => reloadOnce(e?.payload?.message || 'preload'));
-  // Generic safety net — catches "Failed to fetch dynamically imported module"
   window.addEventListener('error', (e) => {
     if (e?.message && /dynamically imported module|Importing a module script failed/i.test(e.message)) {
       reloadOnce(e.message);
@@ -37,10 +47,13 @@ if (typeof window !== 'undefined') {
       reloadOnce(msg);
     }
   });
-  // Clear the reload flag once we've successfully booted
-  window.addEventListener('load', () => {
-    setTimeout(() => sessionStorage.removeItem('ls_chunk_reload'), 5000);
-  });
+  // Clean up the flag aggressively once the app actually boots. We use both
+  // DOMContentLoaded and load — the earlier one fires even if a later resource
+  // is still loading, preventing the flag from getting stuck if `load` never
+  // fires (e.g. the ErrorBoundary catches before then).
+  const clearFlag = () => sessionStorage.removeItem(FLAG);
+  window.addEventListener('DOMContentLoaded', () => setTimeout(clearFlag, 2000));
+  window.addEventListener('load', () => setTimeout(clearFlag, 2000));
 }
 
 const BookingPage = lazy(() => import('./src/components/BookingPage.jsx'))

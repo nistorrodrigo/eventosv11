@@ -39,7 +39,7 @@ export function RoadshowInboundTab({
   travelLoading, setTravelLoading,
   rsBySlot, rsOverlapSet,
   search, setSearch,
-  exportBookingPage, exportRoadshowICS, exportRoadshowPDF, exportRoadshowWord,
+  exportBookingPage, exportRoadshowICS, exportRoadshowWord,
   handleRsEmailParse, openPrint,
   calcAllTravel, calcDayTravel,
   publishBookingSlots,
@@ -182,7 +182,7 @@ export function RoadshowInboundTab({
               <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:180}}>
                 Sin key: copia el texto.<br/>
                 Con key: envía directo al inversor.<br/>
-                <a href="https://resend.com/api-keys" target="_blank" style={{color:"var(--gold)"}}>Obtener key →</a>
+                <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" style={{color:"var(--gold)"}}>Obtener key →</a>
               </div>
             </div>
 

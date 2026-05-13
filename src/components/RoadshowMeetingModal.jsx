@@ -305,7 +305,7 @@ Please output:
 5. **Recommended Follow-up** (1 sentence)`;
               navigator.clipboard.writeText(prompt).then(()=>{
                 // Try to open Claude in new tab
-                window.open("https://claude.ai/new","_blank");
+                window.open("https://claude.ai/new","_blank","noopener,noreferrer");
               });
             }}>✨ AI Summary — copiar prompt para Claude</button>
           )}

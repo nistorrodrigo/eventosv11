@@ -346,7 +346,9 @@ export default function App(){
   function exportRoadshowSummary(){ _exportRoadshowSummary({roadshow, openPrint}); }
   function exportPostRoadshowReport(){ _exportPostRoadshowReport({roadshow, openPrint}); }
   function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
-  function exportRoadshowPDF(){const e=rsToEntity(roadshow,roadshow.companies);if(!e){toast("Agregá reuniones al roadshow primero.");return;}const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?`${new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${new Date(tripDays[tripDays.length-1]+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:"",venue:roadshow.trip.hotel};openPrint(buildPrintHTML([e],meta));}
+  // exportRoadshowPDF removed — the agenda PDF export is now inlined in RoadshowInboundTab's
+  // Export subtab so it can pick up the user-selected pdfTz. Kept the prop name out of the tab's
+  // destructuring; nothing else calls this.
   function exportRoadshowICS(mtgId){
     // If mtgId provided (from modal 📅 button): export only that meeting (Outlook in-place update)
     const meetings=mtgId?roadshow.meetings.filter(m=>m.id===mtgId):roadshow.meetings;
@@ -2702,7 +2704,6 @@ Daily Summary — ${dayLabel}
         search={search} setSearch={setSearch}
         exportBookingPage={exportBookingPage}
         exportRoadshowICS={exportRoadshowICS}
-        exportRoadshowPDF={exportRoadshowPDF}
         exportRoadshowWord={exportRoadshowWord}
         handleRsEmailParse={handleRsEmailParse}
         openPrint={openPrint}

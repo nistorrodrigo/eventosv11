@@ -34,7 +34,10 @@ export const TIMEZONES=[
 // in the target timezone. Returns "HH:mm" (24h). When targetTz === BASE_TZ
 // we skip the conversion to avoid any rounding quirks.
 export function fmtHourInTZ(date, baHour, targetTz=BASE_TZ){
+  // Treat 0 (midnight) as a valid hour. Only bail on null/undefined/"".
   if(baHour==null||baHour==="") return "";
+  baHour=Number(baHour);
+  if(Number.isNaN(baHour)) return "";
   const hh=Math.floor(baHour);
   const mm=Math.round((baHour-hh)*60);
   if(!targetTz||targetTz===BASE_TZ){
@@ -179,7 +182,12 @@ export function rsToEntity(rs,rsCos,opts={}){
   return{name:titleName,sub,
     coverTitle:trip.fund||trip.clientName||"Roadshow",
     coverNames:visitors.map(v=>({name:v.name,title:v.title||""})),
-    coverDate:(()=>{const d=trip.arrivalDate||trip.departureDate;if(!d)return"";return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});})(),
+    coverDate:(()=>{
+      const d=trip.arrivalDate||trip.departureDate;if(!d)return"";
+      // For non-BA exports, shift to target-tz date so cover month/year matches the agenda inside
+      const effDate=isOtherTz?dateInTZ(d,12,tz):d;
+      return new Date(effDate+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});
+    })(),
     visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
@@ -474,7 +482,8 @@ export function parseICS(icsText){
     if(!start) return;
     const durMin=end?Math.max(30,Math.round((end.hour-start.hour)*60)):60;
     // Detect virtual meeting from URL/location/description
-    const possibleLink=url||(/(https?:\/\/[^\s,;]+)/.exec(location)?.[1]||"")||(/(https?:\/\/[^\s,;]+)/.exec(desc)?.[1]||"");
+    const stripTrail=u=>u.replace(/[.,;:!?)\]>]+$/,""); // strip trailing punctuation that's typically not part of the URL
+    const possibleLink=stripTrail(url||(/(https?:\/\/[^\s,;]+)/.exec(location)?.[1]||"")||(/(https?:\/\/[^\s,;]+)/.exec(desc)?.[1]||""));
     const isVirtual=!!possibleLink&&/(zoom|teams\.microsoft|teams\.live|meet\.google|webex)/i.test(possibleLink);
     events.push({uid,title:summary,date:start.date,hour:Math.round(start.hour),
       duration:durMin,
@@ -502,7 +511,11 @@ export function buildICS(meetings, companies, trip){
     const title=co?`${co.name} / ${trip.fund||trip.clientName||"Roadshow"}`:(m.lsType||m.title||"Internal Meeting");
     const isVirt=m.location==="virtual";
     const platLabel=PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting";
-    const locL=isVirt?(m.meetingLink||platLabel):m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    // For virtual meetings, LOCATION is the friendly platform label.
+    // The clickable meeting link lives in URL: (RFC 5545 §3.8.4.6) — Outlook/Apple/GCal
+    // render it as a "Join meeting" button. Putting the URL itself in LOCATION confuses
+    // some clients (line breaks at colon, garbled rendering).
+    const locL=isVirt?platLabel:m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const start=fmtDT(m.date,m.hour);
     const endHour=m.hour+Math.floor(dur/60);const endMin=dur%60;
     const d=new Date(m.date+"T"+pad(m.hour)+":00:00");

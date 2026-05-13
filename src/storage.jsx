@@ -11,7 +11,9 @@
      #23a29e  Pantone 7473 C  — teal
      #ebaca2  Pantone 487 C   — coral
 ═══════════════════════════════════════════════════════════════════ */
-export const LS_BRAND={blue:"#3399ff",blueMid:"#1e5ab0",navy:"#000039",green:"#acd484",teal:"#23a29e",coral:"#ebaca2"};
+// LS_BRAND was removed — never imported by any consumer. If a second
+// component ever needs the canonical hex codes, re-extract it from
+// Visual Identity Guidelines 2022 (Pantone 2925 / 3005 / 281 C).
 
 /* Latin Securities brand artwork — extracted from the official .ai sources.
    Both PNGs are pixel-perfect renders of the supplied vector files. */
