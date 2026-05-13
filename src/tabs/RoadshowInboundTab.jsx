@@ -1,7 +1,7 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase.js";
-import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.tsx";
+import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "../components/Toast.tsx";
 import { SkeletonCard } from "../components/Skeleton.tsx";
 import { FocusTrap } from "../components/FocusTrap.tsx";
 import { useEvent } from "../contexts/EventContext.tsx";
@@ -508,28 +508,39 @@ export function RoadshowInboundTab({
                           {resendKey&&<button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={async()=>{
                             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;
                             const fund2=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
+                            // Pre-filter to meetings that actually have at least one company contact w/ email.
+                            // This gives us a stable denominator for the progress toast ("3/12") and prevents
+                            // misleading "12 emails sent" when half were skipped silently.
+                            const targets=dayMtgs.map(m=>({m,co:m.type==="company"?rsCoById.get(m.companyId):null}))
+                              .filter(({co})=>co&&(co.contacts||[]).some(c=>c.email));
+                            if(!targets.length){toastWarn("Ninguna reunión del día tiene contactos con email cargado.");return;}
+                            const PROG_ID="bulk-email-day";
                             let sent=0,failed=0;
-                            for(const m of dayMtgs){
-                              const co=m.type==="company"?rsCoById.get(m.companyId):null;if(!co)continue;
-                              const emails=(co.contacts||[]).filter(c=>c.email).map(c=>c.email);if(!emails.length)continue;
-                              const dateStr=dayDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
-                              const isV=m.location==="virtual";
-                              const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
-                              const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
-                              const linkLine=isV&&m.meetingLink?`\nMeeting Link: ${m.meetingLink}`:"";
-                              const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}${linkLine}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
-                              const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
-                              try{
-                                // Generate brief attachment
-                              const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}${isV&&m.meetingLink?`<br><strong>Meeting Link:</strong> <a href="${m.meetingLink}">${m.meetingLink}</a>`:""}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
-                              const briefB64=btoa(unescape(encodeURIComponent(briefHtml)));
-                              const attachments=[{filename:`Brief_${co.ticker||co.name.replace(/\s/g,"_")}.html`,content:briefB64}];
-                              const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email,attachments})});
-                                if(res.ok)sent++;else failed++;
-                              }catch{failed++;}
-                            }
-                            if(sent)toastOk(`✅ ${sent} email(s) enviado(s)${failed?" · "+failed+" fallaron":""}`);
-                            else toastErr("No se pudieron enviar emails. Verificá la API key de Resend.");
+                            toastProgress(PROG_ID,`📧 Enviando 0/${targets.length} emails…`);
+                            try{
+                              for(let idx=0;idx<targets.length;idx++){
+                                const {m,co}=targets[idx];
+                                const emails=(co.contacts||[]).filter(c=>c.email).map(c=>c.email);
+                                const dateStr=dayDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+                                const isV=m.location==="virtual";
+                                const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
+                                const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
+                                const linkLine=isV&&m.meetingLink?`\nMeeting Link: ${m.meetingLink}`:"";
+                                const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}${linkLine}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
+                                const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
+                                try{
+                                  const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}${isV&&m.meetingLink?`<br><strong>Meeting Link:</strong> <a href="${m.meetingLink}">${m.meetingLink}</a>`:""}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
+                                  const briefB64=btoa(unescape(encodeURIComponent(briefHtml)));
+                                  const attachments=[{filename:`Brief_${co.ticker||co.name.replace(/\s/g,"_")}.html`,content:briefB64}];
+                                  const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to:emails,subject,text:body,reply_to:lsCont?.email,attachments})});
+                                  if(res.ok)sent++;else failed++;
+                                }catch{failed++;}
+                                toastProgress(PROG_ID,`📧 Enviando ${idx+1}/${targets.length} emails… (${sent} ✅${failed?` · ${failed} ❌`:""})`);
+                              }
+                            }finally{toastClear(PROG_ID);}
+                            if(sent&&!failed) toastOk(`✅ ${sent} email${sent!==1?"s":""} enviado${sent!==1?"s":""}`);
+                            else if(sent&&failed) toastWarn(`⚠ ${sent} ✅ · ${failed} ❌. Verificá los rebotes en Resend.`);
+                            else toastErr("No se pudo enviar ningún email. Verificá la API key de Resend.");
                           }}>📧 Email Bulk ({dayMtgs.filter(m=>{const co=rsCoById.get(m.companyId);return(co?.contacts||[]).some(c=>c.email);}).length})</button>}
                           <button className="btn bo bs" style={{fontSize:9,gap:4,display:"inline-flex",alignItems:"center"}} onClick={()=>{
                             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" y ");
