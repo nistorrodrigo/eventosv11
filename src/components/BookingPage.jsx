@@ -30,6 +30,7 @@ export default function BookingPage({eventId}){
   const [selected,setSelected]=useState(null); // {id,slot_date,slot_hour}
   const [form,setForm]=useState({company:"",name:"",email:"",phone:"",location:"ls_office",notes:"",meetingLink:""});
   const [submitting,setSubmitting]=useState(false);
+  const [submitError,setSubmitError]=useState(null); // inline error during submit (does not break the page)
   const [done,setDone]=useState(null); // {confirmCode}
   const [eventLabel,setEventLabel]=useState("");
   const [officeAddr,setOfficeAddr]=useState("");
@@ -59,25 +60,69 @@ export default function BookingPage({eventId}){
   const grouped={};
   slots.forEach(s=>{if(!grouped[s.slot_date])grouped[s.slot_date]=[];grouped[s.slot_date].push(s);});
 
-  // Submit booking
+  // Submit booking — race-condition safe.
+  //
+  // Concurrency model: two visitors can click the same slot at the same moment.
+  // To guarantee only one wins, we DELETE the slot first with .select(). PostgreSQL
+  // takes a row lock on the matching row; the second concurrent DELETE finds nothing
+  // and returns an empty array. Only the request that actually deleted the row
+  // proceeds to insert the booking.
+  //
+  // If the booking insert fails *after* the slot was deleted (rare — network blip,
+  // RLS rule changes), we attempt to restore the slot so it's bookable again.
   async function handleSubmit(e){
     e.preventDefault();
     if(!selected||!form.company.trim()||!form.name.trim()||!form.email.trim())return;
     setSubmitting(true);
+    setSubmitError(null);
+
+    // 1. Claim the slot atomically
+    const {data:deleted,error:delErr}=await supabase
+      .from("roadshow_slots").delete().eq("id",selected.id).select();
+    if(delErr){
+      setSubmitting(false);
+      setSubmitError("No se pudo confirmar el horario. Intentá de nuevo.");
+      return;
+    }
+    if(!deleted||deleted.length===0){
+      // Someone else won the race — refresh availability and tell the user
+      setSubmitting(false);
+      setSubmitError("Ese horario fue reservado por otra empresa hace un instante. Elegí otro de la lista actualizada.");
+      setSelected(null);
+      await loadSlots();
+      return;
+    }
+    const claimedSlot=deleted[0];
+
+    // 2. Slot is ours — insert the booking
     const confirmCode="RS-"+Date.now().toString(36).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
-    const ownerId=selected.owner_id;
-    // Insert booking
+    const ownerId=claimedSlot.owner_id;
     const linkSuffix=form.location==="virtual"&&form.meetingLink.trim()?` · 🔗 ${form.meetingLink.trim()}`:"";
     const {error:insErr}=await supabase.from("roadshow_bookings").insert({
-      event_id:eventId, slot_date:selected.slot_date, slot_hour:selected.slot_hour,
+      event_id:eventId, slot_date:claimedSlot.slot_date, slot_hour:claimedSlot.slot_hour,
       company:form.company.trim(), contact_name:form.name.trim(), email:form.email.trim(),
       phone:form.phone.trim()||null, location_pref:form.location,
       notes:(form.notes.trim()+linkSuffix).trim()||null,
       confirm_code:confirmCode, owner_id:ownerId
     });
-    if(insErr){setSubmitting(false);setError("Error al reservar. Intentá de nuevo.");return;}
-    // Delete the slot to prevent double booking
-    await supabase.from("roadshow_slots").delete().eq("id",selected.id);
+
+    if(insErr){
+      // Best-effort rollback: put the slot back so the next visitor can book it.
+      // Even if this fails, the owner can re-publish slots from the agenda.
+      await supabase.from("roadshow_slots").insert({
+        event_id:claimedSlot.event_id,
+        event_label:claimedSlot.event_label,
+        slot_date:claimedSlot.slot_date,
+        slot_hour:claimedSlot.slot_hour,
+        office_address:claimedSlot.office_address,
+        owner_id:claimedSlot.owner_id,
+      });
+      setSubmitting(false);
+      setSubmitError("Error al guardar la reserva. El horario volvió a estar disponible — intentá de nuevo.");
+      await loadSlots();
+      return;
+    }
+
     setDone({confirmCode});
     setSubmitting(false);
   }
@@ -161,6 +206,11 @@ export default function BookingPage({eventId}){
             )}
             <div><label className="bp-lbl">Notas adicionales</label><textarea className="bp-inp" style={{resize:"vertical"}} rows={2} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Cantidad de asistentes, requerimientos especiales..."/></div>
           </div>
+          {submitError&&(
+            <div style={{marginTop:14,padding:"10px 14px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,color:"#991b1b",fontSize:13,lineHeight:1.5}}>
+              ⚠ {submitError}
+            </div>
+          )}
           <div style={{marginTop:16,textAlign:"center"}}>
             <button type="submit" disabled={submitting} className="bp-btn">
               {submitting?"Reservando...":"✓ Confirmar reserva"}
