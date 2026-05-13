@@ -229,7 +229,7 @@ export function rsToEntity(rs,rsCos,opts={}){
 
 
 /* ─── Roadshow Agenda Email Modal ───────────────────────────────── */
-export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose}){
+export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp}){
   const[copied,setCopied]=useState(false);
   const[fmt,setFmt]=useState("text"); // "text" | "html"
   const[sending,setSending]=useState(false);
@@ -330,7 +330,10 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
   function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}
 
-  const resendKey=roadshow.trip?.resendKey||"";
+  // Per-user key — passed in from the caller (App.jsx reads from AuthContext).
+  // Falls back to legacy roadshow.trip.resendKey for unmigrated events; the
+  // boot-time migration will clear that field shortly after sign-in.
+  const resendKey=resendKeyProp||roadshow.trip?.resendKey||"";
   async function sendEmail(){
     if(!resendKey||!toAddrs){return;}
     setSending(true);setSendResult(null);
@@ -648,7 +651,7 @@ render();
 
 
 /* ─── Daily Briefing Email Modal ─────────────────────────────────── */
-export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, onClose}){
+export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp}){
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
   const{trip,meetings}=roadshow;
   const activeDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
@@ -757,7 +760,7 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
 
   const toAddrs=visitors.filter(v=>v.email).map(v=>v.email).join(", ");
   const subject=`${fund} · Buenos Aires – Daily Schedule – ${selDay?fmtShort(selDay):""}${isOtherTz?" · "+(TIMEZONES.find(t=>t.value===tz)?.short||"local"):""}`;
-  const resendKey=trip?.resendKey||"";
+  const resendKey=resendKeyProp||trip?.resendKey||"";
 
   function copyText(){navigator.clipboard.writeText(textBody).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=560");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+textBody+"</pre>");w.document.close();});}
   function openMail(){window.location.href=`mailto:${encodeURIComponent(toAddrs)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;}

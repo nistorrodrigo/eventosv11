@@ -5,6 +5,7 @@ import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.tsx";
 import { SkeletonCard } from "../components/Skeleton.tsx";
 import { FocusTrap } from "../components/FocusTrap.tsx";
 import { useEvent } from "../contexts/EventContext.tsx";
+import { useAuth } from "../contexts/AuthContext.tsx";
 import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
@@ -45,6 +46,33 @@ export function RoadshowInboundTab({
   publishBookingSlots,
 }){
         const {roadshow,saveRoadshow,currentEvent,config,tripDays,rsCoById,travelCache,setTravelCache,globalDB,saveGlobalDB}=useEvent();
+        const {resendKey,resendKeyLoaded,saveResendKey}=useAuth();
+        // Local copy for the input field — debounce-light: we save to db on blur
+        // (or after a short typing pause) so each keystroke doesn't hammer Supabase.
+        const [resendKeyInput,setResendKeyInput]=useState("");
+        const [resendKeyDirty,setResendKeyDirty]=useState(false);
+        useEffect(()=>{if(resendKeyLoaded)setResendKeyInput(resendKey||"");},[resendKey,resendKeyLoaded]);
+
+        // ── One-time migration of legacy `trip.resendKey` → ls_resend_keys table.
+        // Runs silently when we land on a roadshow that still has the key in the
+        // JSON blob (shared-with-collaborators) and this user has no entry in the
+        // secrets table yet. After the first successful migration we wipe the
+        // legacy field so subsequent renders skip this path.
+        useEffect(()=>{
+          if(!resendKeyLoaded||resendKey) return; // already have a key
+          const legacy=roadshow?.trip?.resendKey;
+          if(!legacy) return;
+          let cancelled=false;
+          (async()=>{
+            const r=await saveResendKey(legacy);
+            if(cancelled||r?.error) return;
+            // Clear the legacy field from the JSON blob so collaborators stop seeing it
+            saveRoadshow({...roadshow,trip:{...roadshow.trip,resendKey:""}});
+            toastOk("🔐 Tu Resend API key fue migrada a almacenamiento privado (no se comparte con colaboradores)");
+          })();
+          return()=>{cancelled=true;};
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        },[resendKeyLoaded,resendKey,roadshow?.trip?.resendKey]);
         const lsCont=(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{};
         // Fuzzy duplicate detection helper
         const normalize=s=>(s||"").toLowerCase().replace(/[^a-záéíóúñ0-9]/g,"").trim();
@@ -187,13 +215,16 @@ export function RoadshowInboundTab({
               )}
             </div>
 
-            {/* Resend email key */}
+            {/* Resend email key — per-user, stored in ls_resend_keys with strict RLS.
+                Not visible to collaborators with whom this event is shared. */}
             <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
               <div>
-                <div className="lbl" style={{marginBottom:3}}>✉️ Resend API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(para enviar emails directo desde la app)</span></div>
+                <div className="lbl" style={{marginBottom:3,display:"flex",alignItems:"center",gap:6}}>✉️ Resend API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(personal, no se comparte con otros usuarios)</span>{resendKeyDirty&&<span style={{fontSize:9,color:"var(--gold)"}}>· sin guardar</span>}</div>
                 <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
-                  value={roadshow.trip.resendKey||""} onChange={e=>upTrip("resendKey",e.target.value)}
-                  placeholder="re_xxxxxxxxxxxxxxxxxxxx"/>
+                  value={resendKeyInput} disabled={!resendKeyLoaded}
+                  onChange={e=>{setResendKeyInput(e.target.value);setResendKeyDirty(true);}}
+                  onBlur={async()=>{if(!resendKeyDirty)return;const r=await saveResendKey(resendKeyInput);if(r?.error)toastErr("Error guardando la API key — "+(r.error.message||""));else{setResendKeyDirty(false);if(resendKeyInput.trim())toastOk("✅ Resend API key guardada");}}}
+                  placeholder={resendKeyLoaded?"re_xxxxxxxxxxxxxxxxxxxx":"Cargando..."}/>
               </div>
               <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:180}}>
                 Sin key: copia el texto.<br/>
@@ -473,9 +504,8 @@ export function RoadshowInboundTab({
                             const txt=`📅 *Agenda ${dayLabel2}*\n${roadshow.trip.fund||""}\n\n${lines.join("\n")}`;
                             navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Agenda del día copiada"));
                           }}>📋 Copiar agenda</button>
-                          {/* Bulk email */}
-                          {roadshow.trip?.resendKey&&<button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={async()=>{
-                            const resendKey=roadshow.trip.resendKey;
+                          {/* Bulk email — uses the current user's personal Resend key (per-user, not per-event) */}
+                          {resendKey&&<button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={async()=>{
                             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;
                             const fund2=roadshow.trip.fund||roadshow.trip.clientName||"Latin Securities";
                             let sent=0,failed=0;
@@ -1434,7 +1464,7 @@ export function RoadshowInboundTab({
                     <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                       {roadshow.companies.filter(c=>c.active).slice(0,8).map(co=>{
                         const contacts=(co.contacts||[]).filter(c=>c.email);
-                        const hasResend=!!roadshow.trip?.resendKey;
+                        const hasResend=!!resendKey;
                         return(<div key={co.id} style={{display:"inline-flex",gap:2}}>
                           <button className="btn bo bs" style={{fontSize:9}} onClick={()=>{
                             const text=tmpl.gen(co);
@@ -1445,7 +1475,7 @@ export function RoadshowInboundTab({
                             const to=contacts.map(c=>c.email);
                             const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
                             try{
-                              const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${roadshow.trip.resendKey}`},body:JSON.stringify({from,to,subject,text:body,reply_to:lsCont?.email})});
+                              const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to,subject,text:body,reply_to:lsCont?.email})});
                               if(res.ok)toastOk(`✅ Email enviado a ${to.join(", ")}`);else toastErr("Error: "+(await res.text()));
                             }catch(err){toastErr("Error de red: "+err.message);}
                           }}>📧</button>}
@@ -1756,6 +1786,7 @@ export function RoadshowInboundTab({
             rsCos={roadshow.companies}
             tripDays={tripDays}
             lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
+            resendKey={resendKey}
             onClose={()=>setRsAgendaEmailModal(false)}
           />}
           {rsDailyEmailModal&&<DailyBriefingEmailModal
@@ -1763,6 +1794,7 @@ export function RoadshowInboundTab({
             rsCos={roadshow.companies}
             tripDays={tripDays}
             lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
+            resendKey={resendKey}
             onClose={()=>setRsDailyEmailModal(false)}
           />}
           {kioskMode&&<KioskModal
