@@ -1,5 +1,5 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn } from "../components/Toast.tsx";
 import { SkeletonCard } from "../components/Skeleton.tsx";
@@ -113,8 +113,23 @@ export function RoadshowInboundTab({
           }
         }
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
-        const confirmed=roadshow.meetings.filter(m=>m.status==="confirmed").length;
-        const tentative=roadshow.meetings.filter(m=>m.status==="tentative").length;
+        // Memoise derived collections — they are recomputed only when meetings change,
+        // not on every state-tick of the (1800-line) tab.
+        const meetingsArr=roadshow.meetings||[];
+        const nonCancelledMtgs=useMemo(()=>meetingsArr.filter(m=>m.status!=="cancelled"),[meetingsArr]);
+        const confirmed=useMemo(()=>meetingsArr.filter(m=>m.status==="confirmed").length,[meetingsArr]);
+        const tentative=useMemo(()=>meetingsArr.filter(m=>m.status==="tentative").length,[meetingsArr]);
+        // Group meetings by date — used by schedule subtab + multiple counters.
+        const mtgsByDay=useMemo(()=>{
+          const m={};for(const x of nonCancelledMtgs){if(!m[x.date])m[x.date]=[];m[x.date].push(x);}
+          for(const k in m) m[k].sort((a,b)=>a.hour-b.hour);
+          return m;
+        },[nonCancelledMtgs]);
+        // Sorted by date+hour, used by the investor subtab + KPI tile.
+        const sortedActiveMtgs=useMemo(
+          ()=>[...nonCancelledMtgs].sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour),
+          [nonCancelledMtgs]
+        );
         return(
         <div>
           <h2 className="pg-h">🗺️ Buenos Aires Roadshow</h2>
@@ -252,7 +267,7 @@ export function RoadshowInboundTab({
             <div>
               {/* Event Stats Panel */}
               {(()=>{
-                const allM=(roadshow.meetings||[]).filter(m=>m.status!=="cancelled");
+                const allM=nonCancelledMtgs;
                 if(allM.length<2)return null;
                 const confM=allM.filter(m=>m.status==="confirmed").length;
                 const withFb=allM.filter(m=>m.feedback?.interestLevel>0).length;
@@ -304,7 +319,7 @@ export function RoadshowInboundTab({
               {/* Legend + add button */}
               <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10,alignItems:"center"}}>
                 <button className="btn bo bs" style={{fontSize:9,padding:"2px 8px",marginRight:4}} onClick={()=>{
-                  const tent=(roadshow.meetings||[]).filter(m=>m.status==="tentative").length;
+                  const tent=tentative;
                   if(!tent){toast("No hay reuniones tentativas.");return;}
                   if(!confirm(`¿Confirmar ${tent} reunión(es) tentativa(s)?`)) return;
                   const now=new Date().toISOString();
@@ -420,7 +435,7 @@ export function RoadshowInboundTab({
               ):(
                 <>
                 {rsDayFilter&&(()=>{
-                  const dayMtgs=(roadshow.meetings||[]).filter(m=>m.date===rsDayFilter&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
+                  const dayMtgs=mtgsByDay[rsDayFilter]||[];
                   const dayDate=new Date(rsDayFilter+"T12:00:00");
                   const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
                   const fmtH=fmtHour;
@@ -819,8 +834,8 @@ export function RoadshowInboundTab({
           {rsSubTab==="investor"&&(()=>{
             const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name);
             const fund=roadshow.trip.fund||roadshow.trip.clientName||"Inversor";
-            const rmMap=new Map((roadshow.companies||[]).map(c=>[c.id,c]));
-            const sortedMtgs=[...(roadshow.meetings||[])].filter(m=>m.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour);
+            const rmMap=rsCoById;
+            const sortedMtgs=sortedActiveMtgs;
             const byDay={};
             sortedMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
             const days=Object.keys(byDay).sort();
