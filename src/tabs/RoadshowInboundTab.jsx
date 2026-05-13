@@ -47,11 +47,6 @@ export function RoadshowInboundTab({
 }){
         const {roadshow,saveRoadshow,currentEvent,config,tripDays,rsCoById,travelCache,setTravelCache,globalDB,saveGlobalDB}=useEvent();
         const {resendKey,resendKeyLoaded,saveResendKey}=useAuth();
-        // Local copy for the input field — debounce-light: we save to db on blur
-        // (or after a short typing pause) so each keystroke doesn't hammer Supabase.
-        const [resendKeyInput,setResendKeyInput]=useState("");
-        const [resendKeyDirty,setResendKeyDirty]=useState(false);
-        useEffect(()=>{if(resendKeyLoaded)setResendKeyInput(resendKey||"");},[resendKey,resendKeyLoaded]);
 
         // ── One-time migration of legacy `trip.resendKey` → ls_resend_keys table.
         // Runs silently when we land on a roadshow that still has the key in the
@@ -215,21 +210,13 @@ export function RoadshowInboundTab({
               )}
             </div>
 
-            {/* Resend email key — per-user, stored in ls_resend_keys with strict RLS.
-                Not visible to collaborators with whom this event is shared. */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center",marginBottom:10,background:"rgba(30,90,176,.03)",border:"1px solid rgba(30,90,176,.1)",borderRadius:7,padding:"10px 12px"}}>
-              <div>
-                <div className="lbl" style={{marginBottom:3,display:"flex",alignItems:"center",gap:6}}>✉️ Resend API Key <span style={{fontWeight:400,color:"var(--dim)"}}>(personal, no se comparte con otros usuarios)</span>{resendKeyDirty&&<span style={{fontSize:9,color:"var(--gold)"}}>· sin guardar</span>}</div>
-                <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}} type="password"
-                  value={resendKeyInput} disabled={!resendKeyLoaded}
-                  onChange={e=>{setResendKeyInput(e.target.value);setResendKeyDirty(true);}}
-                  onBlur={async()=>{if(!resendKeyDirty)return;const r=await saveResendKey(resendKeyInput);if(r?.error)toastErr("Error guardando la API key — "+(r.error.message||""));else{setResendKeyDirty(false);if(resendKeyInput.trim())toastOk("✅ Resend API key guardada");}}}
-                  placeholder={resendKeyLoaded?"re_xxxxxxxxxxxxxxxxxxxx":"Cargando..."}/>
-              </div>
-              <div style={{fontSize:10,color:"var(--dim)",lineHeight:1.5,maxWidth:180}}>
-                Sin key: copia el texto.<br/>
-                Con key: envía directo al inversor.<br/>
-                <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" style={{color:"var(--gold)"}}>Obtener key →</a>
+            {/* Resend email key moved to per-user Settings (top-right ⚙).
+                Show only a passive hint here so the user can find it. */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:"rgba(30,90,176,.03)",border:"1px dashed rgba(30,90,176,.18)",borderRadius:7,fontSize:11,color:"var(--dim)"}}>
+              <span style={{fontSize:13}}>✉️</span>
+              <div style={{flex:1}}>
+                <strong style={{color:"var(--cream)"}}>Resend API Key</strong> {resendKey?<span style={{color:"#22c55e"}}>· configurada ✓</span>:<span style={{color:"#f59e0b"}}>· no configurada (los emails se copian al portapapeles)</span>}
+                <div style={{fontSize:10,marginTop:2}}>Es personal — se configura desde <strong>⚙ Configuración</strong> (arriba a la derecha). No se comparte con colaboradores.</div>
               </div>
             </div>
 

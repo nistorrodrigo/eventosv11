@@ -5,6 +5,7 @@ import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.ts";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
 import { FocusTrap } from "./src/components/FocusTrap.tsx";
+import { SettingsModal } from "./src/components/SettingsModal.jsx";
 import { useAuth } from "./src/contexts/AuthContext.tsx";
 import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
@@ -143,6 +144,7 @@ export default function App(){
   const [rsMtgModal,setRsMtgModal]=useState(null);
   const [rsDayFilter,setRsDayFilter]=useState(null); // null=all days, "YYYY-MM-DD"=single day
   const [kioskMode,setKioskMode]=useState(false);
+  const [settingsOpen,setSettingsOpen]=useState(false);
   const [kioskIdx,setKioskIdx]=useState(0);
   const [kioskFb,setKioskFb]=useState(false);
   const [kioskFbData,setKioskFbData]=useState({});
@@ -1209,6 +1211,7 @@ Daily Summary — ${dayLabel}
         })()}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
+          <button className="btn bo bs" style={{fontSize:11,padding:"2px 6px"}} title="Configuración personal" onClick={()=>setSettingsOpen(true)}>⚙</button>
           <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
         {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":syncStatus==="offline"?"#dc2626":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando...":syncStatus==="offline"?"Sin conexión — cambios pendientes":"Sincronizado"}>
           {syncStatus==="syncing"?"⟳ Sync...":syncStatus==="offline"?"⚡ Offline":"✓ Synced"}
@@ -2807,6 +2810,7 @@ Daily Summary — ${dayLabel}
 
     </main>
     </Suspense>
+    {settingsOpen && <SettingsModal onClose={()=>setSettingsOpen(false)} />}
     </EventProvider>
   </div>
   );
