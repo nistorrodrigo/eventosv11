@@ -23,18 +23,34 @@ const BOOK_CSS=`@import url('https://fonts.googleapis.com/css2?family=Playfair+D
 .bp-skel{background:linear-gradient(90deg,#f0f3f8 25%,#e4e9f2 37%,#f0f3f8 63%);background-size:800px 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:8px}
 `;
 
+// Abuse mitigations for the public booking page (no auth, no captcha infra):
+//   1. Honeypot input  — non-headless bots auto-fill all inputs, so the existence of
+//      a value in `_hp` (hidden from real users) is a strong bot signal.
+//   2. Min fill-time   — real visitors take ≥ 3s to type their company/name/email.
+//                        Submit < 3s after the form mounts ⇒ very likely scripted.
+//   3. Per-browser cooldown — localStorage stamp per eventId; 30s between submits.
+//                        Stops naïve loops; trivially bypassed by clearing storage
+//                        but raises the cost of casual flooding.
+// For a real CAPTCHA layer (Cloudflare Turnstile, hCaptcha) we'd need a Vercel API
+// route to verify the token server-side before forwarding the insert. Left as a
+// follow-up.
+const SUBMIT_COOLDOWN_MS=30000;
+const MIN_FILL_TIME_MS=3000;
+const ckKey=(eventId)=>`ls_book_cd_${eventId}`;
+
 export default function BookingPage({eventId}){
   const [slots,setSlots]=useState([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState(null);
   const [selected,setSelected]=useState(null); // {id,slot_date,slot_hour}
-  const [form,setForm]=useState({company:"",name:"",email:"",phone:"",location:"ls_office",notes:"",meetingLink:""});
+  const [form,setForm]=useState({company:"",name:"",email:"",phone:"",location:"ls_office",notes:"",meetingLink:"",_hp:""});
   const [submitting,setSubmitting]=useState(false);
   const [submitError,setSubmitError]=useState(null); // inline error during submit (does not break the page)
   const [done,setDone]=useState(null); // {confirmCode}
   const [eventLabel,setEventLabel]=useState("");
   const [officeAddr,setOfficeAddr]=useState("");
   const [tripMode,setTripMode]=useState("in_person");
+  const [formMountedAt]=useState(()=>Date.now());
 
   // Fetch slots
   async function loadSlots(){
@@ -73,6 +89,23 @@ export default function BookingPage({eventId}){
   async function handleSubmit(e){
     e.preventDefault();
     if(!selected||!form.company.trim()||!form.name.trim()||!form.email.trim())return;
+
+    // ── Abuse checks (silent — don't tip off bots about the specific signal) ──
+    // Honeypot: real users never see/fill the hidden input
+    if(form._hp){console.warn("[BookingPage] honeypot filled — rejecting submit");setSubmitError("No se pudo confirmar la reserva. Intentá de nuevo.");return;}
+    // Min fill-time: bots usually submit < 1s after page load
+    if(Date.now()-formMountedAt<MIN_FILL_TIME_MS){setSubmitError("Por favor revisá los datos antes de confirmar.");return;}
+    // Per-browser cooldown to slow down loops
+    try{
+      const last=parseInt(localStorage.getItem(ckKey(eventId))||"0",10);
+      const elapsed=Date.now()-last;
+      if(last&&elapsed<SUBMIT_COOLDOWN_MS){
+        const secs=Math.ceil((SUBMIT_COOLDOWN_MS-elapsed)/1000);
+        setSubmitError(`Esperá ${secs}s antes de enviar otra reserva.`);
+        return;
+      }
+    }catch{}
+
     setSubmitting(true);
     setSubmitError(null);
 
@@ -123,6 +156,8 @@ export default function BookingPage({eventId}){
       return;
     }
 
+    // Stamp cooldown so the same browser can't immediately flood
+    try{localStorage.setItem(ckKey(eventId),String(Date.now()));}catch{}
     setDone({confirmCode});
     setSubmitting(false);
   }
@@ -185,6 +220,12 @@ export default function BookingPage({eventId}){
           <div style={{fontSize:11,color:"#6b7280",marginBottom:14}}>
             Horario seleccionado: <strong>{fmtDay(selected.slot_date)} · {fmtH(selected.slot_hour)} hs</strong>
             <button type="button" onClick={()=>setSelected(null)} style={{marginLeft:8,fontSize:10,color:BLUE,background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Cambiar</button>
+          </div>
+          {/* Honeypot — hidden from real users via off-screen positioning + aria/tabindex.
+              Real bots auto-fill this; we reject the submit silently. */}
+          <div aria-hidden="true" style={{position:"absolute",left:"-9999px",top:"auto",width:1,height:1,overflow:"hidden"}}>
+            <label htmlFor="bp-hp">Do not fill</label>
+            <input id="bp-hp" type="text" tabIndex={-1} autoComplete="off" value={form._hp} onChange={e=>setForm({...form,_hp:e.target.value})}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div><label className="bp-lbl">Empresa *</label><input className="bp-inp" required value={form.company} onChange={e=>setForm({...form,company:e.target.value})} placeholder="Nombre de la empresa"/></div>
