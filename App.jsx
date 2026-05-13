@@ -1,7 +1,7 @@
 /* LS Event Manager — modular build 2026 */
 import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabase.js";
-import { toast, toastOk, toastErr, toastWarn } from "./src/components/Toast.tsx";
+import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "./src/components/Toast.tsx";
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.ts";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
 import { FocusTrap } from "./src/components/FocusTrap.tsx";
@@ -879,26 +879,39 @@ Daily Summary — ${dayLabel}
     }).filter(({dayMtgs})=>dayMtgs.length>=2);
     if(!dayData.length){toast("No hay días con 2+ reuniones.");return;}
     setTravelLoading(true);
-    // Geocode all unique addresses at once (1 req/sec Nominatim)
-    const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs))];
-    const coords=await geocodeAll(allAddrs);
-    for(const {date,dayMtgs,addrs} of dayData){
-      const results={};
-      for(let i=0;i<dayMtgs.length-1;i++){
-        // Skip travel calc when either side is virtual
-        if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
-          results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
-          continue;
+    const PROG_ID="travel-progress-all";
+    try{
+      const allAddrs=[...new Set(dayData.flatMap(({addrs})=>addrs).filter(a=>a))];
+      const totalLegs=dayData.reduce((s,d)=>s+Math.max(0,d.dayMtgs.length-1),0);
+      toastProgress(PROG_ID,`📍 Geocodificando 0/${allAddrs.length} direcciones…`);
+      const coords=await geocodeAll(allAddrs,({done,total})=>{
+        toastProgress(PROG_ID,`📍 Geocodificando ${done}/${total} direcciones…`);
+      });
+      let legDone=0;
+      for(const {date,dayMtgs,addrs} of dayData){
+        const results={};
+        for(let i=0;i<dayMtgs.length-1;i++){
+          if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
+            results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
+          }else{
+            const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+            const base=(o&&d)?await osrmRoute(o,d):null;
+            const deptHour=dayMtgs[i].hour+dur/60;
+            results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
+          }
+          legDone++;
+          toastProgress(PROG_ID,`🛣 Calculando ruta ${legDone}/${totalLegs}…`);
         }
-        const o=coords[addrs[i]];const d=coords[addrs[i+1]];
-        const base=(o&&d)?await osrmRoute(o,d):null;
-        // Apply CABA traffic multipliers based on actual departure hour (end of previous meeting)
-        const deptHour=dayMtgs[i].hour+dur/60;
-        results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
+        setTravelCache(prev=>({...prev,[date]:results}));
       }
-      setTravelCache(prev=>({...prev,[date]:results}));
+      toastClear(PROG_ID);
+      toastOk(`✅ Tiempos de viaje listos — ${dayData.length} día${dayData.length!==1?"s":""}, ${totalLegs} tramo${totalLegs!==1?"s":""}`);
+    }catch(e){
+      toastClear(PROG_ID);
+      toastErr("Error calculando tiempos de viaje: "+(e?.message||e));
+    }finally{
+      setTravelLoading(false);
     }
-    setTravelLoading(false);
   }
 
   async function calcDayTravel(date){
@@ -908,19 +921,28 @@ Daily Summary — ${dayLabel}
     if(dayMtgs.length<2){toast("Necesitás al menos 2 reuniones en ese día.");return;}
     const addrs=dayMtgs.map(m=>{const co=m.type==="company"?rsCoMapForTravel.get(m.companyId):null;return getMeetingAddress(m,co,offAddr);});
     setTravelLoading(true);
-    const coords=await geocodeAll([...new Set(addrs.filter(a=>a))]);
+    const PROG_ID="travel-progress-day-"+date;
+    const uniq=[...new Set(addrs.filter(a=>a))];
+    toastProgress(PROG_ID,`📍 Geocodificando 0/${uniq.length} direcciones…`);
+    const coords=await geocodeAll(uniq,({done,total})=>{
+      toastProgress(PROG_ID,`📍 Geocodificando ${done}/${total} direcciones…`);
+    });
+    const totalLegs=dayMtgs.length-1;
     const results={};
-    for(let i=0;i<dayMtgs.length-1;i++){
+    for(let i=0;i<totalLegs;i++){
       if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
         results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
-        continue;
+      }else{
+        const o=coords[addrs[i]];const d=coords[addrs[i+1]];
+        const base=(o&&d)?await osrmRoute(o,d):null;
+        const deptHour=dayMtgs[i].hour+dur/60;
+        results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
       }
-      const o=coords[addrs[i]];const d=coords[addrs[i+1]];
-      const base=(o&&d)?await osrmRoute(o,d):null;
-      const deptHour=dayMtgs[i].hour+dur/60;
-      results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
+      toastProgress(PROG_ID,`🛣 Calculando tramo ${i+1}/${totalLegs}…`);
     }
     setTravelCache(prev=>({...prev,[date]:results}));
+    toastClear(PROG_ID);
+    toastOk(`✅ Tiempos del día calculados — ${totalLegs} tramo${totalLegs!==1?"s":""}`);
     setTravelLoading(false);
   }
   const rsCoById=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);

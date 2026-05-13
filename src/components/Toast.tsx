@@ -11,10 +11,16 @@ export function useToast() {
 
 // Also export a global imperative API for use outside React components
 let _globalToast = () => {};
+let _globalToastProgress = () => {};
+let _globalToastClear = () => {};
 export function toast(msg, type = "info") { _globalToast(msg, type); }
 export function toastOk(msg) { _globalToast(msg, "success"); }
 export function toastErr(msg) { _globalToast(msg, "error"); }
 export function toastWarn(msg) { _globalToast(msg, "warning"); }
+// Sticky progress toast keyed by id — call repeatedly to update the same item
+// (no stacking). Pair with toastClear(id) when the operation finishes.
+export function toastProgress(id, msg) { _globalToastProgress(id, msg); }
+export function toastClear(id) { _globalToastClear(id); }
 
 const TOAST_COLORS = {
   success: { bg: "var(--c-success-bg)", border: "#86efac", text: "var(--c-success)", icon: "\u2705" },
@@ -32,9 +38,32 @@ export function ToastProvider({ children }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), type === "error" ? 6000 : 3500);
   }, []);
 
-  useEffect(() => { _globalToast = addToast; }, [addToast]);
+  // Sticky toast — keyed by stable id, updates in place. Does NOT auto-dismiss;
+  // caller must call clearToast(id). Used for long-running operations like
+  // travel-time geocoding ("Geocodificando 3/10 direcciones...").
+  const progressToast = useCallback((id, msg) => {
+    setToasts(prev => {
+      const i = prev.findIndex(t => t.id === id);
+      if (i >= 0) {
+        const next = prev.slice();
+        next[i] = { ...next[i], msg };
+        return next;
+      }
+      return [...prev, { id, msg, type: "info", sticky: true }];
+    });
+  }, []);
 
-  const ctx = { toast: addToast, ok: (m) => addToast(m, "success"), err: (m) => addToast(m, "error"), warn: (m) => addToast(m, "warning") };
+  const clearToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  useEffect(() => {
+    _globalToast = addToast;
+    _globalToastProgress = progressToast;
+    _globalToastClear = clearToast;
+  }, [addToast, progressToast, clearToast]);
+
+  const ctx = { toast: addToast, ok: (m) => addToast(m, "success"), err: (m) => addToast(m, "error"), warn: (m) => addToast(m, "warning"), progress: progressToast, clear: clearToast };
 
   return (
     <ToastCtx.Provider value={ctx}>

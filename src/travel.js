@@ -59,11 +59,17 @@ export function cleanAddr(addr){
   // Remove floor info: 'Piso 26', '6° Piso', 'Planta 3', 'Floor 2', 'PB', 'Oficina'
   return addr.replace(/,?\s*(\d+°?\s*)?(Piso|Planta|Floor|Level|Oficina|PB)(\s*\d+°?)?/gi,'').replace(/,?\s*\d+°(\s|,|$)/g,'$1').replace(/\s{2,}/g,' ').replace(/,\s*,/g,',').trim();
 }
-// geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim
-export async function geocodeAll(addresses){
+// geocodeAll: geocodes an array of unique addresses, 1 req/sec to respect Nominatim.
+// Optional `onProgress({done, total, addr, found})` callback is invoked after each
+// address — caller uses it to surface "Geocoding 3/10..." to the user during what
+// would otherwise be a silent 10–30s wait.
+export async function geocodeAll(addresses, onProgress){
   const unique=[...new Set(addresses)];
+  const total=unique.length;
   const coords={};
+  let done=0;
   for(const addr of unique){
+    let found=false;
     try{
       const cleaned=cleanAddr(addr);
       const q=encodeURIComponent(cleaned+", Buenos Aires, Argentina");
@@ -71,10 +77,12 @@ export async function geocodeAll(addresses){
         {headers:{"Accept-Language":"es","User-Agent":"LS-EventManager/1.0 latinse"}});
       if(r.ok){
         const d=await r.json();
-        if(d.length) coords[addr]={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+        if(d.length){coords[addr]={lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};found=true;}
       }
     }catch(e){/* skip */}
-    await new Promise(res=>setTimeout(res,1100)); // 1 req/sec Nominatim limit
+    done++;
+    try{onProgress&&onProgress({done,total,addr,found});}catch{}
+    if(done<total) await new Promise(res=>setTimeout(res,1100)); // 1 req/sec Nominatim limit
   }
   return coords;
 }
