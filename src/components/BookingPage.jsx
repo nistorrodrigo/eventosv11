@@ -1,9 +1,9 @@
 // ── BookingPage.jsx — Public booking page (no auth required) ──────
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase.js";
+import { fmtHour as fmtH } from "../roadshow.jsx";
 
 const BLUE="#1e5ab0";
-const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
 const fmtDay=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});}catch{return iso;}};
 const BOOK_CSS=`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}

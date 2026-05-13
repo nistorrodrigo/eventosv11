@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { INTEREST_LABELS, NEXT_LABELS } from "../constants.jsx";
 import { PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
+import { fmtHour } from "../roadshow.jsx";
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
   const today=new Date().toISOString().slice(0,10);
@@ -17,7 +18,7 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
   const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
   const isCurVirt=cur?.location==="virtual";
   const locStr=!cur?"":isCurVirt?((PLATFORM_ICONS[cur.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[cur.meetingPlatform]||"Reunión virtual")):cur.location==="ls_office"?(roadshow.trip.officeAddress||"Arenales 707, 6° Piso, CABA"):cur.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(cur.locationCustom||"TBD");
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=fmtHour;
   const dayDate=new Date(kioskDate+"T12:00:00");
   const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
   const isConf=cur?.status==="confirmed";

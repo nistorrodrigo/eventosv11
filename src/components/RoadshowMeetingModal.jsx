@@ -4,7 +4,7 @@ import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
 
-export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onExportICS,onClose}){
+export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onExportICS,onClose,onPatchCompany}){
   const [type,setType]=useState(meeting?.type||"company");
   const [coId,setCoId]=useState(meeting?.companyId||"");
   const [lsType,setLsType]=useState(meeting?.lsType||LS_INT_TYPES[0]);
@@ -176,7 +176,7 @@ Latin Securities`;
             {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}
             {loc==="hq"&&selCo&&(
               <input className="inp" style={{marginTop:5,fontSize:11}} value={selCo.hqAddress||""} placeholder={`Dirección HQ de ${selCo.name}...`}
-                onChange={e=>{/* update company hqAddress inline */const patch=e.target.value;if(typeof window.__rsCoPatch==="function")window.__rsCoPatch(selCo.id,"hqAddress",patch);}}
+                onChange={e=>{if(typeof onPatchCompany==="function")onPatchCompany(selCo.id,"hqAddress",e.target.value);}}
               />
             )}
             {loc!=="virtual"&&(

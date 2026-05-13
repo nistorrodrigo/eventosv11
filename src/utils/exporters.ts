@@ -2,7 +2,7 @@
 import { normalizeFund, COMPANIES_INIT, DEFAULT_DAYS, INTEREST_LABELS, INTEREST_COLORS, NEXT_LABELS } from "../constants.jsx";
 import { downloadBlob } from "../storage.jsx";
 import { getMeetingAddress, applyBATraffic, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
-import { fmtDateRange } from "../roadshow.jsx";
+import { fmtDateRange, fmtHour } from "../roadshow.jsx";
 import { COVER_CSS, buildCoverHTML } from "../storage.jsx";
 
 // ── Excel export with LS brand colors ─────────────────────────────
@@ -282,7 +282,7 @@ ${missing.length>0?`
 export function _exportDriverItinerary({filterDate, roadshow, travelCache, tripDays, config, openPrint, toast}){
   const {trip,meetings,companies}=roadshow;
   const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=fmtHour;
   const addMinutes=(h,min)=>h+min/60;
   const subMinutes=(h,min)=>Math.max(0,h-min/60);
   const dur=trip.meetingDuration||60;
@@ -344,7 +344,7 @@ export function _exportRoadshowSummary({roadshow, openPrint}){
   const allMtgs=(meetings||[]).filter(m=>m.status!=="cancelled");
   const conf=allMtgs.filter(m=>m.status==="confirmed");
   const tent=allMtgs.filter(m=>m.status==="tentative");
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=fmtHour;
   const fmtDate=iso=>new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
   const bySector={};allMtgs.forEach(m=>{const co=m.type==="company"?rsCoMap.get(m.companyId):null;const sec=co?.sector||"LS Internal";if(!bySector[sec])bySector[sec]={total:0,conf:0};bySector[sec].total++;if(m.status==="confirmed")bySector[sec].conf++;});
   const byDay={};allMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
@@ -374,7 +374,7 @@ ${days.some(d=>byDay[d].some(m=>m.postNotes))?`<div class="sec-title">Post-Meeti
 export function _exportCompanyBrief({co, roadshow, openPrint}){
   const mtg=(roadshow.meetings||[]).find(m=>m.type==="company"&&m.companyId===co.id);
   const trip=roadshow.trip;
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=fmtHour;
   const locStr=!mtg?"TBD":mtg.location==="virtual"?((PLATFORM_ICONS[mtg.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[mtg.meetingPlatform]||"Virtual meeting")+(mtg.meetingLink?" — "+mtg.meetingLink:"")):mtg.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):mtg.location==="hq"?(co.hqAddress||co.name+" HQ"):(mtg.locationCustom||"TBD");
   const dateStr=mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"Sin fecha";
   const contacts=(co.contacts||[]).filter(c=>c.name);const selIds=mtg?.attendeeIds||[];const mtgContacts=selIds.length?contacts.filter(c=>selIds.includes(c.id)):contacts;
@@ -402,7 +402,7 @@ export function _exportPostRoadshowReport({roadshow, openPrint}){
   const {trip,meetings,companies}=roadshow;
   const coMap=new Map((companies||[]).map(c=>[c.id,c]));
   const allMtgs=(meetings||[]).filter(m=>m.status!=="cancelled"&&m.type==="company");
-  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+  const fmtH=fmtHour;
   const fmtDate=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});}catch{return iso;}};
   const fund=trip.fund||trip.clientName||"Roadshow";
   const visitorLine=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(", ")||"";

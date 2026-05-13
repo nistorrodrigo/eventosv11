@@ -1,6 +1,6 @@
 // ── LibraryTab.jsx — Librería Global (companies, investors, CRM Fondos) ─
 import { useState } from "react";
-import { RS_CLR } from "../roadshow.jsx";
+import { RS_CLR, fmtHour } from "../roadshow.jsx";
 import { esc, downloadBlob } from "../storage.jsx";
 import { SEC_CLR } from "../constants.jsx";
 
@@ -245,7 +245,7 @@ export function LibraryTab({
               const topTopics=Object.entries(allTopics).sort((a,b)=>b[1]-a[1]).slice(0,5);
               const nextSteps={};
               fd.meetings.forEach(m=>{if(m.feedback?.nextStep){nextSteps[m.feedback.nextStep]=(nextSteps[m.feedback.nextStep]||0)+1;}});
-              const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h%1)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+              const fmtH=fmtHour;
               return(
                 <div>
                   <button className="btn bo bs" style={{fontSize:10,marginBottom:16}} onClick={()=>setCrmFund(null)}>← Volver</button>

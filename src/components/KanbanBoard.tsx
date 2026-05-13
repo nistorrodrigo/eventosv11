@@ -1,8 +1,7 @@
 // ── KanbanBoard.jsx — Pipeline view: Tentative → Confirmed → Completed ──
 import { useState } from "react";
-import { RS_CLR } from "../roadshow.jsx";
+import { RS_CLR, fmtHour as fmtH } from "../roadshow.jsx";
 
-const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
 const fmtDay=iso=>{try{return new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});}catch{return iso;}};
 
 const COLUMNS=[

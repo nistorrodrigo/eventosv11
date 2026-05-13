@@ -98,8 +98,9 @@ export function RoadshowInboundTab({
           setBookingsLoading(false);
         },[evId]);
         useEffect(()=>{if(rsSubTab==="bookings")fetchBookings();},[rsSubTab,fetchBookings]);
-        // Helper to patch a company field inline (used in meeting modal)
-        window.__rsCoPatch=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
+        // Patch a single field on a company inline (used by RoadshowMeetingModal
+        // when editing the HQ address from within the meeting form).
+        const patchCompanyField=(coId,field,val)=>{const nc=(roadshow.companies||[]).map(c=>c.id===coId?{...c,[field]:val}:c);saveRoadshow({...roadshow,companies:nc});};
         function upTrip(f,v){saveRoadshow({...roadshow,trip:{...roadshow.trip,[f]:v}});}
         function saveMtg(m){
           const ex=roadshow.meetings.find(x=>x.id===m.id);
@@ -422,7 +423,7 @@ export function RoadshowInboundTab({
                   const dayMtgs=(roadshow.meetings||[]).filter(m=>m.date===rsDayFilter&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
                   const dayDate=new Date(rsDayFilter+"T12:00:00");
                   const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
-                  const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+                  const fmtH=fmtHour;
                   return(
                     <div style={{marginBottom:12}}>
                       <div className="day-hdr-bar" style={{background:"#000039",borderRadius:10,padding:"14px 18px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -761,7 +762,7 @@ export function RoadshowInboundTab({
                       return(<div key={status}>
                         <div style={{fontSize:11,fontWeight:700,color:"var(--dim)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,fontFamily:"IBM Plex Mono,monospace"}}>{labels[status]} ({group.length})</div>
                         {group.map(b=>{
-                          const fmtH=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
+                          const fmtH=fmtHour;
                           const dayLabel=b.slot_date?new Date(b.slot_date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):"";
                           return(
                             <div key={b.id} className="card" style={{padding:"14px 16px",marginBottom:8,borderLeft:`4px solid ${status==="pending"?"#f59e0b":status==="approved"?"#22c55e":"#ef4444"}`}}>
@@ -1646,6 +1647,7 @@ export function RoadshowInboundTab({
             meeting={rsMtgModal.meeting}
             companies={roadshow.companies}
             trip={roadshow.trip}
+            onPatchCompany={patchCompanyField}
             onSave={saveMtg}
             onDelete={()=>delMtg(rsMtgModal.meeting?.id)}
             onDuplicate={()=>{
