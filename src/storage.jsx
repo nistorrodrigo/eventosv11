@@ -101,67 +101,27 @@ export const esc =s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").re
 
 // Open a printable HTML doc in a new tab.
 //
-// What we learned the hard way:
-//   1) `document.write` into an about:blank window confuses Chrome — Save as
-//      PDF fails silently. Blob URL fixes it.
-//   2) Calling `w.print()` from the PARENT window also fails inconsistently —
-//      Chrome treats it like a popup-spam pattern. The reliable path is to
-//      embed a print trigger AS A SCRIPT INSIDE the printed HTML so it runs
-//      in its own document context.
-//   3) Auto-print can still fail (browser settings, slow network, image
-//      loading). So we also render a visible toolbar at the top of the doc
-//      with two manual escape hatches:
-//          🖨 Imprimir / Save as PDF   →  window.print() inline
-//          💾 Descargar HTML            →  download the source
-//      The toolbar disappears under `@media print` so it doesn't end up in
-//      the PDF the user generates.
+// This is the ORIGINAL working version — the user generated the Blackrock
+// roadshow PDFs successfully with this exact flow. The "improvements" we
+// tried after (Blob URL, auto-print, inline toolbar) broke Save-as-PDF
+// in some browsers. Sticking with what's proven.
+//
+// Flow:
+//   - new tab via window.open("", "_blank")
+//   - document.write(html) + close
+//   - user manually hits Ctrl+P → Save as PDF
+//
+// Fallback: if the popup is blocked, download the HTML so the user can
+// open it locally and print from there.
 export function openPrint(html){
-  // Inject the print-toolbar + auto-print script just before </body>. If
-  // </body> isn't found (unusual), we fall back to appending at the end.
-  const toolbar=`
-<style>
-  .__ls_print_bar{position:sticky;top:0;left:0;right:0;z-index:9999;background:#000039;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-  .__ls_print_bar button{background:#3399ff;color:#fff;border:0;padding:7px 14px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-  .__ls_print_bar button:hover{background:#1e5ab0}
-  .__ls_print_bar .__ls_secondary{background:transparent;border:1px solid rgba(255,255,255,.4)}
-  .__ls_print_bar .__ls_secondary:hover{background:rgba(255,255,255,.12)}
-  @media print{ .__ls_print_bar{display:none !important} }
-</style>
-<div class="__ls_print_bar" id="__ls_print_bar">
-  <span style="opacity:.85">Si no se abre el diálogo solo, usá:</span>
-  <button onclick="window.print()">🖨 Imprimir / Save as PDF</button>
-  <button class="__ls_secondary" onclick="(()=>{const b=new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='LS_Schedule.html';a.click();})()">💾 Descargar HTML</button>
-  <span style="margin-left:auto;opacity:.6;font-size:11px">Esta barra no aparece en el PDF</span>
-</div>
-<script>
-  (function(){
-    // Try the auto-print once images and fonts have settled. Multiple paths
-    // so we don't depend on a single event firing.
-    let tried = false;
-    function fire(){ if(tried) return; tried = true; try{ window.print(); }catch(e){} }
-    if(document.readyState === 'complete') setTimeout(fire, 400);
-    else window.addEventListener('load', () => setTimeout(fire, 400), { once: true });
-    // Last-resort timer in case load never fires
-    setTimeout(fire, 2500);
-  })();
-</script>`;
-  const htmlWithBar=html.includes("</body>")
-    ? html.replace("</body>", toolbar+"</body>")
-    : html+toolbar;
-  const blob=new Blob([htmlWithBar],{type:"text/html;charset=utf-8"});
+  const w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();w.focus();return;}
+  const blob=new Blob([html],{type:"text/html;charset=utf-8"});
   const url=URL.createObjectURL(blob);
-  const w=window.open(url,"_blank");
-  if(!w){
-    // Popup blocked — degrade to direct HTML download
-    const a=document.createElement("a");
-    a.href=url;a.download="LS_Schedule.html";
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),30000);
-    return;
-  }
-  // Hold the blob URL alive long enough for the user to interact with the
-  // print dialog (re-render on destination change, etc).
-  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  const a=document.createElement("a");
+  a.href=url;a.download="LS_Schedule.html";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
 export function buildWordHTML(name,sub,sections,meta={}){
