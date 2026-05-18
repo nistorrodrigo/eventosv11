@@ -232,7 +232,7 @@ export function rsToEntity(rs,rsCos,opts={}){
       const effDate=isOtherTz?dateInTZ(d,12,tz):d;
       return new Date(effDate+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"});
     })(),
-    visitors:visitors.map(v=>v.name+(v.title?" · "+v.title:"")),
+    visitors:effVisitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
       const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
