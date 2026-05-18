@@ -241,11 +241,13 @@ export function RoadshowInboundTab({
               <div style={{fontSize:10,color:"var(--dim)",marginTop:4,fontStyle:"italic"}}>Todos los visitantes aparecen en el saludo del email, en el ICS como ATTENDEE y en los exports. Si vienen 3 personas, agregá 3 filas.</div>
             </div>
 
-            {/* ── Additional invited funds — only shown for virtual/hybrid roadshows ──
-                A virtual event can host multiple funds simultaneously. Some meetings are
-                common (everyone joins), others fund-specific. Each fund here gets its own
-                visitor list, fund/cliente name and a stable id used by Meeting.attendingFundIds. */}
-            {(roadshow.trip.mode==="virtual"||roadshow.trip.mode==="hybrid")&&(()=>{
+            {/* ── Additional invited funds (multi-fund roadshow) ──
+                Works for any trip.mode — virtual, hybrid OR in-person. The use case
+                exists everywhere: a single roadshow can host multiple delegations at
+                the same time (live or remote). Some meetings are common (everyone
+                attends), others fund-specific. Each fund has its own visitor list
+                and a stable id used by Meeting.attendingFundIds. */}
+            {(()=>{
               const extras=roadshow.trip.funds||[];
               const upFunds=(arr)=>upTrip("funds",arr);
               const addFund=()=>upFunds([...extras,{id:"fund_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),fund:"",clientName:"",visitors:[]}]);
@@ -255,12 +257,12 @@ export function RoadshowInboundTab({
                 <div style={{marginBottom:10,background:"rgba(123,53,176,.04)",border:"1px solid rgba(123,53,176,.15)",borderRadius:7,padding:"10px 12px"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
                     <div className="lbl" style={{margin:0,fontSize:11}}>🏛 Otros fondos invitados {extras.length>0&&<span style={{color:"var(--gold)",fontWeight:700}}>({extras.length})</span>}</div>
-                    <span style={{fontSize:10,color:"var(--dim)",fontWeight:400}}>— para eventos virtuales con varios fondos en simultáneo</span>
+                    <span style={{fontSize:10,color:"var(--dim)",fontWeight:400}}>— para roadshows con varios fondos en simultáneo (presencial o virtual)</span>
                     <button className="btn bg bs" style={{fontSize:10,padding:"4px 10px",marginLeft:"auto"}} onClick={addFund}>+ Agregar fondo</button>
                   </div>
                   {extras.length===0&&(
                     <div style={{fontSize:10,color:"var(--dim)",fontStyle:"italic"}}>
-                      El fondo principal arriba es el único hoy. Agregá fondos extra acá para invitar varios al mismo evento virtual; después en cada reunión vas a poder elegir si es <em>común</em> (todos asisten) o <em>específica</em> de un fondo.
+                      El fondo principal arriba es el único hoy. Agregá fondos extra acá para invitar varios al mismo evento; después en cada reunión vas a poder elegir si es <em>común</em> (todos asisten) o <em>específica</em> de un fondo.
                     </div>
                   )}
                   {extras.map((f,fi)=>(
