@@ -99,15 +99,41 @@ export function downloadBlob(name,content,type){const blob=new Blob([content],{t
 ═══════════════════════════════════════════════════════════════════ */
 export const esc =s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
+// Open a printable HTML doc in a new tab, then auto-trigger the print dialog.
+//
+// We deliver via a Blob URL (not document.write into about:blank) for two reasons:
+//   1) Chrome's "Save as PDF" destination silently fails on documents created via
+//      `document.write` after the initial parse — the file appears to save but
+//      never lands on disk. Blob URLs get a real document context and work.
+//   2) Same-origin images (the /ls-logo-*.png files) need a stable origin to
+//      resolve against; a Blob URL is treated as the parent origin.
+//
+// The auto-print fires once after the page has fully laid out. If the popup is
+// blocked we fall back to downloading the .html so the user can still get the
+// agenda — they can open it locally and print from there.
 export function openPrint(html){
-  const w=window.open("","_blank");
-  if(w){w.document.write(html);w.document.close();w.focus();return;}
   const blob=new Blob([html],{type:"text/html;charset=utf-8"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download="LS_Schedule.html";
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  const w=window.open(url,"_blank");
+  if(!w){
+    // Popup blocked — degrade to HTML download
+    const a=document.createElement("a");
+    a.href=url;a.download="LS_Schedule.html";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    return;
+  }
+  // Wait for the new window's document to load (including images) before
+  // triggering print. `load` fires after all sub-resources (the logo PNG)
+  // have decoded, so the print dialog renders the cover correctly.
+  const tryPrint=()=>{ try{ w.focus(); w.print(); }catch{ /* user closed window */ } };
+  w.addEventListener("load", ()=>setTimeout(tryPrint, 250), { once:true });
+  // Safety net in case `load` doesn't fire (some browsers + iframe quirks):
+  // print anyway after 2s. Idempotent if `load` already fired.
+  setTimeout(tryPrint, 2000);
+  // Hold the blob URL long enough that the print dialog can re-render if the
+  // user changes destination/orientation/etc. Long enough to forget about.
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
 
 export function buildWordHTML(name,sub,sections,meta={}){
