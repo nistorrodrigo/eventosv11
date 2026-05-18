@@ -1,6 +1,6 @@
 // ── RoadshowMeetingModal.jsx ──
 import { useEffect, useRef, useState } from "react";
-import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour } from "../roadshow.jsx";
+import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour, getAllFunds, isMultiFund, fundLabel, PRIMARY_FUND_ID } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
 
@@ -33,6 +33,11 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   const d=new Date((date||"2026-04-20")+"T12:00:00");
   const dateLabel=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   const [selReps,setSelReps]=useState(meeting?.attendeeIds||[]);
+  // Multi-fund attendance picker. State holds the list of fund IDs that
+  // attend this meeting; empty == "common" (all invited funds join).
+  const [attFundIds,setAttFundIds]=useState(meeting?.attendingFundIds||[]);
+  const allFunds=getAllFunds(trip);
+  const showFundPicker=isMultiFund(trip);
   const selCo=(companies||[]).find(c=>c.id===coId);
   const coContacts=selCo?.contacts||[];
   // Sync selReps when company changes - default select all
@@ -50,6 +55,9 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
+      // Only persist fund attendance when the trip is multi-fund. Single-fund
+      // trips have meaningless `attendingFundIds` so we keep it empty.
+      attendingFundIds:showFundPicker?attFundIds:[],
       icsVersion:(()=>{
         const prev=prevM.icsVersion||0;
         const dateChg=String(prevM.date||'')!==(selectedDate||date);
@@ -200,6 +208,49 @@ Latin Securities`;
               </select>
             </div>
           </div>
+          {/* ── Per-meeting fund attendance — multi-fund virtual events only ──
+              Empty selection (no boxes checked) ⇒ common meeting, every invited
+              fund attends. Tick specific funds to make it fund-specific (each
+              fund's PDF only shows the meetings they actually attend). */}
+          {showFundPicker&&(
+            <div style={{marginBottom:12,background:"rgba(123,53,176,.05)",border:"1px solid rgba(123,53,176,.22)",borderRadius:7,padding:"9px 11px"}}>
+              <div className="lbl" style={{marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+                🏛 Asisten <span style={{fontSize:9,color:"var(--dim)",fontWeight:400}}>{attFundIds.length===0?"· común (todos los fondos)":"· específica de "+attFundIds.length+" fondo"+(attFundIds.length>1?"s":"")}</span>
+                {attFundIds.length>0&&<button className="btn bo bs" style={{fontSize:9,padding:"1px 7px",marginLeft:"auto"}} onClick={()=>setAttFundIds([])}>Marcar como común</button>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                {allFunds.map(f=>{
+                  const checked=attFundIds.length===0||attFundIds.includes(f.id);
+                  return(
+                    <label key={f.id} style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:11,padding:"3px 5px",borderRadius:4,background:checked?"rgba(123,53,176,.08)":"transparent"}}>
+                      <input type="checkbox" checked={checked}
+                        style={{width:13,height:13,accentColor:"#7b35b0",flexShrink:0}}
+                        onChange={()=>{
+                          // When the attFundIds array is empty, the meeting is "common" and every
+                          // checkbox shows ticked. Clicking a checkbox in that state should mean
+                          // "actually I only want THESE specific funds" — so we seed the array
+                          // with every fund EXCEPT the clicked one.
+                          if(attFundIds.length===0){
+                            setAttFundIds(allFunds.map(x=>x.id).filter(id=>id!==f.id));
+                          }else if(attFundIds.includes(f.id)){
+                            const next=attFundIds.filter(id=>id!==f.id);
+                            // If un-ticking would leave 0 funds, fall back to "common" so we
+                            // don't end up with an unreachable meeting.
+                            setAttFundIds(next.length===0?[]:next);
+                          }else{
+                            const next=[...attFundIds,f.id];
+                            // If we now have ALL funds again, normalise back to common.
+                            setAttFundIds(next.length===allFunds.length?[]:next);
+                          }
+                        }}/>
+                      <span style={{fontWeight:checked?600:400,color:checked?"var(--cream)":"var(--dim)"}}>{fundLabel(f)}</span>
+                      {f.id===PRIMARY_FUND_ID&&<span style={{fontSize:8,padding:"1px 5px",background:"rgba(30,90,176,.18)",color:"var(--gold)",borderRadius:3,fontFamily:"IBM Plex Mono,monospace"}}>PRINCIPAL</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {meeting?.changeLog?.length>0&&(
             <details style={{marginBottom:10,background:"rgba(30,90,176,.04)",borderRadius:8,overflow:"hidden"}}>
               <summary style={{padding:"8px 12px",cursor:"pointer",fontSize:10,fontFamily:"IBM Plex Mono,monospace",color:"var(--gold)",fontWeight:600,letterSpacing:".04em",userSelect:"none",display:"flex",alignItems:"center",gap:6}}>

@@ -635,6 +635,14 @@ export function RoadshowInboundTab({
                                     </div>
                                     {reps.length>0&&<div style={{fontSize:10,color:"#374151",marginBottom:3}}>{reps.map(r=>r.name+(r.title?" · "+r.title:"")).join(" — ")}</div>}
                                     <div style={{fontSize:10,color:"#6b7280"}}>{isVirt?"💻":"📍"} {locStr}{m.meetingFormat&&m.meetingFormat!=="Meeting"?" · 🍽 "+m.meetingFormat:""}</div>
+                                    {/* Fund attendance tags — only for multi-fund trips */}
+                                    {isMultiFund(roadshow.trip)&&(()=>{
+                                      const ids=m.attendingFundIds||[];
+                                      const all=getAllFunds(roadshow.trip);
+                                      if(ids.length===0) return <div style={{fontSize:9,marginTop:3,padding:"2px 6px",background:"rgba(123,53,176,.1)",borderRadius:3,color:"#7b35b0",display:"inline-block",fontFamily:"IBM Plex Mono,monospace"}}>🏛 común · todos los fondos</div>;
+                                      const subset=all.filter(f=>ids.includes(f.id));
+                                      return <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:3}}>{subset.map(f=><span key={f.id} style={{fontSize:9,padding:"2px 6px",background:"rgba(123,53,176,.15)",border:"1px solid rgba(123,53,176,.3)",borderRadius:3,color:"#7b35b0",fontFamily:"IBM Plex Mono,monospace"}}>🏛 {fundLabel(f).slice(0,12)}</span>)}</div>;
+                                    })()}
                                     {isVirt&&m.meetingLink&&<div style={{fontSize:10,marginTop:2}}><a href={m.meetingLink} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:"#1e5ab0",textDecoration:"underline",fontFamily:"IBM Plex Mono,monospace",wordBreak:"break-all"}}>🔗 Unirse a la reunión</a></div>}
                                     {m.notes&&<div style={{fontSize:10,color:"#6b7280",marginTop:4,paddingTop:4,borderTop:"1px solid #f3f4f6",lineHeight:1.5}}>📋 {m.notes}</div>}
                                     {m.postNotes&&<div style={{fontSize:10,color:"#166534",marginTop:3,lineHeight:1.5}}>✅ {m.postNotes}</div>}
