@@ -39,6 +39,11 @@ export const MeetingSchema = z.object({
   postNotes: z.string().default(""),
   meetingFormat: z.string().default("Meeting"),
   attendeeIds: z.array(z.string()).default([]),
+  // For multi-fund virtual events. Empty array ⇒ meeting is common (all invited
+  // funds attend). When non-empty, only those fund IDs see this meeting in their
+  // per-fund PDF agenda. Fund id "__primary" represents trip.fund/clientName;
+  // additional fund ids live in trip.funds[].id.
+  attendingFundIds: z.array(z.string()).default([]),
   feedback: z.object({
     interestLevel: z.number().min(0).max(5).default(0),
     topics: z.array(z.string()).default([]),
@@ -84,6 +89,21 @@ export const TripSchema = z.object({
     name: z.string().default(""),
     title: z.string().default(""),
     email: z.string().default(""),
+  })).default([]),
+  // Additional invited funds for virtual/hybrid multi-fund events. The primary
+  // fund stays as trip.fund/clientName/visitors above — this is the EXTRA list.
+  // When the array is empty (default), the app behaves exactly as a single-fund
+  // roadshow. Each entry has its own visitor list and a stable id used by
+  // Meeting.attendingFundIds.
+  funds: z.array(z.object({
+    id: z.string().min(1),
+    fund: z.string().default(""),
+    clientName: z.string().default(""),
+    visitors: z.array(z.object({
+      name: z.string().default(""),
+      title: z.string().default(""),
+      email: z.string().default(""),
+    })).default([]),
   })).default([]),
 });
 

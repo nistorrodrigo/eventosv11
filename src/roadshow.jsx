@@ -8,6 +8,39 @@ import { esc } from './storage.jsx';
 ═══════════════════════════════════════════════════════════════════ */
 // Hours in 30-min increments: 8.0, 8.5, 9.0, ... 20.0
 export const ROADSHOW_HOURS =Array.from({length:25},(_,i)=>8+i*0.5);
+
+// ── Multi-fund support ─────────────────────────────────────────────
+// A virtual/hybrid roadshow can invite multiple funds simultaneously: some
+// meetings are common (everyone joins), others are fund-specific. The PRIMARY
+// fund lives in `trip.fund/clientName/visitors` (id = "__primary"); additional
+// funds live in `trip.funds[]`. Meetings carry an `attendingFundIds[]` array —
+// empty means "everyone attends".
+export const PRIMARY_FUND_ID="__primary";
+
+// Return the unified [primary, ...additional] funds list for a trip.
+// Always returns at least one entry (the primary, even if blank).
+export function getAllFunds(trip){
+  if(!trip) return [{id:PRIMARY_FUND_ID,fund:"",clientName:"",visitors:[]}];
+  const primary={id:PRIMARY_FUND_ID,fund:trip.fund||"",clientName:trip.clientName||"",visitors:trip.visitors||[]};
+  return [primary,...(trip.funds||[])];
+}
+
+// True when the trip has at least one additional fund beyond the primary.
+export function isMultiFund(trip){return (trip?.funds||[]).length>0;}
+
+// Friendly label for a fund (fund name OR clientName OR fallback).
+export function fundLabel(f){return f?.fund||f?.clientName||"Fondo sin nombre";}
+
+// Filter meetings for a specific fund. Pass fundId=null for "combined" view.
+// A meeting belongs to fundId when its attendingFundIds is empty (common) OR
+// it explicitly includes fundId.
+export function meetingsForFund(meetings, fundId){
+  if(!fundId) return meetings||[];
+  return (meetings||[]).filter(m=>{
+    const ids=m.attendingFundIds||[];
+    return ids.length===0||ids.includes(fundId);
+  });
+}
 export function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
 
 // ── Timezone support ───────────────────────────────────────────────

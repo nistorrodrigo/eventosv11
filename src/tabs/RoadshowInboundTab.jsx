@@ -10,7 +10,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, PRIMARY_FUND_ID, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -239,6 +239,55 @@ export function RoadshowInboundTab({
               ));})()}
               <div style={{fontSize:10,color:"var(--dim)",marginTop:4,fontStyle:"italic"}}>Todos los visitantes aparecen en el saludo del email, en el ICS como ATTENDEE y en los exports. Si vienen 3 personas, agregá 3 filas.</div>
             </div>
+
+            {/* ── Additional invited funds — only shown for virtual/hybrid roadshows ──
+                A virtual event can host multiple funds simultaneously. Some meetings are
+                common (everyone joins), others fund-specific. Each fund here gets its own
+                visitor list, fund/cliente name and a stable id used by Meeting.attendingFundIds. */}
+            {(roadshow.trip.mode==="virtual"||roadshow.trip.mode==="hybrid")&&(()=>{
+              const extras=roadshow.trip.funds||[];
+              const upFunds=(arr)=>upTrip("funds",arr);
+              const addFund=()=>upFunds([...extras,{id:"fund_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),fund:"",clientName:"",visitors:[]}]);
+              const updFund=(idx,patch)=>{const next=[...extras];next[idx]={...next[idx],...patch};upFunds(next);};
+              const delFund=(idx)=>{if(!confirm("¿Eliminar este fondo y sus visitantes? Las reuniones marcadas para él pasan a ser comunes."))return;const next=extras.filter((_,j)=>j!==idx);upFunds(next);};
+              return(
+                <div style={{marginBottom:10,background:"rgba(123,53,176,.04)",border:"1px solid rgba(123,53,176,.15)",borderRadius:7,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                    <div className="lbl" style={{margin:0,fontSize:11}}>🏛 Otros fondos invitados {extras.length>0&&<span style={{color:"var(--gold)",fontWeight:700}}>({extras.length})</span>}</div>
+                    <span style={{fontSize:10,color:"var(--dim)",fontWeight:400}}>— para eventos virtuales con varios fondos en simultáneo</span>
+                    <button className="btn bg bs" style={{fontSize:10,padding:"4px 10px",marginLeft:"auto"}} onClick={addFund}>+ Agregar fondo</button>
+                  </div>
+                  {extras.length===0&&(
+                    <div style={{fontSize:10,color:"var(--dim)",fontStyle:"italic"}}>
+                      El fondo principal arriba es el único hoy. Agregá fondos extra acá para invitar varios al mismo evento virtual; después en cada reunión vas a poder elegir si es <em>común</em> (todos asisten) o <em>específica</em> de un fondo.
+                    </div>
+                  )}
+                  {extras.map((f,fi)=>(
+                    <div key={f.id} style={{marginBottom:10,background:"var(--ink3)",borderRadius:6,padding:"10px 12px",border:"1px solid rgba(123,53,176,.18)"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                        <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",width:24}}>#{fi+1}</span>
+                        <input className="inp" style={{flex:2,fontSize:11,padding:"4px 8px"}} value={f.fund} placeholder="Fondo (ej: Templeton)" onChange={e=>updFund(fi,{fund:e.target.value})}/>
+                        <input className="inp" style={{flex:2,fontSize:11,padding:"4px 8px"}} value={f.clientName} placeholder="Cliente / contacto principal" onChange={e=>updFund(fi,{clientName:e.target.value})}/>
+                        <button aria-label="Eliminar fondo" className="btn bd bs" style={{fontSize:10,padding:"3px 8px",flexShrink:0}} onClick={()=>delFund(fi)}>✕</button>
+                      </div>
+                      <div className="lbl" style={{margin:"6px 0 4px 0",fontSize:10}}>Visitantes de {fundLabel(f)}</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {(f.visitors||[]).map((v,vi)=>(
+                          <div key={vi} style={{display:"flex",gap:4,alignItems:"center"}}>
+                            <input className="inp" style={{flex:2,fontSize:10,padding:"3px 7px"}} value={v.name||""} placeholder="Nombre" onChange={e=>{const vs=[...(f.visitors||[])];vs[vi]={...vs[vi],name:e.target.value};updFund(fi,{visitors:vs});}}/>
+                            <input className="inp" style={{flex:1.5,fontSize:10,padding:"3px 7px"}} value={v.title||""} placeholder="Cargo" onChange={e=>{const vs=[...(f.visitors||[])];vs[vi]={...vs[vi],title:e.target.value};updFund(fi,{visitors:vs});}}/>
+                            <input className="inp" style={{flex:2,fontSize:10,padding:"3px 7px"}} value={v.email||""} placeholder="email" onChange={e=>{const vs=[...(f.visitors||[])];vs[vi]={...vs[vi],email:e.target.value};updFund(fi,{visitors:vs});}}/>
+                            <button aria-label="Eliminar visitante" className="btn bd bs" style={{fontSize:8,padding:"2px 5px",flexShrink:0}} onClick={()=>{const vs=(f.visitors||[]).filter((_,j)=>j!==vi);updFund(fi,{visitors:vs});}}>✕</button>
+                          </div>
+                        ))}
+                        <button className="btn bo bs" style={{fontSize:9,padding:"3px 8px",alignSelf:"flex-start"}} onClick={()=>updFund(fi,{visitors:[...(f.visitors||[]),{name:"",title:"",email:""}]})}>+ Visitante</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Email parser */}
             <div style={{borderTop:"1px solid rgba(30,90,176,.08)",paddingTop:10}}>
               <button className="btn bo bs" style={{fontSize:10,gap:5,marginBottom:rsShowParser?8:0}} onClick={()=>setRsShowParser(s=>!s)}>
