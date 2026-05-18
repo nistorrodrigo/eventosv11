@@ -1594,17 +1594,32 @@ export function RoadshowInboundTab({
                 </div>
               )}
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-                <div className="ex-card" role="button" tabIndex={0} onClick={()=>{
-                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:pdfFundId||null});
-                  if(!e){toast(pdfFundId?"Ese fondo no tiene reuniones marcadas.":"Agregá reuniones al roadshow primero.");return;}
-                  const eventTitle=(()=>{const f=pdfFundId?getAllFunds(roadshow.trip).find(x=>x.id===pdfFundId):null;return f?fundLabel(f):(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow");})();
-                  const meta={...config,eventTitle,eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
-                  openPrint(buildPrintHTML([e],meta));
-                }}>
-                  <div className="ex-card-ico">📄</div>
-                  <div className="ex-card-t">PDF — Agenda completa</div>
-                  <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}{isMultiFund(roadshow.trip)&&pdfFundId?` · solo ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})}`:isMultiFund(roadshow.trip)?" · combinado":""}. <em style={{color:"var(--dim)"}}>En el diálogo elegí "Save as PDF".</em></div>
-                </div>
+                {(()=>{
+                  // Build the HTML once; both export options share it.
+                  const buildAgendaHTML=()=>{
+                    const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:pdfFundId||null});
+                    if(!e){toast(pdfFundId?"Ese fondo no tiene reuniones marcadas.":"Agregá reuniones al roadshow primero.");return null;}
+                    const fundForTitle=pdfFundId?getAllFunds(roadshow.trip).find(x=>x.id===pdfFundId):null;
+                    const eventTitle=fundForTitle?fundLabel(fundForTitle):(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow");
+                    const meta={...config,eventTitle,eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
+                    const tzSuf=pdfTz!==BASE_TZ?"_"+(TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"):"";
+                    const fundSuf=fundForTitle?"_"+fundLabel(fundForTitle).replace(/[^a-zA-Z0-9]+/g,"_"):"";
+                    const filename=`${eventTitle.replace(/[^a-zA-Z0-9]+/g,"_")}_Schedule${fundSuf}${tzSuf}.html`;
+                    return{html:buildPrintHTML([e],meta),filename};
+                  };
+                  return(<>
+                    <div className="ex-card" role="button" tabIndex={0} onClick={()=>{const r=buildAgendaHTML();if(r)openPrint(r.html);}}>
+                      <div className="ex-card-ico">📄</div>
+                      <div className="ex-card-t">PDF — Vista previa (imprimir)</div>
+                      <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}{isMultiFund(roadshow.trip)&&pdfFundId?` · solo ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})}`:isMultiFund(roadshow.trip)?" · combinado":""}. <em style={{color:"var(--dim)"}}>Ctrl+P → Save as PDF.</em></div>
+                    </div>
+                    <div className="ex-card" role="button" tabIndex={0} onClick={()=>{const r=buildAgendaHTML();if(!r)return;downloadBlob(r.filename,r.html,"text/html;charset=utf-8");toastOk("✅ HTML descargado — abrilo y hacé Ctrl+P → Save as PDF");}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
+                      <div className="ex-card-ico">💾</div>
+                      <div className="ex-card-t">HTML — Descargar directo</div>
+                      <div className="ex-card-s">Si "Save as PDF" no anda en el diálogo, bajá el HTML, abrilo doble-click y hacé Ctrl+P desde ahí. Siempre funciona.</div>
+                    </div>
+                  </>);
+                })()}
                 <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportRoadshowSummary(pdfTz)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportRoadshowSummary(pdfTz);}}>
                   <div className="ex-card-ico">📊</div>
                   <div className="ex-card-t">Resumen ejecutivo</div>
