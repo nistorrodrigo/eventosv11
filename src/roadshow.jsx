@@ -186,10 +186,16 @@ export function rsToEntity(rs,rsCos,opts={}){
   const{trip,meetings}=rs;
   const tz=opts.tz||BASE_TZ;
   const isOtherTz=tz!==BASE_TZ;
+  // Optional per-fund filter. null/undefined ⇒ combined (all meetings).
+  // Otherwise we keep only meetings that fund attends (common + that fund's specific).
+  const fundId=opts.fundId||null;
+  const filteredMeetings=fundId?meetingsForFund(meetings,fundId):(meetings||[]);
+  // Resolve the selected fund (if any) so the cover can show its name/visitors.
+  const selectedFund=fundId?getAllFunds(trip).find(f=>f.id===fundId):null;
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
   // Group by target-tz date so meetings that cross midnight under conversion
   // (BA evening → Tokyo next day, etc.) land in the right day section.
-  const byDay={};(meetings||[]).forEach(m=>{
+  const byDay={};filteredMeetings.forEach(m=>{
     const d=isOtherTz?dateInTZ(m.date,m.hour,tz):m.date;
     if(!byDay[d])byDay[d]=[];byDay[d].push(m);
   });
@@ -203,18 +209,23 @@ export function rsToEntity(rs,rsCos,opts={}){
   const fmtH=(h,date)=>isOtherTz?fmtHourInTZ(date,h,tz):(()=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");})();
   const fmtLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-  const visitors=(trip.visitors||[]).filter(v=>v.name);
-  const visLine=visitors.length?visitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(trip.clientName||"");
+  // When exporting per-fund, override visitors + fund label with the selected
+  // fund's data so the cover page reads "Templeton" with their visitors instead
+  // of the primary fund's. Combined export keeps the primary fund's identity.
+  const effVisitors=selectedFund?(selectedFund.visitors||[]).filter(v=>v.name):((trip.visitors||[]).filter(v=>v.name));
+  const effFundName=selectedFund?(selectedFund.fund||selectedFund.clientName||"Fondo"):(trip.fund||trip.clientName||"Roadshow");
+  const effClientName=selectedFund?(selectedFund.clientName||""):trip.clientName;
+  const visLine=effVisitors.length?effVisitors.map(v=>[v.name,v.title].filter(Boolean).join(" · ")).join(" | "):(effClientName||"");
   // Subtitle: fund + visitors only — date is already on the cover page and per-day headers
-  const sub=`${trip.fund||"Buenos Aires Roadshow"}${visLine?" · "+visLine:""}`;
+  const sub=`${effFundName||"Buenos Aires Roadshow"}${visLine?" · "+visLine:""}`;
   // Title: when 2+ visitors, show fund only (visitors are already listed in sub) so no single
   // person "heads" the document. With 0-1 visitor, fall back to "Name — Fund".
-  const titleName=visitors.length>=2
-    ?(trip.fund||trip.clientName||"Roadshow")
-    :`${trip.clientName||visitors[0]?.name||"[Client]"}${trip.fund?" — "+trip.fund:""}`;
+  const titleName=effVisitors.length>=2
+    ?effFundName
+    :`${effClientName||effVisitors[0]?.name||"[Client]"}${effFundName&&effFundName!==effClientName?" — "+effFundName:""}`;
   return{name:titleName,sub,
-    coverTitle:trip.fund||trip.clientName||"Roadshow",
-    coverNames:visitors.map(v=>({name:v.name,title:v.title||""})),
+    coverTitle:effFundName,
+    coverNames:effVisitors.map(v=>({name:v.name,title:v.title||""})),
     coverDate:(()=>{
       const d=trip.arrivalDate||trip.departureDate;if(!d)return"";
       // For non-BA exports, shift to target-tz date so cover month/year matches the agenda inside
