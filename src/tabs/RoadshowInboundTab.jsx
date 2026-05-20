@@ -33,7 +33,7 @@ export function RoadshowInboundTab({
   icsImportModal, setIcsImportModal, rsMtgsExcelRef, rsExcelRef,
   rsShowParser, setRsShowParser,
   rsCoMapForTravel,
-  exportCompanyBrief, exportRoadshowSummary, exportPostRoadshowReport, exportDriverItinerary,
+  exportCompanyBrief, exportRoadshowSummary, exportPostRoadshowReport, exportDriverItinerary, exportOrganizerSummary,
   // lsCont is computed internally from config + roadshow.trip.lsContactIdx
   dragMtg, setDragMtg,
   rsEmailParser, setRsEmailParser,
@@ -1624,6 +1624,11 @@ export function RoadshowInboundTab({
                   <div className="ex-card-ico">📊</div>
                   <div className="ex-card-t">Resumen ejecutivo</div>
                   <div className="ex-card-s">KPIs, cobertura por sector y agenda del viaje{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
+                </div>
+                <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportOrganizerSummary(pdfTz)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportOrganizerSummary(pdfTz);}} style={{borderColor:"#7b35b033",background:"linear-gradient(135deg,#faf7ff,#f3edfa)"}}>
+                  <div className="ex-card-ico">📋</div>
+                  <div className="ex-card-t">Resumen organizador</div>
+                  <div className="ex-card-s">Quién va a cada reunión — todos los fondos, reps y traslados. Hoja de operaciones para el equipo LS{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}.</div>
                 </div>
                 <div className="ex-card" role="button" tabIndex={0} onClick={()=>exportPostRoadshowReport(pdfTz)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")exportPostRoadshowReport(pdfTz);}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
                   <div className="ex-card-ico">🔬</div>

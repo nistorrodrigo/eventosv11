@@ -44,6 +44,10 @@ export const MeetingSchema = z.object({
   // per-fund PDF agenda. Fund id "__primary" represents trip.fund/clientName;
   // additional fund ids live in trip.funds[].id.
   attendingFundIds: z.array(z.string()).default([]),
+  // Manual travel time (minutes) needed to GET TO this meeting from wherever the
+  // group was before. Order-independent (unlike the idx-keyed travelOverrides).
+  // 0 / absent ⇒ no travel shown. Surfaced in the organizer summary + agendas.
+  travelMinutes: z.number().min(0).default(0),
   feedback: z.object({
     interestLevel: z.number().min(0).max(5).default(0),
     topics: z.array(z.string()).default([]),

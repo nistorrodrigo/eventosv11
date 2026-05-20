@@ -2,7 +2,7 @@
 import { normalizeFund, COMPANIES_INIT, DEFAULT_DAYS, INTEREST_LABELS, INTEREST_COLORS, NEXT_LABELS } from "../constants.jsx";
 import { downloadBlob } from "../storage.jsx";
 import { getMeetingAddress, applyBATraffic, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
-import { fmtDateRange, fmtHour, fmtHourInTZ, BASE_TZ, TIMEZONES, tzOffsetLabel } from "../roadshow.jsx";
+import { fmtDateRange, fmtHour, fmtHourInTZ, BASE_TZ, TIMEZONES, tzOffsetLabel, getAllFunds, fundLabel, PRIMARY_FUND_ID, isMultiFund } from "../roadshow.jsx";
 import { COVER_CSS, buildCoverHTML } from "../storage.jsx";
 
 // ── Excel export with LS brand colors ─────────────────────────────
@@ -526,5 +526,139 @@ ${kpiHTML}${heatHTML}
 <div class="sec-title">Detalle por reunión</div>${detailHTML}
 ${fuHTML}
 <div class="footer"><span>Latin Securities · Confidential</span><span>${fund} · Post-Roadshow Report</span></div></body></html>`;
+  openPrint(html);
+}
+
+// ── Organizer Summary ─────────────────────────────────────────────
+// Internal-facing "who goes where" digest for the LS team running the
+// roadshow. Unlike the investor agenda (one fund, polished cover), this is
+// a dense operations sheet: every meeting, every attending fund, reps, and
+// the manual travel-time gaps between consecutive meetings.
+export function _exportOrganizerSummary({roadshow, openPrint, tz=BASE_TZ}){
+  const {trip,meetings,companies}=roadshow;
+  const isOtherTz=tz!==BASE_TZ;
+  const tzShort=TIMEZONES.find(t=>t.value===tz)?.short||"local";
+  const tzLabel=(TIMEZONES.find(t=>t.value===tz)?.label||tz).replace(/^[^ ]+ /,"");
+  const tzOffset=isOtherTz?tzOffsetLabel(tz):"";
+  const coMap=new Map((companies||[]).map(c=>[c.id,c]));
+  const allFunds=getAllFunds(trip);
+  const multi=isMultiFund(trip);
+  const fmtH=(h,date)=>isOtherTz?fmtHourInTZ(date,h,tz):fmtHour(h);
+  const fmtDayLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  const escH=s=>String(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const fund=trip.fund||trip.clientName||"Roadshow";
+
+  // Group active meetings by day, sorted by time
+  const active=(meetings||[]).filter(m=>m.status!=="cancelled");
+  const byDay={};active.forEach(m=>{(byDay[m.date]=byDay[m.date]||[]).push(m);});
+  Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.hour-b.hour));
+  const days=Object.keys(byDay).sort();
+
+  // Short code per fund for compact badges (Blackrock → BLK, etc.)
+  const fundCode=f=>{const lbl=fundLabel(f);return lbl.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).map(w=>w[0]||"").join("").slice(0,3).toUpperCase()||lbl.slice(0,3).toUpperCase();};
+  const fundCodes=new Map(allFunds.map(f=>[f.id,fundCode(f)]));
+
+  // Fund colour cycle (institutional + secondary brand colours)
+  const FUND_CLR=["#1e5ab0","#23a29e","#7b35b0","#b45309","#0891b2","#65a30d"];
+  const fundClrById=new Map(allFunds.map((f,i)=>[f.id,FUND_CLR[i%FUND_CLR.length]]));
+
+  // Funds header rows
+  const fundRows=allFunds.map(f=>{
+    const visitors=(f.visitors||[]).filter(v=>v.name);
+    const clr=fundClrById.get(f.id);
+    return `<tr>
+      <td style="padding:5px 10px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${clr};margin-right:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span><strong style="color:#000039">${escH(fundLabel(f))}</strong>${f.id===PRIMARY_FUND_ID?` <span style="font-size:7.5pt;color:#9ca3af">(principal)</span>`:""}</td>
+      <td style="padding:5px 10px;font-size:9pt;color:#374151">${visitors.length?visitors.map(v=>escH(v.name)+(v.title?` <span style="color:#9ca3af">(${escH(v.title)})</span>`:"")).join(" · "):'<span style="color:#9ca3af">— sin visitantes cargados —</span>'}</td>
+    </tr>`;
+  }).join("");
+
+  // Per-day meeting rows
+  const dayBlocks=days.map(date=>{
+    const rows=byDay[date].map((m,idx)=>{
+      const co=m.type==="company"?coMap.get(m.companyId):null;
+      const name=co?`${co.name}${co.ticker?` (${co.ticker})`:""}`:(m.lsType||m.title||"Reunión");
+      const isVirt=m.location==="virtual";
+      const loc=isVirt
+        ?`${PLATFORM_ICONS[m.meetingPlatform]||"💻"} ${PLATFORM_LABELS[m.meetingPlatform]||"Virtual"}${m.meetingLink?` · <span style="font-family:monospace;font-size:8pt;color:#1e5ab0">${escH(m.meetingLink)}</span>`:""}`
+        :`📍 ${escH(m.location==="ls_office"?(trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co?.hqAddress||co?.name+" HQ"||"HQ"):(m.locationCustom||"TBD"))}`;
+      // Reps
+      const reps=(()=>{
+        if(m.type==="company"){
+          const allR=co?.contacts||[];
+          const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;
+          return sel.filter(r=>r.name).map(r=>escH(r.name)+(r.title?` (${escH(r.title)})`:"")).join(", ");
+        }
+        return escH(m.participants||"");
+      })();
+      // Attending-fund badges
+      const fundCell=(()=>{
+        if(!multi) return "";
+        const ids=m.attendingFundIds||[];
+        if(ids.length===0) return `<span style="font-size:7.5pt;padding:2px 6px;background:#eef2f8;color:#475569;border-radius:3px;font-family:monospace">TODOS</span>`;
+        return allFunds.filter(f=>ids.includes(f.id)).map(f=>{
+          const clr=fundClrById.get(f.id);
+          return `<span style="font-size:7.5pt;padding:2px 6px;background:${clr};color:#fff;border-radius:3px;font-family:monospace;margin:1px;display:inline-block;-webkit-print-color-adjust:exact;print-color-adjust:exact">${fundCodes.get(f.id)}</span>`;
+        }).join("");
+      })();
+      const st=m.status==="confirmed"?`<span style="color:#166534;font-weight:700">✓</span>`:`<span style="color:#854d0e">◌</span>`;
+      // Travel-time row before this meeting (skip the first of the day)
+      const travelRow=(idx>0&&m.travelMinutes>0)
+        ?`<tr><td colspan="${multi?5:4}" style="padding:3px 10px;background:#fff7ed;font-size:8.5pt;color:#9a3412;-webkit-print-color-adjust:exact;print-color-adjust:exact">🚗 ${m.travelMinutes} min de traslado</td></tr>`
+        :"";
+      return `${travelRow}<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:7px 10px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#1e5ab0;white-space:nowrap;vertical-align:top">${fmtH(m.hour,m.date)}</td>
+        <td style="padding:7px 10px;vertical-align:top">
+          <div style="font-weight:700;color:#000039">${name}</div>
+          <div style="font-size:9pt;color:#6b7280;margin-top:2px">${loc}</div>
+          ${reps?`<div style="font-size:9pt;color:#374151;margin-top:2px">👤 ${reps}</div>`:""}
+          ${m.notes?`<div style="font-size:8.5pt;color:#9ca3af;margin-top:2px;font-style:italic">📝 ${escH(m.notes)}</div>`:""}
+        </td>
+        ${multi?`<td style="padding:7px 10px;vertical-align:top;line-height:1.7">${fundCell}</td>`:""}
+        <td style="padding:7px 10px;vertical-align:top;font-size:9pt;color:#6b7280;white-space:nowrap">${m.meetingFormat&&m.meetingFormat!=="Meeting"?escH(m.meetingFormat):""}</td>
+        <td style="padding:7px 10px;vertical-align:top;text-align:center">${st}</td>
+      </tr>`;
+    }).join("");
+    return `<div style="margin-bottom:18px">
+      <div style="background:#000039;color:#fff;padding:7px 12px;border-radius:6px 6px 0 0;font-size:9.5pt;font-weight:700;letter-spacing:.06em;text-transform:uppercase;-webkit-print-color-adjust:exact;print-color-adjust:exact">${fmtDayLong(date)}</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e9eef5;border-top:none">
+        <tr style="background:#f3f4f6">
+          <th style="padding:5px 10px;text-align:left;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Hora</th>
+          <th style="padding:5px 10px;text-align:left;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Reunión</th>
+          ${multi?`<th style="padding:5px 10px;text-align:left;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Fondos</th>`:""}
+          <th style="padding:5px 10px;text-align:left;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Formato</th>
+          <th style="padding:5px 10px;text-align:center;font-size:8pt;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Est.</th>
+        </tr>
+        ${rows}
+      </table>
+    </div>`;
+  }).join("");
+
+  const totalMtgs=active.length;
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${escH(fund)} Resumen organizador${isOtherTz?" "+tzShort:""}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}@page{margin:14mm 16mm;size:A4}
+body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10pt;color:#111827;background:#fff;padding:18px 22px}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:9px;margin-bottom:16px;border-bottom:2.5px solid #000039}
+.ls1{font-size:13pt;font-weight:800;color:#000039;letter-spacing:.12em;text-transform:uppercase}
+.ls2{font-size:6.5pt;color:#6b7280;letter-spacing:.2em;text-transform:uppercase;margin-top:2px}
+.sec-title{font-size:9pt;font-weight:700;color:#000039;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em}
+.fund-tbl{width:100%;border-collapse:collapse;border:1px solid #e9eef5;border-radius:6px;overflow:hidden;margin-bottom:18px}
+.footer{margin-top:18px;padding-top:8px;border-top:1px solid #e9eef5;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af}
+@media print{body{padding:0}}</style></head><body>
+<div class="hdr">
+  <div><div class="ls1">Latin Securities</div><div class="ls2">Roadshow · Resumen organizador</div></div>
+  <div style="text-align:right;font-size:9pt;color:#6b7280">
+    <div style="font-weight:700;color:#000039;font-size:11pt">${escH(fund)}</div>
+    <div>${fmtDateRange(trip.arrivalDate||"",trip.departureDate||"",{locale:"es-AR",short:false,withYear:true})}</div>
+    <div style="font-size:8pt">${totalMtgs} reunión${totalMtgs!==1?"es":""} · ${days.length} día${days.length!==1?"s":""}${multi?` · ${allFunds.length} fondos`:""}</div>
+  </div>
+</div>
+${isOtherTz?`<div style="background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;padding:8px 12px;font-size:9pt;color:#1e5ab0;margin-bottom:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact">⏰ <strong>Horarios en ${escH(tzLabel)}${tzOffset?` (${tzOffset})`:""}.</strong></div>`:""}
+<div class="sec-title">${multi?`Fondos invitados (${allFunds.length})`:"Fondo"}</div>
+<table class="fund-tbl">${fundRows}</table>
+${multi?`<div style="font-size:8.5pt;color:#6b7280;margin:-10px 0 16px">Códigos: ${allFunds.map(f=>`<span style="font-family:monospace"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${fundClrById.get(f.id)};margin-right:3px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>${fundCodes.get(f.id)} = ${escH(fundLabel(f))}</span>`).join(" &nbsp; ")} &nbsp; · &nbsp; <span style="font-family:monospace">TODOS = reunión común</span></div>`:""}
+<div class="sec-title">Agenda detallada</div>
+${dayBlocks||'<div style="color:#9ca3af;font-size:10pt">Sin reuniones cargadas.</div>'}
+<div class="footer"><span>Latin Securities · Confidential — uso interno</span><span>${escH(fund)} · Resumen organizador</span></div>
+</body></html>`;
   openPrint(html);
 }

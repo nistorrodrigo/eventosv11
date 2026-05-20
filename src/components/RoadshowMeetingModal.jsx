@@ -28,6 +28,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   const [actualReps,setActualReps]=useState(meeting?.actualAttendees||null); // null=not set, []|[ids]=checked
   const [changeNotif,setChangeNotif]=useState(null); // {msg,contact} after save
   const [meetingFormat,setMeetingFormat]=useState(meeting?.meetingFormat||"Meeting");
+  const [travelMin,setTravelMin]=useState(String(meeting?.travelMinutes||""));
   const [participants,setParticipants]=useState(meeting?.participants||"");
   const [fullAddr,setFullAddr]=useState(meeting?.fullAddress||"");
   const d=new Date((date||"2026-04-20")+"T12:00:00");
@@ -52,6 +53,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       meetingLink:loc==="virtual"?meetingLink.trim():"",
       meetingPlatform:loc==="virtual"?(meetingPlatform||detectMeetingPlatform(meetingLink)):"other",
       status,notes,postNotes,voiceNote,actualAttendees:actualReps,meetingFormat,
+      travelMinutes:Math.max(0,parseInt(travelMin)||0),
       participants:type!=="company"?participants:"",
       fullAddress:fullAddr,
       attendeeIds:type==="company"?selReps:[],
@@ -150,6 +152,14 @@ Latin Securities`;
               <select className="sel" value={dur} onChange={e=>setDur(e.target.value)}>
                 {[[30,"30 min"],[45,"45 min"],[60,"1 hora"],[90,"1h 30min"],[120,"2 horas"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
               </select></div>
+          </div>
+          {/* Manual travel time — minutes to GET TO this meeting from the previous
+              location. Shown in the organizer summary so the team knows the gaps. */}
+          <div style={{marginBottom:12}}>
+            <div className="lbl" style={{display:"flex",alignItems:"center",gap:6}}>🚗 Traslado hasta acá <span style={{fontWeight:400,color:"var(--dim)",fontSize:9}}>— minutos para llegar desde la reunión anterior (opcional)</span></div>
+            <input className="inp" type="number" min="0" step="5" style={{maxWidth:140}}
+              value={travelMin} onChange={e=>setTravelMin(e.target.value)}
+              placeholder="ej: 20"/>
           </div>
           <div style={{marginBottom:12}}><div className="lbl">Lugar</div>
             <select className="sel" value={loc} onChange={e=>{

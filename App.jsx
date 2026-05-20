@@ -2,7 +2,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabase.js";
 import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "./src/components/Toast.tsx";
-import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport } from "./src/utils/exporters.ts";
+import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport, _exportOrganizerSummary } from "./src/utils/exporters.ts";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
 import { FocusTrap } from "./src/components/FocusTrap.tsx";
 import { SettingsModal } from "./src/components/SettingsModal.jsx";
@@ -349,6 +349,7 @@ export default function App(){
   // forwards the user-selected pdfTz so all 3 PDFs (agenda, summary, report) stay in sync.
   function exportRoadshowSummary(tz){ _exportRoadshowSummary({roadshow, openPrint, tz}); }
   function exportPostRoadshowReport(tz){ _exportPostRoadshowReport({roadshow, openPrint, tz}); }
+  function exportOrganizerSummary(tz){ _exportOrganizerSummary({roadshow, openPrint, tz}); }
   function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
   // exportRoadshowPDF removed — the agenda PDF export is now inlined in RoadshowInboundTab's
   // Export subtab so it can pick up the user-selected pdfTz. Kept the prop name out of the tab's
@@ -2739,6 +2740,7 @@ Daily Summary — ${dayLabel}
         exportCompanyBrief={exportCompanyBrief}
         exportRoadshowSummary={exportRoadshowSummary}
         exportPostRoadshowReport={exportPostRoadshowReport}
+        exportOrganizerSummary={exportOrganizerSummary}
         exportDriverItinerary={exportDriverItinerary}
         publishBookingSlots={publishBookingSlots}
       /></TabErrorBoundary>}
