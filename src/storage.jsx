@@ -266,8 +266,11 @@ ${(()=>{
         <div><span class="footer-brand">Latin Securities</span> &nbsp;·&nbsp; Confidential — prepared for ${esc(e.name)}</div>
         <div>Page ${si+1} of ${e.sections.length}</div>
       </div>`;
-      // Contacts strip (last page only)
-      const contactsHtml=isLastPage&&(meta.contacts||[]).length?`<div style="margin-top:14px;padding:10px 14px;border-top:2px solid #000039;font-size:8.5pt;color:#374151;display:flex;align-items:center;flex-wrap:wrap;gap:10px"><strong style="color:#000039;margin-right:6px">LS Contact:</strong>${(meta.contacts||[]).map(c=>`${esc(c.name)}${c.role?" · "+esc(c.role):""}${c.email?" · "+esc(c.email):""}${c.phone?" · "+esc(c.phone):""}`).join(" &nbsp;|&nbsp; ")}</div>`:"";
+      // Contacts block (last page only) — one contact per line
+      const contactsHtml=isLastPage&&(meta.contacts||[]).length?`<div style="margin-top:14px;padding:10px 14px;border-top:2px solid #000039;font-size:8.5pt;color:#374151">
+        <div style="color:#000039;font-weight:700;font-size:8pt;letter-spacing:.05em;text-transform:uppercase;margin-bottom:5px">Latin Securities — Contact</div>
+        ${(meta.contacts||[]).map(c=>`<div style="margin-bottom:2px;line-height:1.5"><strong style="color:#111827">${esc(c.name)}</strong>${c.role?` <span style="color:#6b7280">· ${esc(c.role)}</span>`:""}${c.email?` &nbsp;·&nbsp; ${esc(c.email)}`:""}${c.phone?` &nbsp;·&nbsp; ${esc(c.phone)}`:""}</div>`).join("")}
+      </div>`:"";
       return `<div class="page">
         <div class="ls-hdr">
           <img src="${LS_LOGO_DATA_URL}" style="height:40px;display:block" alt="Latin Securities"/>
