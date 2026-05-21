@@ -221,18 +221,27 @@ tr:last-child td{border-bottom:none}
   .co-tick{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 ${(()=>{
-  // Cover page — emitted only for the first entity, when we have either visitors or a title
+  // Cover page. meta.coverOverride wins — a combined multi-fund export passes
+  // a cover that lists every fund (no single fund "heads" the document).
+  // Otherwise it's built from the first entity (single-fund / single-agenda).
   const e0=entities[0];
-  const coverHTML=(e0&&meta.cover!==false&&(e0.coverNames?.length||e0.coverTitle))
-    ? buildCoverHTML({
-        title:e0.coverTitle||meta.eventTitle||"Roadshow",
-        names:e0.coverNames||[],
-        dateLabel:e0.coverDate||meta.eventDates||"",
-      })
-    : "";
+  const coverHTML=meta.cover===false?""
+    :meta.coverOverride
+      ?buildCoverHTML(meta.coverOverride)
+      :(e0&&(e0.coverNames?.length||e0.coverTitle))
+        ?buildCoverHTML({
+            title:e0.coverTitle||meta.eventTitle||"Roadshow",
+            names:e0.coverNames||[],
+            dateLabel:e0.coverDate||meta.eventDates||"",
+          })
+        :"";
+  // When several agendas are bundled (one per fund), each opens with its own
+  // heading so the reader can tell whose agenda they're looking at.
+  const multiEntity=entities.length>1;
   return coverHTML+entities.flatMap((e,ei)=>{
     return e.sections.map((sec,si)=>{
-      const isFirstPage=ei===0&&si===0;
+      const isEntityStart=si===0;
+      const showHeading=isEntityStart&&(multiEntity||!coverHTML);
       const isLastPage=ei===entities.length-1&&si===e.sections.length-1;
       // Rows
       const rowsHtml=sec.rows.map((r,i)=>{
@@ -264,8 +273,8 @@ ${(()=>{
           <img src="${LS_LOGO_DATA_URL}" style="height:40px;display:block" alt="Latin Securities"/>
           <div class="ev-info"><div class="ev-title">${esc(meta.eventTitle||"LS Roadshow")}</div><div class="ev-sub">${esc(meta.eventType||"")}${meta.eventDates?" &nbsp;·&nbsp; "+esc(meta.eventDates):""}</div></div>
         </div>
-        ${isFirstPage&&!coverHTML?`<h1>${esc(e.name)}</h1><h2>${esc(e.sub)}</h2>`:""}
-        ${isFirstPage&&e.tzBanner?`<div style="background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;padding:9px 14px;font-size:9.5pt;color:#1e5ab0;margin-bottom:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact">⏰ <strong>${esc(e.tzBanner)}</strong></div>`:""}
+        ${showHeading?`<h1>${esc(e.name)}</h1><h2>${esc(e.sub)}</h2>`:""}
+        ${isEntityStart&&e.tzBanner?`<div style="background:#eff6ff;border-left:3px solid #3399ff;border-radius:4px;padding:9px 14px;font-size:9.5pt;color:#1e5ab0;margin-bottom:14px;-webkit-print-color-adjust:exact;print-color-adjust:exact">⏰ <strong>${esc(e.tzBanner)}</strong></div>`:""}
         <table>
           <tr><td colspan="5" class="dh">${esc(sec.dayLabel)}</td></tr>
           <tr class="th"><th>Time</th><th>Company / Meeting</th><th>Type</th><th>Location</th><th>Status</th></tr>

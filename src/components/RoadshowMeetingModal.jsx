@@ -1,6 +1,6 @@
 // ── RoadshowMeetingModal.jsx ──
 import { useEffect, useRef, useState } from "react";
-import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour, getAllFunds, isMultiFund, fundLabel, PRIMARY_FUND_ID } from "../roadshow.jsx";
+import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
 
@@ -254,7 +254,6 @@ Latin Securities`;
                           }
                         }}/>
                       <span style={{fontWeight:checked?600:400,color:checked?"var(--cream)":"var(--dim)"}}>{fundLabel(f)}</span>
-                      {f.id===PRIMARY_FUND_ID&&<span style={{fontSize:8,padding:"1px 5px",background:"rgba(30,90,176,.18)",color:"var(--gold)",borderRadius:3,fontFamily:"IBM Plex Mono,monospace"}}>PRINCIPAL</span>}
                     </label>
                   );
                 })}

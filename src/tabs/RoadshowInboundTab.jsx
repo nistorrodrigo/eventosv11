@@ -10,7 +10,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, PRIMARY_FUND_ID, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -262,7 +262,7 @@ export function RoadshowInboundTab({
                   </div>
                   {extras.length===0&&(
                     <div style={{fontSize:10,color:"var(--dim)",fontStyle:"italic"}}>
-                      El fondo principal arriba es el único hoy. Agregá fondos extra acá para invitar varios al mismo evento; después en cada reunión vas a poder elegir si es <em>común</em> (todos asisten) o <em>específica</em> de un fondo.
+                      Por ahora el viaje tiene un solo fondo (el de arriba). Agregá más fondos acá para armar un investor trip con varios; después en cada reunión vas a poder elegir si es <em>común</em> (todos asisten) o <em>específica</em> de un fondo.
                     </div>
                   )}
                   {extras.map((f,fi)=>(
@@ -1585,11 +1585,11 @@ export function RoadshowInboundTab({
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:"rgba(123,53,176,.04)",border:"1px solid rgba(123,53,176,.18)",borderRadius:7,flexWrap:"wrap"}}>
                   <span style={{fontSize:11,color:"#7b35b0",fontWeight:600}}>🏛 Para qué fondo:</span>
                   <select className="sel" style={{fontSize:11,padding:"4px 8px",minWidth:230,maxWidth:340}} value={pdfFundId} onChange={e=>setPdfFundId(e.target.value)}>
-                    <option value="">Combinado · todas las reuniones (uso interno)</option>
-                    {getAllFunds(roadshow.trip).map(f=><option key={f.id} value={f.id}>{fundLabel(f)}{f.id===PRIMARY_FUND_ID?" (principal)":""}</option>)}
+                    <option value="">Combinado · una agenda por fondo</option>
+                    {getAllFunds(roadshow.trip).map(f=><option key={f.id} value={f.id}>{fundLabel(f)}</option>)}
                   </select>
                   <span style={{fontSize:10,color:"var(--dim)",flex:1,minWidth:180}}>
-                    {pdfFundId?`El PDF muestra solo las reuniones que asisten ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})} (comunes + sus específicas).`:"Para mandar a un fondo puntual, elegí ese fondo y se filtran solo sus reuniones."}
+                    {pdfFundId?`El PDF muestra solo las reuniones que asisten ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})} (comunes + sus específicas).`:"Combinado arma una agenda separada para cada fondo (reuniones comunes + las suyas). Para uno solo, elegilo arriba."}
                   </span>
                 </div>
               )}
@@ -1597,21 +1597,42 @@ export function RoadshowInboundTab({
                 {(()=>{
                   // Build the HTML once; both export options share it.
                   const buildAgendaHTML=()=>{
-                    const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:pdfFundId||null});
-                    if(!e){toast(pdfFundId?"Ese fondo no tiene reuniones marcadas.":"Agregá reuniones al roadshow primero.");return null;}
-                    const fundForTitle=pdfFundId?getAllFunds(roadshow.trip).find(x=>x.id===pdfFundId):null;
-                    const eventTitle=fundForTitle?fundLabel(fundForTitle):(roadshow.trip.fund||roadshow.trip.clientName||"Buenos Aires Roadshow");
-                    const meta={...config,eventTitle,eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel};
+                    const trip=roadshow.trip;
+                    const allFunds=getAllFunds(trip);
+                    const combinedMulti=isMultiFund(trip)&&!pdfFundId;
                     const tzSuf=pdfTz!==BASE_TZ?"_"+(TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"):"";
-                    const fundSuf=fundForTitle?"_"+fundLabel(fundForTitle).replace(/[^a-zA-Z0-9]+/g,"_"):"";
+                    let entities,coverOverride=null,eventTitle,fundSuf="";
+                    if(combinedMulti){
+                      // Combined export = one self-contained agenda per fund (common + fund-specific
+                      // meetings). No fund "heads" the document.
+                      entities=allFunds.map(f=>rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:f.id})).filter(Boolean);
+                      if(!entities.length){toast("Agregá reuniones al roadshow primero.");return null;}
+                      eventTitle=trip.fund||trip.clientName||"Buenos Aires Roadshow";
+                      coverOverride={
+                        title:"Buenos Aires Roadshow",
+                        names:allFunds.map(f=>({
+                          name:fundLabel(f),
+                          title:(f.visitors||[]).filter(v=>v.name).map(v=>v.name+(v.title?" — "+v.title:"")).join(" · "),
+                        })),
+                        dateLabel:tripDays.length?new Date(tripDays[0]+"T12:00:00").toLocaleDateString("en-US",{month:"long",year:"numeric"}):"",
+                      };
+                    }else{
+                      const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:pdfFundId||null});
+                      if(!e){toast(pdfFundId?"Ese fondo no tiene reuniones marcadas.":"Agregá reuniones al roadshow primero.");return null;}
+                      entities=[e];
+                      const fundForTitle=pdfFundId?allFunds.find(x=>x.id===pdfFundId):null;
+                      eventTitle=fundForTitle?fundLabel(fundForTitle):(trip.fund||trip.clientName||"Buenos Aires Roadshow");
+                      fundSuf=fundForTitle?"_"+fundLabel(fundForTitle).replace(/[^a-zA-Z0-9]+/g,"_"):"";
+                    }
+                    const meta={...config,eventTitle,eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):"",venue:roadshow.trip.hotel,coverOverride};
                     const filename=`${eventTitle.replace(/[^a-zA-Z0-9]+/g,"_")}_Schedule${fundSuf}${tzSuf}.html`;
-                    return{html:buildPrintHTML([e],meta),filename};
+                    return{html:buildPrintHTML(entities,meta),filename};
                   };
                   return(<>
                     <div className="ex-card" role="button" tabIndex={0} onClick={()=>{const r=buildAgendaHTML();if(r)openPrint(r.html);}}>
                       <div className="ex-card-ico">📄</div>
                       <div className="ex-card-t">PDF — Vista previa (imprimir)</div>
-                      <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}{isMultiFund(roadshow.trip)&&pdfFundId?` · solo ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})}`:isMultiFund(roadshow.trip)?" · combinado":""}. <em style={{color:"var(--dim)"}}>Ctrl+P → Save as PDF.</em></div>
+                      <div className="ex-card-s">Formato LS, English{pdfTz!==BASE_TZ?` · horas en ${TIMEZONES.find(t=>t.value===pdfTz)?.short||"local"}`:""}{isMultiFund(roadshow.trip)&&pdfFundId?` · solo ${fundLabel(getAllFunds(roadshow.trip).find(f=>f.id===pdfFundId)||{})}`:isMultiFund(roadshow.trip)?" · una agenda por fondo":""}. <em style={{color:"var(--dim)"}}>Ctrl+P → Save as PDF.</em></div>
                     </div>
                     <div className="ex-card" role="button" tabIndex={0} onClick={()=>{const r=buildAgendaHTML();if(!r)return;downloadBlob(r.filename,r.html,"text/html;charset=utf-8");toastOk("✅ HTML descargado — abrilo y hacé Ctrl+P → Save as PDF");}} style={{borderColor:"#16a34a30",background:"linear-gradient(135deg,#f8fff8,#f0fdf4)"}}>
                       <div className="ex-card-ico">💾</div>

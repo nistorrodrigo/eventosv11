@@ -2,7 +2,7 @@
 import { normalizeFund, COMPANIES_INIT, DEFAULT_DAYS, INTEREST_LABELS, INTEREST_COLORS, NEXT_LABELS } from "../constants.jsx";
 import { downloadBlob } from "../storage.jsx";
 import { getMeetingAddress, applyBATraffic, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
-import { fmtDateRange, fmtHour, fmtHourInTZ, BASE_TZ, TIMEZONES, tzOffsetLabel, getAllFunds, fundLabel, PRIMARY_FUND_ID, isMultiFund } from "../roadshow.jsx";
+import { fmtDateRange, fmtHour, fmtHourInTZ, BASE_TZ, TIMEZONES, tzOffsetLabel, getAllFunds, fundLabel, isMultiFund } from "../roadshow.jsx";
 import { COVER_CSS, buildCoverHTML } from "../storage.jsx";
 
 // ── Excel export with LS brand colors ─────────────────────────────
@@ -567,7 +567,7 @@ export function _exportOrganizerSummary({roadshow, openPrint, tz=BASE_TZ}){
     const visitors=(f.visitors||[]).filter(v=>v.name);
     const clr=fundClrById.get(f.id);
     return `<tr>
-      <td style="padding:5px 10px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${clr};margin-right:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span><strong style="color:#000039">${escH(fundLabel(f))}</strong>${f.id===PRIMARY_FUND_ID?` <span style="font-size:7.5pt;color:#9ca3af">(principal)</span>`:""}</td>
+      <td style="padding:5px 10px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${clr};margin-right:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span><strong style="color:#000039">${escH(fundLabel(f))}</strong></td>
       <td style="padding:5px 10px;font-size:9pt;color:#374151">${visitors.length?visitors.map(v=>escH(v.name)+(v.title?` <span style="color:#9ca3af">(${escH(v.title)})</span>`:"")).join(" · "):'<span style="color:#9ca3af">— sin visitantes cargados —</span>'}</td>
     </tr>`;
   }).join("");
