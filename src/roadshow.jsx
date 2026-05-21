@@ -234,7 +234,22 @@ export function rsToEntity(rs,rsCos,opts={}){
     })(),
     visitors:effVisitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
-    rows:byDay[date].map(m=>{const co=m.type==="company"?rm.get(m.companyId):null;
+    rows:byDay[date].flatMap((m,idx)=>{const co=m.type==="company"?rm.get(m.companyId):null;
+      // Short location label for the "Traslado desde X a Y" travel row.
+      const shortLoc=(mm)=>{
+        if(!mm) return "";
+        const c=mm.type==="company"?rm.get(mm.companyId):null;
+        if(mm.location==="virtual") return PLATFORM_LABELS[mm.meetingPlatform]||"Virtual";
+        if(mm.location==="ls_office") return "Latin Securities";
+        if(mm.location==="hq") return c?c.name:"HQ";
+        return mm.locationCustom||"destino";
+      };
+      // Travel row before this meeting (skip the first of the day, skip if 0 min)
+      const travelRows=[];
+      if(idx>0&&m.travelMinutes>0){
+        const prev=byDay[date][idx-1];
+        travelRows.push({travelRow:true,travelText:`Traslado desde ${shortLoc(prev)} a ${shortLoc(m)} · ${m.travelMinutes} min aprox.`});
+      }
       const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const locL=m.location==="virtual"?rawLoc:stripNeighborhood(rawLoc);
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
@@ -259,8 +274,8 @@ export function rsToEntity(rs,rsCos,opts={}){
       })();
       const fmt=m.meetingFormat||"Meeting";
         const col1Name=co?(co.name+(co.ticker?" ("+co.ticker+")":"")):(m.lsType||m.title||"Meeting");
-      return{time:fmtH(m.hour,m.date),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
-        col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col5:st};})
+      return[...travelRows,{time:fmtH(m.hour,m.date),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
+        col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col5:st}];})
   })),
   // Optional banner for the PDF when times are not BA local
   tzBanner:isOtherTz?(()=>{

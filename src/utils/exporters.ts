@@ -572,6 +572,16 @@ export function _exportOrganizerSummary({roadshow, openPrint, tz=BASE_TZ}){
     </tr>`;
   }).join("");
 
+  // Short location label for travel rows ("desde X a Y")
+  const shortLoc=mm=>{
+    if(!mm) return "";
+    const c=mm.type==="company"?coMap.get(mm.companyId):null;
+    if(mm.location==="virtual") return PLATFORM_LABELS[mm.meetingPlatform]||"Virtual";
+    if(mm.location==="ls_office") return "Latin Securities";
+    if(mm.location==="hq") return c?c.name:"HQ";
+    return mm.locationCustom||"destino";
+  };
+
   // Per-day meeting rows
   const dayBlocks=days.map(date=>{
     const rows=byDay[date].map((m,idx)=>{
@@ -603,7 +613,7 @@ export function _exportOrganizerSummary({roadshow, openPrint, tz=BASE_TZ}){
       const st=m.status==="confirmed"?`<span style="color:#166534;font-weight:700">✓</span>`:`<span style="color:#854d0e">◌</span>`;
       // Travel-time row before this meeting (skip the first of the day)
       const travelRow=(idx>0&&m.travelMinutes>0)
-        ?`<tr><td colspan="${multi?5:4}" style="padding:3px 10px;background:#fff7ed;font-size:8.5pt;color:#9a3412;-webkit-print-color-adjust:exact;print-color-adjust:exact">🚗 ${m.travelMinutes} min de traslado</td></tr>`
+        ?`<tr><td colspan="${multi?5:4}" style="padding:3px 10px;background:#fff7ed;font-size:8.5pt;color:#9a3412;-webkit-print-color-adjust:exact;print-color-adjust:exact">🚗 Traslado desde ${escH(shortLoc(byDay[date][idx-1]))} a ${escH(shortLoc(m))} · ${m.travelMinutes} min aprox.</td></tr>`
         :"";
       return `${travelRow}<tr style="border-bottom:1px solid #f3f4f6">
         <td style="padding:7px 10px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#1e5ab0;white-space:nowrap;vertical-align:top">${fmtH(m.hour,m.date)}</td>

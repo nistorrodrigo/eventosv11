@@ -207,6 +207,8 @@ tr:last-child td{border-bottom:none}
 .co-name{font-weight:700;font-size:10.5pt;color:#111827}
 .co-tick{display:inline-block;font-size:8pt;font-weight:600;color:#fff;background:#1e5ab0;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
 .reps{font-size:9pt;color:#4b5563;margin-top:2px;line-height:1.4}
+/* Travel row */
+.travel-row td{background:#fff7ed;font-size:9pt;color:#9a3412;padding:5px 12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 /* Footer */
 .page-footer{margin-top:18px;padding-top:10px;border-top:1.5px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;font-size:8pt;color:#9ca3af}
 .footer-brand{font-weight:700;color:#000039;letter-spacing:.08em;text-transform:uppercase}
@@ -234,6 +236,10 @@ ${(()=>{
       const isLastPage=ei===entities.length-1&&si===e.sections.length-1;
       // Rows
       const rowsHtml=sec.rows.map((r,i)=>{
+        // Travel row — full-width amber strip between two meetings
+        if(r.travelRow){
+          return `<tr class="travel-row"><td colspan="5">🚗 ${esc(r.travelText)}</td></tr>`;
+        }
         const st=r.col5||r.col4||"";
         const typ=r.col3||"";
         const loc=r.col4||(r.col5?"":r.col3)||"";
