@@ -730,8 +730,15 @@ Daily Summary — ${dayLabel}
     const [syncStatus,setSyncStatus]=useState("idle"); // "idle"|"syncing"|"synced"|"offline"
     const _lastSaveId=useRef(""); // track last save to avoid realtime echo
     useEffect(()=>{
-      if(authUser&&!cloudLoaded){loadFromCloud(authUser.id);setCloudLoaded(true);}
+      if(authUser&&!cloudLoaded) loadFromCloud(authUser.id);
     },[authUser]);// eslint-disable-line
+    // If the first cloud load failed (device offline / transient error), retry
+    // when the network comes back so this device stops showing a stale local copy.
+    useEffect(()=>{
+      const retry=()=>{if(authUser&&!cloudLoaded&&navigator.onLine) loadFromCloud(authUser.id);};
+      window.addEventListener("online",retry);
+      return()=>window.removeEventListener("online",retry);
+    },[authUser,cloudLoaded]);// eslint-disable-line
 
     // Supabase Realtime: sync changes from other devices
     useEffect(()=>{
@@ -765,7 +772,17 @@ Daily Summary — ${dayLabel}
 
   async function loadFromCloud(userId){
     // Load own events
-    const{data:evRows}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
+    const{data:evRows,error:evErr}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
+    if(evErr){
+      // Cloud read failed (offline / transient error). Do NOT fall through to the
+      // "first login" migration below — that would upsert this device's possibly
+      // stale localStorage over the cloud copy and make the two devices diverge.
+      // Keep the local copy, stay "offline", and let the online-retry effect run.
+      setSyncStatus("offline");
+      toastWarn("⚠ No se pudo cargar desde la nube — mostrando la copia local de este dispositivo. Reintento al volver la conexión.");
+      console.error("[CloudLoad] Failed:",evErr.message);
+      return; // cloudLoaded stays false ⇒ retry effect will try again
+    }
     let allEvs=[];
     if(evRows?.length){
       allEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,owner_id:userId,...r.data}));
@@ -805,8 +822,9 @@ Daily Summary — ${dayLabel}
     }
     if(allEvs.length){setEvents(allEvs);saveEvents(allEvs);setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:allEvs[0]?.id||null);}
     // Load library
-    const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).single();
+    const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).maybeSingle();
     if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
+    setCloudLoaded(true); // mark loaded only after a successful cloud read
   }
 
   const _pendingSave=useRef(null); // queued event for retry
