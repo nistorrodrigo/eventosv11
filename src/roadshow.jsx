@@ -235,7 +235,7 @@ export function rsToEntity(rs,rsCos,opts={}){
     visitors:effVisitors.map(v=>v.name+(v.title?" · "+v.title:"")),
     sections:days.map(date=>({dayLabel:fmtLong(date),headerCols:["Time","Company / Meeting","Representatives","Type","Location","Status"],
     rows:byDay[date].flatMap((m,idx)=>{const co=m.type==="company"?rm.get(m.companyId):null;
-      // Short location label for the "Traslado desde X a Y" travel row.
+      // Short location label for the "Travel from X to Y" travel row.
       const shortLoc=(mm)=>{
         if(!mm) return "";
         const c=mm.type==="company"?rm.get(mm.companyId):null;
@@ -248,7 +248,7 @@ export function rsToEntity(rs,rsCos,opts={}){
       const travelRows=[];
       if(idx>0&&m.travelMinutes>0){
         const prev=byDay[date][idx-1];
-        travelRows.push({travelRow:true,travelText:`Traslado desde ${shortLoc(prev)} a ${shortLoc(m)} · ${m.travelMinutes} min aprox.`});
+        travelRows.push({travelRow:true,travelText:`Travel from ${shortLoc(prev)} to ${shortLoc(m)} · approx. ${m.travelMinutes} min`});
       }
       const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const locL=m.location==="virtual"?rawLoc:stripNeighborhood(rawLoc);
