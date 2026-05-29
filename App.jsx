@@ -5,7 +5,8 @@ import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "
 import { exportHistoricalHTML, _exportExcel, _exportDriverItinerary, _exportRoadshowSummary, _exportCompanyBrief, _exportPostRoadshowReport, _exportOrganizerSummary } from "./src/utils/exporters.ts";
 import { parseInvestorFile, parsePrevYearFile, parseHistoricalInvestorFile, parseRoadshowCompaniesFile, parseDBCompaniesFile, parseDBInvestorsFile, parseRoadshowMeetingsFile, parseInvestorEmail } from "./src/utils/parsers.ts";
 import { FocusTrap } from "./src/components/FocusTrap.tsx";
-import { SettingsModal } from "./src/components/SettingsModal.jsx";
+// SettingsModal is lazy-loaded (see lazy() block below) — it only renders when the
+// user opens Settings, so there's no reason to ship it in the main bundle.
 import { useAuth } from "./src/contexts/AuthContext.tsx";
 import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
@@ -51,9 +52,12 @@ import { CSS } from "./src/styles.js";
 // ── Roadshow: constants, email, ICS, booking ──────────────────────
 import {
   ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, RS_TRIP_DEF, RS_COS_DEF,
-  genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal,
+  genRSEmail, rsToEntity,
   parseICS, buildICS, buildBookingPage,
 } from "./src/roadshow.jsx";
+// RoadshowAgendaEmailModal / DailyBriefingEmailModal are consumed only inside
+// RoadshowInboundTab (already lazy) — pulling them in here was forcing them
+// into the main bundle. Removed.
 
 // ── Travel / geo routing ───────────────────────────────────────────
 import {
@@ -65,17 +69,22 @@ import {
 // ── UI Components ──────────────────────────────────────────────────
 import { DatePicker, DayDateInput } from "./src/components/DatePicker.jsx";
 import { INTEREST_LEVELS, FEEDBACK_TOPICS, NEXT_STEPS, FeedbackWidget } from "./src/components/FeedbackWidget.jsx";
-import { KioskModal } from "./src/components/KioskModal.jsx";
-import { RoadshowMeetingModal } from "./src/components/RoadshowMeetingModal.jsx";
-import { RoadshowEmailModal } from "./src/components/RoadshowEmailModal.jsx";
-import { InvestorModal } from "./src/components/InvestorModal.jsx";
-import { CompanyModal } from "./src/components/CompanyModal.jsx";
-import { MeetingModal } from "./src/components/MeetingModal.jsx";
+// KioskModal, RoadshowMeetingModal, RoadshowEmailModal are only used inside
+// RoadshowInboundTab (already lazy). Importing them here statically pinned
+// them in the main bundle for no reason — removed so they ship with the tab.
+// InvestorModal / CompanyModal / MeetingModal / SettingsModal only render on a
+// click (profile open, edit a meeting, open settings). Lazy-loading them moves
+// ~50 KB of seldom-used UI out of the main bundle.
 // Lazy-loaded tabs for bundle splitting
 const DashboardView = lazy(() => import("./src/tabs/DashboardView.jsx").then(m=>({default:m.DashboardView})));
 const RoadshowInboundTab = lazy(() => import("./src/tabs/RoadshowInboundTab.jsx").then(m=>({default:m.RoadshowInboundTab})));
 const RoadshowOutboundTab = lazy(() => import("./src/tabs/RoadshowOutboundTab.jsx").then(m=>({default:m.RoadshowOutboundTab})));
 const LibraryTab = lazy(() => import("./src/tabs/LibraryTab.jsx").then(m=>({default:m.LibraryTab})));
+// Modals (only render on click)
+const SettingsModal = lazy(() => import("./src/components/SettingsModal.jsx").then(m=>({default:m.SettingsModal})));
+const InvestorModal = lazy(() => import("./src/components/InvestorModal.jsx").then(m=>({default:m.InvestorModal})));
+const CompanyModal  = lazy(() => import("./src/components/CompanyModal.jsx").then(m=>({default:m.CompanyModal})));
+const MeetingModal  = lazy(() => import("./src/components/MeetingModal.jsx").then(m=>({default:m.MeetingModal})));
 
 export default function App(){
   // ── Events (persistence) ──────────────────────────────────────
@@ -1227,19 +1236,22 @@ Daily Summary — ${dayLabel}
     <input ref={rsExcelRef}     type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsExcel}/>
     <input ref={rsMtgsExcelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleRsMeetingsExcel}/>
 
-    {/* MODALS */}
-    {invProfile&&<InvestorModal inv={invProfile} investors={investors} meetings={meetings} companies={companies} config={config}
-      fundGrouping={fundGrouping} allSlots={allSlots}
-      onUpdateInv={u=>{setInvestors(prev=>prev.map(i=>i.id===u.id?u:i));setInvProfile(u);}}
-      onToggleFundGroup={(fund,val)=>setFundGrouping(p=>({...p,[fund]:val}))}
-      onExport={exportInvestor} coById={coById} onClose={()=>setInvProfile(null)}/>}
-    {coProfile&&<CompanyModal co={coProfile} meetings={meetings} investors={investors} allSlots={allSlots}
-      onUpdateCo={u=>{setCompanies(prev=>prev.map(c=>c.id===u.id?u:c));setCoProfile(u);}}
-      onExport={exportCompany} invById={invById} onClose={()=>setCoProfile(null)}/>}
-    {modal&&<MeetingModal mode={modal.mode} meeting={modal.meeting} investors={investors} meetings={meetings}
-      companies={companies} allSlots={allSlots} rooms={rooms} config={config}
-      onSave={handleMeetingSave} onDelete={()=>{setMeetings(prev=>prev.filter(m=>m.id!==modal.meeting.id));setModal(null);}}
-      onClose={()=>setModal(null)}/>}
+    {/* MODALS — wrapped in Suspense so the lazy chunk can fetch on first open.
+        fallback={null} ⇒ nothing flashes while the modal code arrives. */}
+    <Suspense fallback={null}>
+      {invProfile&&<InvestorModal inv={invProfile} investors={investors} meetings={meetings} companies={companies} config={config}
+        fundGrouping={fundGrouping} allSlots={allSlots}
+        onUpdateInv={u=>{setInvestors(prev=>prev.map(i=>i.id===u.id?u:i));setInvProfile(u);}}
+        onToggleFundGroup={(fund,val)=>setFundGrouping(p=>({...p,[fund]:val}))}
+        onExport={exportInvestor} coById={coById} onClose={()=>setInvProfile(null)}/>}
+      {coProfile&&<CompanyModal co={coProfile} meetings={meetings} investors={investors} allSlots={allSlots}
+        onUpdateCo={u=>{setCompanies(prev=>prev.map(c=>c.id===u.id?u:c));setCoProfile(u);}}
+        onExport={exportCompany} invById={invById} onClose={()=>setCoProfile(null)}/>}
+      {modal&&<MeetingModal mode={modal.mode} meeting={modal.meeting} investors={investors} meetings={meetings}
+        companies={companies} allSlots={allSlots} rooms={rooms} config={config}
+        onSave={handleMeetingSave} onDelete={()=>{setMeetings(prev=>prev.filter(m=>m.id!==modal.meeting.id));setModal(null);}}
+        onClose={()=>setModal(null)}/>}
+    </Suspense>
 
     {/* HEADER */}
     <header className="hdr">
@@ -2886,7 +2898,11 @@ Daily Summary — ${dayLabel}
 
     </main>
     </Suspense>
-    {settingsOpen && <SettingsModal onClose={()=>setSettingsOpen(false)} />}
+    {settingsOpen && (
+      <Suspense fallback={null}>
+        <SettingsModal onClose={()=>setSettingsOpen(false)} />
+      </Suspense>
+    )}
     </EventProvider>
   </div>
   );
