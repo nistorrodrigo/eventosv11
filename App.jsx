@@ -824,11 +824,12 @@ Daily Summary — ${dayLabel}
     // Load shared events
     const userEmail=authUser?.email?.toLowerCase();
     if(userEmail){
-      const{data:shares}=await supabase.from("ls_event_shares").select("event_id,role,shared_with_id").eq("shared_with_email",userEmail);
+      // Column is `invited_email` (older code used `shared_with_email` which doesn't exist).
+      const{data:shares}=await supabase.from("ls_event_shares").select("event_id,role,shared_with_id").eq("invited_email",userEmail);
       if(shares?.length){
         // Update shared_with_id if not set (first time this user logs in after being shared)
         for(const s of shares){
-          if(!s.shared_with_id) await supabase.from("ls_event_shares").update({shared_with_id:userId}).eq("event_id",s.event_id).eq("shared_with_email",userEmail);
+          if(!s.shared_with_id) await supabase.from("ls_event_shares").update({shared_with_id:userId}).eq("event_id",s.event_id).eq("invited_email",userEmail);
         }
         // Load shared event data
         const sharedIds=shares.map(s=>s.event_id).filter(id=>!allEvs.find(e=>e.id===id));
@@ -917,10 +918,12 @@ Daily Summary — ${dayLabel}
   async function addShare(){
     if(!shareModal||!shareEmail.trim()||!authUser) return;
     const email=shareEmail.trim().toLowerCase();
-    // Look up user by email
-    const {data:users}=await supabase.from("ls_event_shares").select("shared_with_email").eq("event_id",shareModal.evId).eq("shared_with_email",email);
+    // Look up by email. Column is `invited_email` in the live schema
+    // (the previous `shared_with_email` name didn't exist, so the
+    // duplicate-check and the share itself were silently failing).
+    const {data:users}=await supabase.from("ls_event_shares").select("invited_email").eq("event_id",shareModal.evId).eq("invited_email",email);
     if(users?.length){toast("Este email ya tiene acceso.");return;}
-    const{error}=await supabase.from("ls_event_shares").insert({event_id:shareModal.evId,owner_id:authUser.id,shared_with_email:email,role:shareRole});
+    const{error}=await supabase.from("ls_event_shares").insert({event_id:shareModal.evId,owner_id:authUser.id,invited_email:email,role:shareRole});
     if(error){toastErr("No se pudo compartir: "+error.message);return;}
     toastOk(`✅ Compartido con ${email} como ${shareRole}`);
     openShareModal(shareModal.evId); // refresh
@@ -1422,7 +1425,7 @@ Daily Summary — ${dayLabel}
                 {shareModal.shares.map(s=>(
                   <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--ink3)",borderRadius:6}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12,color:"var(--cream)",fontWeight:600}}>{s.shared_with_email}</div>
+                      <div style={{fontSize:12,color:"var(--cream)",fontWeight:600}}>{s.invited_email}</div>
                     </div>
                     <select className="sel" style={{width:90,fontSize:10,padding:"2px 6px"}} value={s.role} onChange={e=>updateShareRole(s.id,e.target.value)}>
                       <option value="viewer">👁 Ver</option>

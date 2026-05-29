@@ -9,15 +9,25 @@
 -- ║  so they can be reviewed, audited and re-applied if dashboard    ║
 -- ║  state drifts.                                                   ║
 -- ║                                                                  ║
+-- ║  COLUMN NAMING                                                   ║
+-- ║  --------------                                                  ║
+-- ║  ls_event_shares has TWO id columns: `invited_user_id` (the user ║
+-- ║  the owner originally invited by email) and `shared_with_id`     ║
+-- ║  (the user who actually accepted / signed in). Both can match    ║
+-- ║  auth.uid() depending on flow. The email column is               ║
+-- ║  `invited_email` (NOT shared_with_email — the client code has    ║
+-- ║  been using the wrong name and the email-based share lookups     ║
+-- ║  have been silently broken).                                     ║
+-- ║                                                                  ║
 -- ║  KEY SECURITY FIX                                                ║
 -- ║  --------------------                                            ║
 -- ║  The public booking page (anonymous users) inserts rows into     ║
--- ║  `roadshow_bookings` and supplies `owner_id` from the slot it    ║
--- ║  just claimed. A malicious client could forge `owner_id` to      ║
--- ║  point at any user, polluting their bookings queue. The trigger  ║
--- ║  below (`booking_owner_from_slot`) OVERRIDES whatever the client ║
--- ║  sends with the value from the matching slot row, so the slot    ║
--- ║  table is the single source of truth.                            ║
+-- ║  `roadshow_bookings` and used to supply `owner_id` from the      ║
+-- ║  client. A malicious caller could forge that to point at any     ║
+-- ║  user's queue. The trigger `booking_owner_from_slot` below       ║
+-- ║  OVERRIDES whatever the client sends with the value from the     ║
+-- ║  matching slot row — the slot table is the single source of      ║
+-- ║  truth for ownership.                                            ║
 -- ║                                                                  ║
 -- ║  HOW TO APPLY                                                    ║
 -- ║  1. supabase.com/dashboard → SQL Editor → New Query              ║
@@ -27,27 +37,32 @@
 -- ╚══════════════════════════════════════════════════════════════════╝
 
 -- ════════════════════════════════════════════════════════════════════
--- ls_events — one row per saved event, owned by the creator. Sharing
--- is read-only at the share-row level (ls_event_shares).
+-- ls_events
 -- ════════════════════════════════════════════════════════════════════
 ALTER TABLE IF EXISTS public.ls_events ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "owner reads own events"  ON public.ls_events;
-DROP POLICY IF EXISTS "shared reads"            ON public.ls_events;
-DROP POLICY IF EXISTS "owner writes own events" ON public.ls_events;
-DROP POLICY IF EXISTS "owner updates own events" ON public.ls_events;
-DROP POLICY IF EXISTS "owner deletes own events" ON public.ls_events;
+DROP POLICY IF EXISTS "owner reads own events"      ON public.ls_events;
+DROP POLICY IF EXISTS "shared reads"                ON public.ls_events;
+DROP POLICY IF EXISTS "owner writes own events"     ON public.ls_events;
+DROP POLICY IF EXISTS "owner updates own events"    ON public.ls_events;
+DROP POLICY IF EXISTS "owner deletes own events"    ON public.ls_events;
 DROP POLICY IF EXISTS "editor writes shared events" ON public.ls_events;
 
 CREATE POLICY "owner reads own events" ON public.ls_events
   FOR SELECT USING (user_id = auth.uid());
 
+-- A user can read an event when they appear on a share row for it,
+-- either as the resolved `shared_with_id`, the originally-invited
+-- `invited_user_id`, or by their JWT email matching `invited_email`.
 CREATE POLICY "shared reads" ON public.ls_events
   FOR SELECT USING (EXISTS (
     SELECT 1 FROM public.ls_event_shares s
      WHERE s.event_id = ls_events.id
-       AND (s.shared_with_id = auth.uid()
-         OR lower(s.shared_with_email) = lower((auth.jwt() ->> 'email')))
+       AND (
+            s.shared_with_id  = auth.uid()
+         OR s.invited_user_id = auth.uid()
+         OR lower(s.invited_email) = lower((auth.jwt() ->> 'email'))
+       )
   ));
 
 CREATE POLICY "owner writes own events" ON public.ls_events
@@ -57,38 +72,43 @@ CREATE POLICY "owner updates own events" ON public.ls_events
   FOR UPDATE USING (user_id = auth.uid())
              WITH CHECK (user_id = auth.uid());
 
--- Editors (not viewers) on shared events can also UPDATE
 CREATE POLICY "editor writes shared events" ON public.ls_events
   FOR UPDATE USING (EXISTS (
     SELECT 1 FROM public.ls_event_shares s
      WHERE s.event_id = ls_events.id
        AND s.role = 'editor'
-       AND (s.shared_with_id = auth.uid()
-         OR lower(s.shared_with_email) = lower((auth.jwt() ->> 'email')))
+       AND (
+            s.shared_with_id  = auth.uid()
+         OR s.invited_user_id = auth.uid()
+         OR lower(s.invited_email) = lower((auth.jwt() ->> 'email'))
+       )
   ));
 
 CREATE POLICY "owner deletes own events" ON public.ls_events
   FOR DELETE USING (user_id = auth.uid());
 
 -- ════════════════════════════════════════════════════════════════════
--- ls_event_shares — the owner of the underlying event controls all
--- writes. The shared-with user can only SELECT their own share row.
+-- ls_event_shares
 -- ════════════════════════════════════════════════════════════════════
 ALTER TABLE IF EXISTS public.ls_event_shares ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "owner manages shares"            ON public.ls_event_shares;
-DROP POLICY IF EXISTS "shared user reads own share"     ON public.ls_event_shares;
-DROP POLICY IF EXISTS "owner inserts shares"            ON public.ls_event_shares;
-DROP POLICY IF EXISTS "owner updates shares"            ON public.ls_event_shares;
-DROP POLICY IF EXISTS "owner deletes shares"            ON public.ls_event_shares;
+DROP POLICY IF EXISTS "owner manages shares"        ON public.ls_event_shares;
+DROP POLICY IF EXISTS "invited user reads own share" ON public.ls_event_shares;
+DROP POLICY IF EXISTS "owner inserts shares"        ON public.ls_event_shares;
+DROP POLICY IF EXISTS "owner updates shares"        ON public.ls_event_shares;
+DROP POLICY IF EXISTS "owner deletes shares"        ON public.ls_event_shares;
 
 CREATE POLICY "owner manages shares" ON public.ls_event_shares
   FOR SELECT USING (owner_id = auth.uid());
 
-CREATE POLICY "shared user reads own share" ON public.ls_event_shares
-  FOR SELECT USING (shared_with_id = auth.uid()
-                 OR lower(shared_with_email) = lower((auth.jwt() ->> 'email')));
+CREATE POLICY "invited user reads own share" ON public.ls_event_shares
+  FOR SELECT USING (
+       shared_with_id  = auth.uid()
+    OR invited_user_id = auth.uid()
+    OR lower(invited_email) = lower((auth.jwt() ->> 'email'))
+  );
 
+-- Owner creates shares only for events they own.
 CREATE POLICY "owner inserts shares" ON public.ls_event_shares
   FOR INSERT WITH CHECK (
     owner_id = auth.uid()
@@ -96,16 +116,25 @@ CREATE POLICY "owner inserts shares" ON public.ls_event_shares
                  WHERE e.id = event_id AND e.user_id = auth.uid())
   );
 
+-- Owner can edit share rows; the invited user can ALSO update
+-- their own row to set `shared_with_id` to themselves on first
+-- sign-in (the client does this in loadFromCloud after we resolve
+-- their auth.uid()).
 CREATE POLICY "owner updates shares" ON public.ls_event_shares
-  FOR UPDATE USING (owner_id = auth.uid())
-             WITH CHECK (owner_id = auth.uid());
+  FOR UPDATE USING (
+       owner_id = auth.uid()
+    OR lower(invited_email) = lower((auth.jwt() ->> 'email'))
+  )
+  WITH CHECK (
+       owner_id = auth.uid()
+    OR lower(invited_email) = lower((auth.jwt() ->> 'email'))
+  );
 
 CREATE POLICY "owner deletes shares" ON public.ls_event_shares
   FOR DELETE USING (owner_id = auth.uid());
 
 -- ════════════════════════════════════════════════════════════════════
--- ls_global_db — per-user library of companies/investors. Strictly
--- owner-only.
+-- ls_global_db
 -- ════════════════════════════════════════════════════════════════════
 ALTER TABLE IF EXISTS public.ls_global_db ENABLE ROW LEVEL SECURITY;
 
@@ -114,9 +143,9 @@ DROP POLICY IF EXISTS "owner writes own db"  ON public.ls_global_db;
 DROP POLICY IF EXISTS "owner updates own db" ON public.ls_global_db;
 DROP POLICY IF EXISTS "owner deletes own db" ON public.ls_global_db;
 
-CREATE POLICY "owner reads own db"  ON public.ls_global_db
+CREATE POLICY "owner reads own db"   ON public.ls_global_db
   FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "owner writes own db" ON public.ls_global_db
+CREATE POLICY "owner writes own db"  ON public.ls_global_db
   FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY "owner updates own db" ON public.ls_global_db
   FOR UPDATE USING (user_id = auth.uid())
@@ -125,19 +154,16 @@ CREATE POLICY "owner deletes own db" ON public.ls_global_db
   FOR DELETE USING (user_id = auth.uid());
 
 -- ════════════════════════════════════════════════════════════════════
--- roadshow_slots — published bookable slots. The OWNER (authenticated
--- LS user) creates/deletes; ANONYMOUS visitors only SELECT and DELETE
--- a single slot (the race-win during booking).
+-- roadshow_slots
 -- ════════════════════════════════════════════════════════════════════
 ALTER TABLE IF EXISTS public.roadshow_slots ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "anyone reads slots"          ON public.roadshow_slots;
-DROP POLICY IF EXISTS "owner manages slots insert"  ON public.roadshow_slots;
-DROP POLICY IF EXISTS "owner manages slots update"  ON public.roadshow_slots;
-DROP POLICY IF EXISTS "owner manages slots delete"  ON public.roadshow_slots;
-DROP POLICY IF EXISTS "anon claims one slot"        ON public.roadshow_slots;
+DROP POLICY IF EXISTS "anyone reads slots"         ON public.roadshow_slots;
+DROP POLICY IF EXISTS "owner manages slots insert" ON public.roadshow_slots;
+DROP POLICY IF EXISTS "owner manages slots update" ON public.roadshow_slots;
+DROP POLICY IF EXISTS "owner manages slots delete" ON public.roadshow_slots;
+DROP POLICY IF EXISTS "anon claims one slot"       ON public.roadshow_slots;
 
--- Public can read available slots (the booking page is anonymous)
 CREATE POLICY "anyone reads slots" ON public.roadshow_slots
   FOR SELECT USING (true);
 
@@ -151,21 +177,19 @@ CREATE POLICY "owner manages slots update" ON public.roadshow_slots
 CREATE POLICY "owner manages slots delete" ON public.roadshow_slots
   FOR DELETE USING (owner_id = auth.uid());
 
--- Anonymous booking page deletes ONE matching slot to claim it. Without
--- this policy, anon visitors can't race-win a slot.
+-- Anonymous booking page deletes ONE matching slot to claim it.
 CREATE POLICY "anon claims one slot" ON public.roadshow_slots
   FOR DELETE USING (auth.role() = 'anon');
 
 -- ════════════════════════════════════════════════════════════════════
--- roadshow_bookings — confirmed/pending bookings from the public page.
--- Owner reads/updates/deletes their own; anon visitors can INSERT.
+-- roadshow_bookings
 -- ════════════════════════════════════════════════════════════════════
 ALTER TABLE IF EXISTS public.roadshow_bookings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "owner reads bookings"    ON public.roadshow_bookings;
-DROP POLICY IF EXISTS "owner updates bookings"  ON public.roadshow_bookings;
-DROP POLICY IF EXISTS "owner deletes bookings"  ON public.roadshow_bookings;
-DROP POLICY IF EXISTS "anon inserts bookings"   ON public.roadshow_bookings;
+DROP POLICY IF EXISTS "owner reads bookings"   ON public.roadshow_bookings;
+DROP POLICY IF EXISTS "owner updates bookings" ON public.roadshow_bookings;
+DROP POLICY IF EXISTS "owner deletes bookings" ON public.roadshow_bookings;
+DROP POLICY IF EXISTS "anon inserts bookings"  ON public.roadshow_bookings;
 
 CREATE POLICY "owner reads bookings" ON public.roadshow_bookings
   FOR SELECT USING (owner_id = auth.uid());
@@ -177,25 +201,20 @@ CREATE POLICY "owner updates bookings" ON public.roadshow_bookings
 CREATE POLICY "owner deletes bookings" ON public.roadshow_bookings
   FOR DELETE USING (owner_id = auth.uid());
 
--- Anonymous visitors can insert — but only with valid event/slot data.
--- The trigger below scrubs the client-supplied owner_id.
+-- Anonymous visitors can insert; trigger below sets owner_id.
 CREATE POLICY "anon inserts bookings" ON public.roadshow_bookings
   FOR INSERT WITH CHECK (auth.role() = 'anon');
 
 -- ════════════════════════════════════════════════════════════════════
--- TRIGGER: derive owner_id from a slot for the same event_id +
--- slot_date + slot_hour, ignoring whatever the client sent. This is
--- defence-in-depth: even if the booking page is tampered with, the
--- attacker can't write a booking pointing at a victim's owner_id.
+-- TRIGGER: derive owner_id from the matching slot, ignoring whatever
+-- the client sends. Defence-in-depth — even with a tampered booking
+-- page, the attacker can't write a booking pointing at someone else.
 -- ════════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.booking_owner_from_slot()
 RETURNS TRIGGER AS $$
 DECLARE
   derived UUID;
 BEGIN
-  -- Find the owner_id from a published slot row matching this booking.
-  -- (The slot is normally deleted in the same transaction; this trigger
-  -- runs BEFORE INSERT, so the row is still there.)
   SELECT s.owner_id INTO derived
     FROM public.roadshow_slots s
    WHERE s.event_id  = NEW.event_id
@@ -203,8 +222,8 @@ BEGIN
      AND s.slot_hour = NEW.slot_hour
    LIMIT 1;
 
-  -- Fallback: derive from the event's owner (covers the brief window
-  -- between slot DELETE and booking INSERT in the booking-page flow).
+  -- Fallback to the event owner if the slot row was already deleted
+  -- in the same transaction (the booking-page flow deletes-then-inserts).
   IF derived IS NULL THEN
     SELECT e.user_id INTO derived
       FROM public.ls_events e
@@ -232,5 +251,3 @@ CREATE TRIGGER roadshow_bookings_owner_from_slot
 -- SELECT count(*) FROM public.ls_events;          -- only your events
 -- SELECT count(*) FROM public.ls_global_db;       -- 0 or 1 (yours)
 -- SELECT count(*) FROM public.roadshow_bookings;  -- only your bookings
---
--- As anon (no auth header), only SELECT on roadshow_slots should succeed.
