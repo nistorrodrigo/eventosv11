@@ -229,21 +229,27 @@ export default function BookingPage({eventId}){
     }
     const claimedSlot=deleted[0];
 
-    // 2. Slot is ours — insert the booking
+    // 2. Slot is ours — insert the booking. We deliberately do NOT send
+    //    owner_id from the client: the server-side trigger
+    //    `booking_owner_from_slot` (migration 20260521_rls_hardening.sql)
+    //    derives it from the slot row, so a tampered client can't point
+    //    a booking at someone else's owner_id to pollute their queue.
     const confirmCode="RS-"+Date.now().toString(36).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
-    const ownerId=claimedSlot.owner_id;
     const linkSuffix=form.location==="virtual"&&form.meetingLink.trim()?` · 🔗 ${form.meetingLink.trim()}`:"";
     const {error:insErr}=await supabase.from("roadshow_bookings").insert({
       event_id:eventId, slot_date:claimedSlot.slot_date, slot_hour:claimedSlot.slot_hour,
       company:form.company.trim(), contact_name:form.name.trim(), email:form.email.trim(),
       phone:form.phone.trim()||null, location_pref:form.location,
       notes:(form.notes.trim()+linkSuffix).trim()||null,
-      confirm_code:confirmCode, owner_id:ownerId
+      confirm_code:confirmCode
     });
 
     if(insErr){
       // Best-effort rollback: put the slot back so the next visitor can book it.
       // Even if this fails, the owner can re-publish slots from the agenda.
+      // owner_id is whatever the slot table told us; under hardened RLS only
+      // the slot's original owner can re-insert, but a failed rollback here
+      // is non-fatal — the owner can always re-publish.
       await supabase.from("roadshow_slots").insert({
         event_id:claimedSlot.event_id,
         event_label:claimedSlot.event_label,

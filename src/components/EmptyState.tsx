@@ -15,7 +15,7 @@ const ILLUSTRATIONS = {
   money: (
     <svg viewBox="0 0 120 100" fill="none" style={{width:120,height:100}}>
       <rect x="15" y="25" width="90" height="50" rx="10" fill="#e8edf5" stroke="#c7d4e8" strokeWidth="1.5"/>
-      <circle cx="60" cy="50" r="15" fill="#1e5ab0" opacity=".1" stroke="#1e5ab0" strokeWidth="1" opacity=".2"/>
+      <circle cx="60" cy="50" r="15" fill="#1e5ab0" stroke="#1e5ab0" strokeWidth="1" opacity=".2"/>
       <text x="60" y="55" textAnchor="middle" fontSize="16" fill="#1e5ab0" fontWeight="700" opacity=".4">$</text>
       <rect x="25" y="35" width="8" height="8" rx="4" fill="#c7d4e8"/><rect x="87" y="57" width="8" height="8" rx="4" fill="#c7d4e8"/>
     </svg>

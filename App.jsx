@@ -9,6 +9,16 @@ import { SettingsModal } from "./src/components/SettingsModal.jsx";
 import { useAuth } from "./src/contexts/AuthContext.tsx";
 import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
+import { RoadshowSchema } from "./src/schemas.ts";
+// Run a stored roadshow blob through the Zod schema so defaults (funds:[],
+// attendingFundIds:[], travelMinutes:0, etc.) are filled in for events saved
+// before those fields existed. Falls back to the raw blob if parse fails so
+// a malformed event still loads (the user can fix it from the UI).
+function normalizeRoadshow(rs){
+  if(!rs||typeof rs!=="object") return rs;
+  const r=RoadshowSchema.safeParse(rs);
+  return r.success?r.data:rs;
+}
 // Lucide icons removed — caused "sr is not a constructor" in production build
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.tsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
@@ -92,18 +102,23 @@ export default function App(){
 
   const currentEvent = events.find(e=>e.id===activeEv);
 
-  // Debounced cloud save — avoids Supabase write on every keystroke
-  const _cloudSaveTimer=useRef(null);
+  // Debounced cloud save — avoids Supabase write on every keystroke. Keyed by
+  // event id so editing event A then quickly switching to B no longer cancels
+  // A's still-pending save (the single-ref version would lose A's edits).
+  const _cloudSaveTimers=useRef(new Map()); // eventId → timer id
   const _unlockedEvents=useRef(new Set()); // events unlocked by password this session
   function saveCurrentEvent(patch){
     _lastLocalEdit.current=Date.now();
+    const evId=activeEv;
     setEvents(prev=>{
-      const next=prev.map(e=>e.id===activeEv?{...e,...patch,_updatedAt:Date.now()}:e);
+      const next=prev.map(e=>e.id===evId?{...e,...patch,_updatedAt:Date.now()}:e);
       saveEvents(next);
-      const updated=next.find(e=>e.id===activeEv);
+      const updated=next.find(e=>e.id===evId);
       if(updated){
-        clearTimeout(_cloudSaveTimer.current);
-        _cloudSaveTimer.current=setTimeout(()=>cloudSaveEvent(updated),1500);
+        const prevTimer=_cloudSaveTimers.current.get(evId);
+        if(prevTimer) clearTimeout(prevTimer);
+        const tid=setTimeout(()=>{_cloudSaveTimers.current.delete(evId);cloudSaveEvent(updated);},1500);
+        _cloudSaveTimers.current.set(evId,tid);
       }
       return next;
     });
@@ -140,7 +155,7 @@ export default function App(){
   const [outbound,setOutbound]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.outbound||OB_DEF;}catch{return OB_DEF;}});
   function saveOutbound(ob){setOutbound(ob);saveCurrentEvent({outbound:ob});}
   const [obSubTab,setObSubTab]=useState("schedule");
-  const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
+  const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return normalizeRoadshow(ev?.roadshow)||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
   const [rsMtgModal,setRsMtgModal]=useState(null);
   const [rsDayFilter,setRsDayFilter]=useState(null); // null=all days, "YYYY-MM-DD"=single day
   const [kioskMode,setKioskMode]=useState(false);
@@ -194,8 +209,12 @@ export default function App(){
   async function hashPwd(pwd){ const b=new TextEncoder().encode(pwd); const h=await crypto.subtle.digest("SHA-256",b); return Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,"0")).join(""); }
   function setEvPassword(evId, pwd){
     hashPwd(pwd).then(hash=>{
-      const next=events.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined}:e);
-      setEvents(next); saveEvents(next);
+      // Use the functional setter so we don't race against concurrent edits.
+      setEvents(prev=>{
+        const next=prev.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined}:e);
+        saveEvents(next);
+        return next;
+      });
       toast(pwd?"🔒 Contraseña configurada.":"🔓 Contraseña eliminada.");
     });
   }
@@ -350,7 +369,7 @@ export default function App(){
   function exportRoadshowSummary(tz){ _exportRoadshowSummary({roadshow, openPrint, tz}); }
   function exportPostRoadshowReport(tz){ _exportPostRoadshowReport({roadshow, openPrint, tz}); }
   function exportOrganizerSummary(tz){ _exportOrganizerSummary({roadshow, openPrint, tz}); }
-  function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, openPrint}); }
+  function exportCompanyBrief(co){ _exportCompanyBrief({co, roadshow, config, openPrint}); }
   // exportRoadshowPDF removed — the agenda PDF export is now inlined in RoadshowInboundTab's
   // Export subtab so it can pick up the user-selected pdfTz. Kept the prop name out of the tab's
   // destructuring; nothing else calls this.
@@ -728,7 +747,10 @@ Daily Summary — ${dayLabel}
     // Load from cloud when auth user changes (auth state managed by AuthContext)
     const [cloudLoaded,setCloudLoaded]=useState(false);
     const [syncStatus,setSyncStatus]=useState("idle"); // "idle"|"syncing"|"synced"|"offline"
-    const _lastSaveId=useRef(""); // track last save to avoid realtime echo
+    // Track last save hash per event so the realtime echo can be suppressed
+    // without colliding across events (the old length-based key clobbered echoes
+    // between different events whose payloads happened to be the same byte-length).
+    const _lastSaveHash=useRef(new Map()); // eventId → content hash of last save
     useEffect(()=>{
       if(authUser&&!cloudLoaded) loadFromCloud(authUser.id);
     },[authUser]);// eslint-disable-line
@@ -747,8 +769,10 @@ Daily Summary — ${dayLabel}
         .on("postgres_changes",{event:"*",schema:"public",table:"ls_events",filter:`user_id=eq.${authUser.id}`},payload=>{
           if(payload.eventType==="UPDATE"||payload.eventType==="INSERT"){
             const r=payload.new;
-            // Skip if this is our own save (avoid echo)
-            if(_lastSaveId.current===r.id+"-"+JSON.stringify(r.data).length) return;
+            // Skip if this is our own save (avoid echo). Compare full content hash
+            // per event so two different events with same-length payloads don't
+            // suppress each other's legitimate updates.
+            if(_lastSaveHash.current.get(r.id)===_hashEv(r.data)) return;
             // Conflict detection: if we edited locally in the last 5 seconds, warn
             const timeSinceLocalEdit=Date.now()-_lastLocalEdit.current;
             if(timeSinceLocalEdit<5000&&r.id===activeEv){
@@ -827,37 +851,63 @@ Daily Summary — ${dayLabel}
     setCloudLoaded(true); // mark loaded only after a successful cloud read
   }
 
-  const _pendingSave=useRef(null); // queued event for retry
+  // Queue offline-failed saves per event id. A single ref used to lose A's
+  // queued edit when the user switched to B and edited there.
+  const _pendingSaves=useRef(new Map()); // eventId → event payload
   const _lastLocalEdit=useRef(0); // timestamp of last local edit
+  // Small DJB2-ish hash of the data blob — full-content fingerprint, used for
+  // realtime echo suppression. Collisions are fine: a worst-case false-positive
+  // only delays one update by the next save round-trip.
+  function _hashEv(data){
+    const s=JSON.stringify(data||{});
+    let h=5381;for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0;
+    return h;
+  }
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
-    _lastSaveId.current=id+"-"+JSON.stringify(data).length;
+    _lastSaveHash.current.set(id,_hashEv(data));
     setSyncStatus("syncing");
     try{
       await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id}));
-      setSyncStatus("synced");_pendingSave.current=null;setTimeout(()=>setSyncStatus("idle"),2000);
+      setSyncStatus("synced");_pendingSaves.current.delete(id);setTimeout(()=>setSyncStatus("idle"),2000);
     }catch(err){
       setSyncStatus("offline");
-      _pendingSave.current=ev; // queue for retry when back online
+      _pendingSaves.current.set(id,ev); // queue per-event for retry when back online
       toastWarn("⚠ Sin conexión — los cambios se guardarán cuando vuelva internet.");
       console.error("[CloudSave] Failed:",err.message);
     }
   }
-  // Retry pending saves when connection returns
+  // Retry pending saves when connection returns — flushes every queued event,
+  // not just the most recent one.
   useEffect(()=>{
-    const retry=()=>{if(_pendingSave.current&&navigator.onLine){cloudSaveEvent(_pendingSave.current);}};
+    const retry=()=>{
+      if(!navigator.onLine||!_pendingSaves.current.size) return;
+      for(const ev of Array.from(_pendingSaves.current.values())) cloudSaveEvent(ev);
+    };
     window.addEventListener("online",retry);
     return()=>window.removeEventListener("online",retry);
   },[authUser]);
   async function cloudDeleteEvent(evId){
     if(!authUser) return;
-    await supabase.from("ls_events").delete().eq("id",evId).eq("user_id",authUser.id);
+    const{error}=await supabase.from("ls_events").delete().eq("id",evId).eq("user_id",authUser.id);
+    if(error){toastErr("No se pudo borrar de la nube: "+error.message);console.error("[CloudDelete]",error);}
   }
   async function cloudSaveGlobalDB(db){
     if(!authUser) return;
-    await supabase.from("ls_global_db").upsert({user_id:authUser.id,data:db});
+    const{error}=await supabase.from("ls_global_db").upsert({user_id:authUser.id,data:db});
+    if(error){toastErr("No se pudo guardar la biblioteca en la nube: "+error.message);console.error("[CloudSaveDB]",error);}
   }
+  // Cancel pending cloud saves and queued retries on sign-out so a debounced
+  // upsert can't fire under a (possibly different) re-logged-in user.
+  useEffect(()=>{
+    if(authUser) return;
+    for(const tid of _cloudSaveTimers.current.values()) clearTimeout(tid);
+    _cloudSaveTimers.current.clear();
+    _pendingSaves.current.clear();
+    _lastSaveHash.current.clear();
+    setCloudLoaded(false);
+  },[authUser]);// eslint-disable-line
 
   // ── Event sharing ────────────────────────────────────────────
   async function openShareModal(evId){
@@ -870,16 +920,19 @@ Daily Summary — ${dayLabel}
     // Look up user by email
     const {data:users}=await supabase.from("ls_event_shares").select("shared_with_email").eq("event_id",shareModal.evId).eq("shared_with_email",email);
     if(users?.length){toast("Este email ya tiene acceso.");return;}
-    await supabase.from("ls_event_shares").insert({event_id:shareModal.evId,owner_id:authUser.id,shared_with_email:email,role:shareRole});
+    const{error}=await supabase.from("ls_event_shares").insert({event_id:shareModal.evId,owner_id:authUser.id,shared_with_email:email,role:shareRole});
+    if(error){toastErr("No se pudo compartir: "+error.message);return;}
     toastOk(`✅ Compartido con ${email} como ${shareRole}`);
     openShareModal(shareModal.evId); // refresh
   }
   async function removeShare(shareId){
-    await supabase.from("ls_event_shares").delete().eq("id",shareId);
+    const{error}=await supabase.from("ls_event_shares").delete().eq("id",shareId);
+    if(error){toastErr("No se pudo revocar el acceso: "+error.message);return;}
     if(shareModal) openShareModal(shareModal.evId);
   }
   async function updateShareRole(shareId,newRole){
-    await supabase.from("ls_event_shares").update({role:newRole}).eq("id",shareId);
+    const{error}=await supabase.from("ls_event_shares").update({role:newRole}).eq("id",shareId);
+    if(error){toastErr("No se pudo cambiar el rol: "+error.message);return;}
     if(shareModal) openShareModal(shareModal.evId);
   }
 
@@ -1036,7 +1089,7 @@ Daily Summary — ${dayLabel}
   const CONF_TAB_IDS=["upload","investors","companies","schedule","feedback","export","historical"];
   useEffect(()=>{
     const ev=events.find(e=>e.id===activeEv);
-    setRoadshow(ev?.roadshow||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
+    setRoadshow(normalizeRoadshow(ev?.roadshow)||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
     setOutbound(ev?.outbound||OB_DEF);
     // Jump to correct default tab for this event kind
     if(ev?.kind==="roadshow") setTab(t=>CONF_TAB_IDS.includes(t)||t==="config"?"roadshow":t==="outbound"?"roadshow":t);

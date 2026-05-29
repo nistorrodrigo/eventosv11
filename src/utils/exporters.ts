@@ -377,10 +377,12 @@ ${days.some(d=>byDay[d].some(m=>m.postNotes))?`<div class="sec-title">Post-Meeti
 }
 
 // ── Company Brief one-pager ───────────────────────────────────────
-export function _exportCompanyBrief({co, roadshow, openPrint}){
+export function _exportCompanyBrief({co, roadshow, config, openPrint}){
   const mtg=(roadshow.meetings||[]).find(m=>m.type==="company"&&m.companyId===co.id);
   const trip=roadshow.trip;
   const fmtH=fmtHour;
+  // LS contact selected for this trip (used in the QR `mailto:` at the footer)
+  const lsCont=(config?.contacts||[])[trip.lsContactIdx||0]||{};
   const locStr=!mtg?"TBD":mtg.location==="virtual"?((PLATFORM_ICONS[mtg.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[mtg.meetingPlatform]||"Virtual meeting")+(mtg.meetingLink?" — "+mtg.meetingLink:"")):mtg.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):mtg.location==="hq"?(co.hqAddress||co.name+" HQ"):(mtg.locationCustom||"TBD");
   const dateStr=mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"Sin fecha";
   const contacts=(co.contacts||[]).filter(c=>c.name);const selIds=mtg?.attendeeIds||[];const mtgContacts=selIds.length?contacts.filter(c=>selIds.includes(c.id)):contacts;
@@ -586,7 +588,9 @@ export function _exportOrganizerSummary({roadshow, openPrint, tz=BASE_TZ}){
   const dayBlocks=days.map(date=>{
     const rows=byDay[date].map((m,idx)=>{
       const co=m.type==="company"?coMap.get(m.companyId):null;
-      const name=co?`${co.name}${co.ticker?` (${co.ticker})`:""}`:(m.lsType||m.title||"Reunión");
+      // HTML-escape — these go straight into the organizer-summary HTML and
+      // can carry arbitrary user input from the company library.
+      const name=co?`${escH(co.name)}${co.ticker?` (${escH(co.ticker)})`:""}`:escH(m.lsType||m.title||"Reunión");
       const isVirt=m.location==="virtual";
       const loc=isVirt
         ?`${PLATFORM_ICONS[m.meetingPlatform]||"💻"} ${PLATFORM_LABELS[m.meetingPlatform]||"Virtual"}${m.meetingLink?` · <span style="font-family:monospace;font-size:8pt;color:#1e5ab0">${escH(m.meetingLink)}</span>`:""}`

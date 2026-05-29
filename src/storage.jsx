@@ -97,7 +97,12 @@ export function downloadBlob(name,content,type){const blob=new Blob([content],{t
 /* ═══════════════════════════════════════════════════════════════════
    EXPORT HTML builders
 ═══════════════════════════════════════════════════════════════════ */
-export const esc =s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// HTML-escape — covers all 5 characters so the result is safe in both
+// element-content AND attribute positions (`href="…"`, `style="…"`, etc.).
+export const esc =s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Safe URL for `href`/`src` — strips anything that isn't http(s) / mailto / tel
+// to neutralise `javascript:` and `data:` payloads in user-supplied meeting links.
+export const safeUrl=u=>{const s=String(u||"").trim();return /^(https?:|mailto:|tel:)/i.test(s)?s:"";};
 
 // Open a printable HTML doc in a new tab.
 //
