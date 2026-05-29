@@ -1,5 +1,5 @@
 // ── RoadshowInboundTab.jsx — Inbound Roadshow view ──────────────────
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { supabase } from "../../supabase.js";
 import { toast, toastOk, toastErr, toastWarn, toastProgress, toastClear } from "../components/Toast.tsx";
 import { SkeletonCard } from "../components/Skeleton.tsx";
@@ -10,7 +10,12 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, RoadshowAgendaEmailModal, DailyBriefingEmailModal, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
+// Heavy email-modal templates live in their own chunk so the InboundTab JS
+// payload doesn't carry ~400 LOC of HTML strings unless the user actually
+// clicks ✉️ Email or 🌅 Daily.
+const RoadshowAgendaEmailModal = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.RoadshowAgendaEmailModal})));
+const DailyBriefingEmailModal  = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.DailyBriefingEmailModal})));
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -1894,22 +1899,26 @@ export function RoadshowInboundTab({
             </div>
           )}
 
-          {rsAgendaEmailModal&&<RoadshowAgendaEmailModal
-            roadshow={roadshow}
-            rsCos={roadshow.companies}
-            tripDays={tripDays}
-            lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
-            resendKey={resendKey}
-            onClose={()=>setRsAgendaEmailModal(false)}
-          />}
-          {rsDailyEmailModal&&<DailyBriefingEmailModal
-            roadshow={roadshow}
-            rsCos={roadshow.companies}
-            tripDays={tripDays}
-            lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
-            resendKey={resendKey}
-            onClose={()=>setRsDailyEmailModal(false)}
-          />}
+          {/* Email modals are lazy — the templates only load on the first
+              open. fallback={null} keeps the click feeling instant. */}
+          <Suspense fallback={null}>
+            {rsAgendaEmailModal&&<RoadshowAgendaEmailModal
+              roadshow={roadshow}
+              rsCos={roadshow.companies}
+              tripDays={tripDays}
+              lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
+              resendKey={resendKey}
+              onClose={()=>setRsAgendaEmailModal(false)}
+            />}
+            {rsDailyEmailModal&&<DailyBriefingEmailModal
+              roadshow={roadshow}
+              rsCos={roadshow.companies}
+              tripDays={tripDays}
+              lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
+              resendKey={resendKey}
+              onClose={()=>setRsDailyEmailModal(false)}
+            />}
+          </Suspense>
           {kioskMode&&<KioskModal
             roadshow={roadshow}
             tripDays={tripDays}
