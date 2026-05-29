@@ -10,16 +10,9 @@ import { FocusTrap } from "./src/components/FocusTrap.tsx";
 import { useAuth } from "./src/contexts/AuthContext.tsx";
 import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
-import { RoadshowSchema } from "./src/schemas.ts";
-// Run a stored roadshow blob through the Zod schema so defaults (funds:[],
-// attendingFundIds:[], travelMinutes:0, etc.) are filled in for events saved
-// before those fields existed. Falls back to the raw blob if parse fails so
-// a malformed event still loads (the user can fix it from the UI).
-function normalizeRoadshow(rs){
-  if(!rs||typeof rs!=="object") return rs;
-  const r=RoadshowSchema.safeParse(rs);
-  return r.success?r.data:rs;
-}
+// Cloud-sync pure helpers (extracted for testability — see
+// src/__tests__/cloudSync.test.js for the spec).
+import { hashEventData, normalizeRoadshow } from "./src/utils/cloudSync.ts";
 // Lucide icons removed — caused "sr is not a constructor" in production build
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.tsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
@@ -781,7 +774,7 @@ Daily Summary — ${dayLabel}
             // Skip if this is our own save (avoid echo). Compare full content hash
             // per event so two different events with same-length payloads don't
             // suppress each other's legitimate updates.
-            if(_lastSaveHash.current.get(r.id)===_hashEv(r.data)) return;
+            if(_lastSaveHash.current.get(r.id)===hashEventData(r.data)) return;
             // Conflict detection: if we edited locally in the last 5 seconds, warn
             const timeSinceLocalEdit=Date.now()-_lastLocalEdit.current;
             if(timeSinceLocalEdit<5000&&r.id===activeEv){
@@ -865,18 +858,10 @@ Daily Summary — ${dayLabel}
   // queued edit when the user switched to B and edited there.
   const _pendingSaves=useRef(new Map()); // eventId → event payload
   const _lastLocalEdit=useRef(0); // timestamp of last local edit
-  // Small DJB2-ish hash of the data blob — full-content fingerprint, used for
-  // realtime echo suppression. Collisions are fine: a worst-case false-positive
-  // only delays one update by the next save round-trip.
-  function _hashEv(data){
-    const s=JSON.stringify(data||{});
-    let h=5381;for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0;
-    return h;
-  }
   async function cloudSaveEvent(ev){
     if(!authUser) return;
     const{id,name,kind,...data}=ev;
-    _lastSaveHash.current.set(id,_hashEv(data));
+    _lastSaveHash.current.set(id,hashEventData(data));
     setSyncStatus("syncing");
     try{
       await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id}));
