@@ -631,9 +631,13 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
   }
   const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
   const fund=trip.fund||trip.clientName||"Inversores";
-  // SLOTS feeds a `<script>` literal — use JSON.stringify so a malicious
-  // fund/day value can't break out of the array literal.
-  const slotList=slots.map(({day,h})=>`{id:${JSON.stringify(`${day}-${h}`)},day:${JSON.stringify(fmtDay(day))},hour:${h}}`).join(",");
+  // Values that get interpolated inside a `<script>` element need both JSON
+  // string escaping AND `<` neutralisation — JSON.stringify alone doesn't
+  // touch `<`, so a literal `</script>` inside the string would close the
+  // script element to the HTML parser. `<` is identical to `<` once the
+  // JS string is parsed but is invisible to the HTML tokeniser.
+  const jsLit=s=>JSON.stringify(String(s==null?"":s)).replace(/</g,"\\u003c");
+  const slotList=slots.map(({day,h})=>`{id:${jsLit(`${day}-${h}`)},day:${jsLit(fmtDay(day))},hour:${h}}`).join(",");
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Solicitar horario — ${esc(fund)} | Latin Securities</title>
@@ -674,9 +678,10 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
 </div>
 <script>
 const SLOTS=[${slotList}];
-const FUND=${JSON.stringify(fund)};
+const FUND=${jsLit(fund)};
+const TAKEN_KEY=${jsLit(`rs_taken_${trip.arrivalDate||""}${trip.departureDate||""}`)};
 let selectedSlot=null;
-const taken=JSON.parse(localStorage.getItem("rs_taken_${trip.arrivalDate||''}${trip.departureDate||''}")||"{}");
+const taken=JSON.parse(localStorage.getItem(TAKEN_KEY)||"{}");
 
 function render(){
   const grouped={};
@@ -707,7 +712,7 @@ function submitBooking(){
   const email=document.getElementById("fEmail").value.trim();
   if(!co||!name||!email||!selectedSlot){alert("Completá los campos obligatorios.");return;}
   taken[selectedSlot.id]={company:co,name,email,ts:Date.now()};
-  localStorage.setItem("rs_taken_${trip.arrivalDate||''}${trip.departureDate||''}",JSON.stringify(taken));
+  localStorage.setItem(TAKEN_KEY,JSON.stringify(taken));
   const code=btoa(JSON.stringify({slot:selectedSlot.id,company:co,name,email,fund:FUND,loc:document.getElementById("fLoc").value,link:document.getElementById("fLink")?.value||"",notes:document.getElementById("fNotes").value,ts:Date.now()}));
   document.getElementById("confirmCode").textContent=code;
   document.getElementById("successBox").style.display="block";
