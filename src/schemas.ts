@@ -11,7 +11,10 @@ export const ContactSchema = z.object({
 });
 
 // ── Company ──
-export const CompanySchema = z.object({
+// looseObject: unknown keys must SURVIVE normalizeRoadshow — a stricter schema
+// here silently deletes user data on the next cloud-sync round-trip (that is
+// how custom-meeting titles were lost in Aug/2026).
+export const CompanySchema = z.looseObject({
   id: z.string().min(1),
   name: z.string().min(1, "Nombre de empresa requerido"),
   ticker: z.string().default(""),
@@ -20,10 +23,12 @@ export const CompanySchema = z.object({
   contacts: z.array(ContactSchema).default([]),
   notes: z.string().default(""),
   active: z.boolean().default(true),
+  // Default meeting location when this company is picked ("ls_office" | "hq")
+  location: z.string().default("ls_office"),
 });
 
 // ── Meeting ──
-export const MeetingSchema = z.object({
+export const MeetingSchema = z.looseObject({
   id: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha debe ser YYYY-MM-DD"),
   hour: z.number().min(0).max(24),
@@ -38,6 +43,14 @@ export const MeetingSchema = z.object({
   notes: z.string().default(""),
   postNotes: z.string().default(""),
   meetingFormat: z.string().default("Meeting"),
+  // Descripción of "custom" meetings — the agenda PDF's first column
+  title: z.string().default(""),
+  // Label of "ls_internal" meetings (Research – Equities, etc.)
+  lsType: z.string().default(""),
+  // Free-text attendees for custom / ls_internal meetings
+  participants: z.string().default(""),
+  fullAddress: z.string().default(""),
+  voiceNote: z.string().nullable().default(null),
   attendeeIds: z.array(z.string()).default([]),
   // For multi-fund virtual events. Empty array ⇒ meeting is common (all invited
   // funds attend). When non-empty, only those fund IDs see this meeting in their
@@ -79,7 +92,7 @@ export const ExpenseSchema = z.object({
 });
 
 // ── Trip ──
-export const TripSchema = z.object({
+export const TripSchema = z.looseObject({
   clientName: z.string().default(""),
   fund: z.string().default(""),
   hotel: z.string().default(""),
@@ -89,6 +102,11 @@ export const TripSchema = z.object({
   officeAddress: z.string().default(""),
   mode: z.enum(["in_person", "virtual", "hybrid"]).default("in_person"),
   defaultMeetingLink: z.string().default(""),
+  lsContactIdx: z.number().default(0),
+  notes: z.string().default(""),
+  lsTeam: z.array(z.any()).default([]),
+  mapsApiKey: z.string().default(""),
+  resendKey: z.string().default(""),
   visitors: z.array(z.object({
     name: z.string().default(""),
     title: z.string().default(""),
@@ -112,7 +130,7 @@ export const TripSchema = z.object({
 });
 
 // ── Roadshow (full) ──
-export const RoadshowSchema = z.object({
+export const RoadshowSchema = z.looseObject({
   trip: TripSchema.default({}),
   meetings: z.array(MeetingSchema).default([]),
   companies: z.array(CompanySchema).default([]),
