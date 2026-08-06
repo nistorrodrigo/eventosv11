@@ -10,6 +10,35 @@ export function WeekCalendar({ tripDays, meetings, companies, meetingDuration, o
   const workDays = tripDays.filter(d => { const dow = new Date(d+"T12:00:00").getDay(); return dow !== 0 && dow !== 6; });
   const DN = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
+  // Column layout for overlapping meetings (Google Calendar style): meetings in
+  // the same overlap cluster split the day column side-by-side instead of
+  // stacking on top of each other (which hid all but the last one).
+  const layout = new Map(); // meeting id → { col, cols }
+  workDays.forEach(date => {
+    const ms = (meetings||[])
+      .filter(m => m.date === date && m.status !== "cancelled")
+      .sort((a,b) => a.hour - b.hour || (b.duration||dur) - (a.duration||dur));
+    let cluster = [];            // [{ m, col }] of the current overlap cluster
+    let colEnds = [];            // per-column end hour within the cluster
+    let clusterEnd = -Infinity;  // latest end hour seen in the cluster
+    const flush = () => {
+      if (!cluster.length) return;
+      const cols = Math.max(...cluster.map(c => c.col)) + 1;
+      cluster.forEach(c => layout.set(c.m.id, { col: c.col, cols }));
+      cluster = []; colEnds = [];
+    };
+    ms.forEach(m => {
+      const start = m.hour, end = m.hour + (m.duration||dur)/60;
+      if (start >= clusterEnd) flush();
+      clusterEnd = cluster.length ? Math.max(clusterEnd, end) : end;
+      let col = 0;
+      while (col < colEnds.length && colEnds[col] > start) col++;
+      colEnds[col] = end;
+      cluster.push({ m, col });
+    });
+    flush();
+  });
+
   return (
     <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", borderRadius:10, border:"1px solid rgba(30,90,176,.1)", background:"#fff" }}>
       <div style={{ display:"grid", gridTemplateColumns:`56px repeat(${workDays.length}, 1fr)`, minWidth: workDays.length * 140 + 56 }}>
@@ -61,13 +90,16 @@ export function WeekCalendar({ tripDays, meetings, companies, meetingDuration, o
                     const ticker = co?.ticker || "";
                     const clr = co ? (RS_CLR[co.sector] || "#666") : "#23a29e";
                     const topOffset = (m.hour - hour) * HOUR_H;
-                    const heightPx = (dur / 60) * HOUR_H - 2;
+                    const heightPx = ((m.duration||dur) / 60) * HOUR_H - 2;
                     const isConf = m.status === "confirmed";
+                    const L = layout.get(m.id) || { col: 0, cols: 1 };
                     return (
                       <div key={m.id} title={`${name} · ${fmtH(m.hour)} · Click para editar`}
                         onClick={e => { e.stopPropagation(); onClickMeeting && onClickMeeting(m); }}
                         style={{
-                          position:"absolute", top:topOffset, left:2, right:2, height:heightPx,
+                          position:"absolute", top:topOffset,
+                          left:`calc(${(L.col/L.cols)*100}% + 2px)`, width:`calc(${100/L.cols}% - 4px)`,
+                          height:heightPx,
                           background:`${clr}18`, borderLeft:`3px solid ${clr}`, borderRadius:4,
                           padding:"3px 6px", overflow:"hidden", cursor:"pointer", zIndex:1,
                           transition:"all .12s"

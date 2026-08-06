@@ -1018,6 +1018,26 @@ Daily Summary — ${dayLabel}
   }
   const rsCoById=useMemo(()=>new Map((roadshow.companies||[]).map(c=>[c.id,c])),[roadshow.companies]);
   const rsBySlot=useMemo(()=>{const m={};(roadshow.meetings||[]).forEach(mt=>{m[`${mt.date}-${mt.hour}`]=mt;});return m;},[roadshow.meetings]);
+  // Meetings the schedule grid would otherwise hide, keyed by the slot that DOES
+  // render: same-slot duplicates (rsBySlot keeps only one per date-hour) and
+  // meetings whose start falls inside another meeting's rowSpan (their own cell
+  // is skipped by the table layout). Rendered as extra chips in the visible cell.
+  const rsSlotExtras=useMemo(()=>{
+    const m={}; const seen={};
+    const add=(k,mt)=>{ if(!(seen[k]=seen[k]||new Set()).has(mt.id)){seen[k].add(mt.id);(m[k]=m[k]||[]).push(mt);} };
+    (roadshow.meetings||[]).forEach(mt=>{
+      const k=`${mt.date}-${mt.hour}`;
+      if(rsBySlot[k]&&rsBySlot[k].id!==mt.id) add(k,mt);
+    });
+    Object.entries(rsBySlot).forEach(([k,p])=>{
+      const end=p.hour+(p.duration||60)/60;
+      (roadshow.meetings||[]).forEach(mt=>{
+        if(mt.date!==p.date||mt.id===p.id) return;
+        if(mt.hour>p.hour&&mt.hour<end&&rsBySlot[`${mt.date}-${mt.hour}`]?.id===mt.id) add(k,mt);
+      });
+    });
+    return m;
+  },[roadshow.meetings,rsBySlot]);
   const rsOverlapSet=useMemo(()=>{
     const s=new Set(); const byDay={};
     (roadshow.meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
@@ -2799,7 +2819,7 @@ Daily Summary — ${dayLabel}
         dragMtg={dragMtg} setDragMtg={setDragMtg}
         rsEmailParser={rsEmailParser} setRsEmailParser={setRsEmailParser}
         travelLoading={travelLoading} setTravelLoading={setTravelLoading}
-        rsBySlot={rsBySlot} rsOverlapSet={rsOverlapSet}
+        rsBySlot={rsBySlot} rsSlotExtras={rsSlotExtras} rsOverlapSet={rsOverlapSet}
         search={search} setSearch={setSearch}
         exportBookingPage={exportBookingPage}
         exportRoadshowICS={exportRoadshowICS}

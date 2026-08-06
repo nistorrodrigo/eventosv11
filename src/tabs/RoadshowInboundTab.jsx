@@ -43,7 +43,7 @@ export function RoadshowInboundTab({
   dragMtg, setDragMtg,
   rsEmailParser, setRsEmailParser,
   travelLoading, setTravelLoading,
-  rsBySlot, rsOverlapSet,
+  rsBySlot, rsSlotExtras, rsOverlapSet,
   search, setSearch,
   exportBookingPage, exportRoadshowICS, exportRoadshowWord,
   handleRsEmailParse, openPrint,
@@ -783,6 +783,19 @@ export function RoadshowInboundTab({
                                     </div>
                                     {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
                                   </div>}
+                                  {(rsSlotExtras?.[`${date}-${h}`]||[]).map(x=>{
+                                    const xco=x.type==="company"?rsCoById.get(x.companyId):null;
+                                    const xclr=x.type==="company"?(RS_CLR[xco?.sector]||"#666"):"#23a29e";
+                                    const xlbl=x.type==="company"?(xco?.ticker||xco?.name?.slice(0,9)||"?"):(x.lsType?.split(" – ").pop()?.slice(0,9)||x.title?.slice(0,9)||"Int");
+                                    return(
+                                      <div key={x.id} title={`${x.type==="company"?(xco?.name||"?"):(x.lsType||x.title||"Reunión")} · ${fmtHour(x.hour)} · simultánea — click para editar`}
+                                        draggable onDragStart={()=>setDragMtg({id:x.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)}
+                                        onClick={e=>{e.stopPropagation();setRsMtgModal({date,hour:h,meeting:x});}}
+                                        style={{background:xclr,color:"#fff",borderRadius:4,padding:"2px 5px",fontSize:8.5,fontWeight:700,marginTop:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",outline:"2px solid #e05050",outlineOffset:"-2px",cursor:"pointer",opacity:dragMtg?.id===x.id?.4:1}}>
+                                        ⧉ {xlbl} {x.status==="confirmed"?"✓":x.status==="cancelled"?"✗":"○"}
+                                      </div>
+                                    );
+                                  })}
                                   {!mtg&&!isWE&&(()=>{
                                   // Check if this is a gap slot between two meetings — show travel info
                                   const dayMtgsSorted=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
@@ -1080,13 +1093,14 @@ export function RoadshowInboundTab({
                   return(
                     <div key={co.id} style={{border:`1px solid ${co.active?clr+"44":"rgba(30,90,176,.07)"}`,borderRadius:8,padding:"10px 12px",background:co.active?"#fff":"rgba(0,0,0,.01)",opacity:co.active?1:.6,transition:"all .15s"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:co.active?8:0}}>
-                        <div style={{width:34,height:34,borderRadius:6,background:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          <input style={{background:"transparent",border:"none",color:"#fff",width:34,textAlign:"center",fontFamily:"IBM Plex Mono,monospace",fontSize:9,fontWeight:700,padding:0,outline:"none"}} value={co.ticker} placeholder="TKR" onChange={e=>setCo("ticker",e.target.value.toUpperCase())}/>
+                        <div style={{width:34,height:34,borderRadius:6,background:clr,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",fontFamily:"IBM Plex Mono,monospace",fontSize:9,fontWeight:700}}>
+                          {(co.ticker||"").slice(0,4)||"—"}
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <input className="inp" style={{fontSize:12,fontWeight:600,padding:"3px 6px",marginBottom:3}} value={co.name} placeholder="Nombre empresa" onChange={e=>setCo("name",e.target.value)}/>
                           {co.name.length>=3&&(()=>{const dups=findDuplicates(co.name,[...roadshow.companies,...(globalDB.companies||[])],co.id);return dups.length?<div style={{fontSize:9,color:"#b45309",background:"#fef3c7",padding:"3px 8px",borderRadius:4,marginBottom:3}}>⚠ Posible duplicado: {dups.map(d=>d.name).join(", ")}</div>:null;})()}
                           <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                            <input className="inp" style={{fontSize:9,padding:"2px 4px",width:56,fontFamily:"IBM Plex Mono,monospace",flexShrink:0}} value={co.ticker||""} placeholder="Ticker" onChange={e=>setCo("ticker",e.target.value.toUpperCase())}/>
                             <select className="sel" style={{fontSize:9,padding:"2px 4px",flex:1}} value={co.sector} onChange={e=>setCo("sector",e.target.value)}>
                               {Object.keys(RS_CLR).filter(s=>s!=="LS Internal").map(s=><option key={s} value={s}>{s}</option>)}
                             </select>
