@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { INTEREST_LABELS, NEXT_LABELS } from "../constants.jsx";
-import { PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
+import { PLATFORM_LABELS, PLATFORM_ICONS, officeAddressOf } from "../travel.js";
 import { fmtHour, todayLocal } from "../roadshow.jsx";
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
@@ -17,7 +17,7 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
   const selIds=cur?.attendeeIds||[];
   const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
   const isCurVirt=cur?.location==="virtual";
-  const locStr=!cur?"":isCurVirt?((PLATFORM_ICONS[cur.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[cur.meetingPlatform]||"Reunión virtual")):cur.location==="ls_office"?(roadshow.trip.officeAddress||"Arenales 707, 6° Piso, CABA"):cur.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(cur.locationCustom||"TBD");
+  const locStr=!cur?"":isCurVirt?((PLATFORM_ICONS[cur.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[cur.meetingPlatform]||"Reunión virtual")):cur.location==="ls_office"?officeAddressOf(cur,roadshow.trip):cur.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(cur.locationCustom||"TBD");
   const fmtH=fmtHour;
   const dayDate=new Date(kioskDate+"T12:00:00");
   const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -166,7 +166,7 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
                   <span style={{flexShrink:0}}>{isCurVirt?"💻":"📍"}</span>
                   {isCurVirt
                     ?<span style={{fontSize:11,color:"rgba(255,255,255,.55)",lineHeight:1.5}}>{locStr}</span>
-                    :<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locStr)}`} target="_blank" rel="noreferrer" style={{fontSize:11,color:"#a5c4ff",lineHeight:1.5,textDecoration:"underline",textDecorationColor:"rgba(165,196,255,.35)"}}>{locStr} 🗺️</a>}
+                    :<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locStr)}`} target="_blank" rel="noreferrer" style={{fontSize:11,color:"#a5c4ff",lineHeight:1.5,textDecoration:"underline",textDecorationColor:"rgba(165,196,255,.35)"}}>{locStr}</a>}
                 </div>
                 {isCurVirt&&cur?.meetingLink&&(
                   <a href={cur.meetingLink} target="_blank" rel="noreferrer" style={{display:"inline-block",padding:"6px 10px",background:"rgba(74,158,255,.18)",border:"1px solid rgba(74,158,255,.4)",borderRadius:5,color:"#a5c4ff",fontSize:11,fontWeight:600,textDecoration:"none",marginTop:4,fontFamily:"IBM Plex Mono,monospace",alignSelf:"flex-start"}}>🔗 Unirse a la reunión</a>

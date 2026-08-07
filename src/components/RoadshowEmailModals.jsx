@@ -5,7 +5,7 @@
 // Consumed exclusively from RoadshowInboundTab.jsx via React.lazy().
 import { useState } from "react";
 import { esc, safeUrl } from "../storage.jsx";
-import { PLATFORM_LABELS, stripNeighborhood } from "../travel.js";
+import { PLATFORM_LABELS, stripNeighborhood, officeAddressOf, officeNameOf } from "../travel.js";
 import {
   fmtHourInTZ, dateInTZ, TIMEZONES, BASE_TZ, tzOffsetLabel,
   joinNames, fmtDateRange,
@@ -60,7 +60,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     byDay[date].forEach(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
       const isVirt=m.location==="virtual";
-      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
+      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?officeAddressOf(m,trip):m.location==="hq"?(co?stripNeighborhood(co.hqAddress)||co.name+" HQ":"Company HQ"):stripNeighborhood(m.locationCustom||"TBD");
       // Per-meeting attendees (company reps OR free-text participants)
       const reps=(()=>{
         if(m.type==="company"){
@@ -89,7 +89,7 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     const dayRows=byDay[date].map(m=>{
       const co=m.type==="company"?rm.get(m.companyId):null;
       const isVirt=m.location==="virtual";
-      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?`LS Offices`:m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const locL=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?officeNameOf(m):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const reps=(()=>{const allR=co?.contacts||[];const sel=m.attendeeIds?.length?allR.filter(r=>m.attendeeIds.includes(r.id)):allR;return sel.filter(r=>r.name);})();
       // Escape every interpolation — this HTML is sent to investor mailboxes via Resend.
       const safeLink=safeUrl(m.meetingLink);
@@ -269,7 +269,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     const dur=m.duration||trip.meetingDuration||60;
     const endH=m.hour+dur/60;
     const isVirt=m.location==="virtual";
-    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?officeAddressOf(m,trip):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const locL=isVirt?rawLoc:stripNeighborhood(rawLoc);
     const reps=(()=>{
       if(m.type!=="company") return m.participants||"";
@@ -303,7 +303,7 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
     const dur=m.duration||trip.meetingDuration||60;
     const endH=m.hour+dur/60;
     const isVirt=m.location==="virtual";
-    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const rawLoc=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?officeAddressOf(m,trip):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const locL=isVirt?rawLoc:stripNeighborhood(rawLoc);
     // Escape every interpolation — this HTML is sent to investor mailboxes via Resend.
     const safeLink=safeUrl(m.meetingLink);

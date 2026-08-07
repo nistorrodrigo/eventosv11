@@ -16,7 +16,7 @@ import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, meetingsForFund,
 // clicks ✉️ Email or 🌅 Daily.
 const RoadshowAgendaEmailModal = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.RoadshowAgendaEmailModal})));
 const DailyBriefingEmailModal  = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.DailyBriefingEmailModal})));
-import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel } from "../travel.js";
+import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel, officeAddressOf, officeShortOf, LS_OFFICES, defaultOfficeIdFor } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
@@ -194,7 +194,18 @@ export function RoadshowInboundTab({
                 </select></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
-              <div><div className="lbl">Dirección de nuestras oficinas</div><input className="inp" value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6° Piso, CABA"/></div>
+              <div>
+                <div className="lbl">Oficina por defecto</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {LS_OFFICES.map(o=>(
+                    <button key={o.id} type="button" className={`btn bs ${defaultOfficeIdFor(roadshow.trip)===o.id?"bg":"bo"}`}
+                      style={{fontSize:10,padding:"3px 9px"}} onClick={()=>upTrip("officeAddress",o.address)}>
+                      {o.id==="casa_latin"?"🏛":"🏢"} {o.name}
+                    </button>
+                  ))}
+                </div>
+                <input className="inp" style={{marginTop:5,fontSize:11}} value={roadshow.trip.officeAddress} onChange={e=>upTrip("officeAddress",e.target.value)} placeholder="Arenales 707, 6° Piso, CABA"/>
+              </div>
               <div><div className="lbl">Notas</div><input className="inp" value={roadshow.trip.notes} onChange={e=>upTrip("notes",e.target.value)} placeholder="Sector de interés..."/></div>
             </div>
 
@@ -558,7 +569,7 @@ export function RoadshowInboundTab({
                           {/* A4: Copy day agenda to clipboard */}
                           <button className="btn bo bs" style={{fontSize:9,gap:4}} onClick={()=>{
                             const dayLabel2=dayDate.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
-                            const lines=dayMtgs.map(m=>{const co2=m.type==="company"?rsCoById.get(m.companyId):null;const name2=co2?.name||(m.lsType||m.title||"Reunión");const isV=m.location==="virtual";const loc=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co2?.hqAddress||"HQ"):(m.locationCustom||"TBD");return`${fmtH(m.hour)} · ${name2} · ${isV?"💻":"📍"} ${loc}${isV&&m.meetingLink?" · 🔗 "+m.meetingLink:""} · ${m.status==="confirmed"?"✅":"◌"}`;});
+                            const lines=dayMtgs.map(m=>{const co2=m.type==="company"?rsCoById.get(m.companyId):null;const name2=co2?.name||(m.lsType||m.title||"Reunión");const isV=m.location==="virtual";const loc=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?officeAddressOf(m,roadshow.trip):m.location==="hq"?(co2?.hqAddress||"HQ"):(m.locationCustom||"TBD");return`${fmtH(m.hour)} · ${name2} · ${isV?"💻":"📍"} ${loc}${isV&&m.meetingLink?" · 🔗 "+m.meetingLink:""} · ${m.status==="confirmed"?"✅":"◌"}`;});
                             const txt=`📅 *Agenda ${dayLabel2}*\n${roadshow.trip.fund||""}\n\n${lines.join("\n")}`;
                             navigator.clipboard.writeText(txt).then(()=>toastOk("✅ Agenda del día copiada"));
                           }}>📋 Copiar agenda</button>
@@ -581,7 +592,7 @@ export function RoadshowInboundTab({
                                 const emails=(co.contacts||[]).filter(c=>c.email).map(c=>c.email);
                                 const dateStr=dayDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
                                 const isV=m.location==="virtual";
-                                const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
+                                const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Virtual meeting"):m.location==="ls_office"?officeAddressOf(m,roadshow.trip):m.location==="hq"?(co.hqAddress||"TBD"):(m.locationCustom||"TBD");
                                 const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
                                 const linkLine=isV&&m.meetingLink?`\nMeeting Link: ${m.meetingLink}`:"";
                                 const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}${linkLine}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
@@ -612,7 +623,7 @@ export function RoadshowInboundTab({
                               const selIds=m.attendeeIds||[];
                               const reps=(selIds.length?allC.filter(c=>selIds.includes(c.id)):allC).filter(c=>c.name);
                               const isV=m.location==="virtual";
-                              const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"Oficinas LS"):m.location==="hq"?(co.hqAddress||co.name+" HQ"):(m.locationCustom||"A confirmar");
+                              const locStr=isV?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?officeAddressOf(m,roadshow.trip):m.location==="hq"?(co.hqAddress||co.name+" HQ"):(m.locationCustom||"A confirmar");
                               reps.forEach(r=>{
                                 if(!r.phone) return;
                                 const firstName=r.name.split(" ")[0];
@@ -637,7 +648,7 @@ export function RoadshowInboundTab({
                             const selIds=m.attendeeIds||[];
                             const reps=(selIds.length?allC.filter(r=>selIds.includes(r.id)):allC).filter(r=>r.name);
                             const isVirt=m.location==="virtual";
-                            const locStr=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
+                            const locStr=isVirt?(PLATFORM_LABELS[m.meetingPlatform]||"Reunión virtual"):m.location==="ls_office"?officeAddressOf(m,roadshow.trip):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"HQ"):(m.locationCustom||"TBD");
                             const isConf=m.status==="confirmed";
                             return(
                               <div key={m.id} className="mtg-day-card" onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
@@ -868,7 +879,7 @@ export function RoadshowInboundTab({
                       const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
                       const d=new Date(m.date+"T12:00:00");
                       const dayStr=d.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"});
-                      const locL=m.location==="virtual"?(PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?"LS":m.location==="hq"?(co?co.ticker+" HQ":"HQ"):(m.locationCustom||"Otro");
+                      const locL=m.location==="virtual"?(PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual"):m.location==="ls_office"?officeShortOf(m):m.location==="hq"?(co?co.ticker+" HQ":"HQ"):(m.locationCustom||"Otro");
                       return(
                         <div key={m.id} style={{border:`1px solid ${clr}44`,borderRadius:7,padding:"8px 11px",background:`${clr}08`,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}
                           onClick={()=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}>
@@ -1563,7 +1574,7 @@ export function RoadshowInboundTab({
                 {[
                   {id:"confirm",icon:"✅",title:"Confirmación de reunión",
                     gen:(co)=>{const mtg=(roadshow.meetings||[]).find(m=>m.companyId===co.id);const fmtH2=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};const dateStr=mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"[date]";const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;
-                    return `Subject: Meeting Confirmation — ${co.name} & ${roadshow.trip.fund}\n\nDear team,\n\nWe are pleased to confirm the following meeting:\n\n📅 Date: ${dateStr}\n🕐 Time: ${mtg?fmtH2(mtg.hour):"[time]"} (Buenos Aires time)\n📍 Location: ${mtg?.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):co.hqAddress||"TBD"}\n👤 Attendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                    return `Subject: Meeting Confirmation — ${co.name} & ${roadshow.trip.fund}\n\nDear team,\n\nWe are pleased to confirm the following meeting:\n\n📅 Date: ${dateStr}\n🕐 Time: ${mtg?fmtH2(mtg.hour):"[time]"} (Buenos Aires time)\n📍 Location: ${mtg?.location==="ls_office"?officeAddressOf(mtg,roadshow.trip):co.hqAddress||"TBD"}\n👤 Attendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
                   {id:"followup",icon:"📞",title:"Follow-up post reunión",
                     gen:(co)=>{const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" and ")||roadshow.trip.fund;
                     // Feed the follow-up with what was actually captured for this
@@ -1583,7 +1594,7 @@ export function RoadshowInboundTab({
                     return `Subject: Thank you — ${fund} Buenos Aires Roadshow\n\nDear team,\n\nOn behalf of ${visitors} and the Latin Securities team, we would like to thank you for the meeting during ${fund}'s visit to Buenos Aires.\n\nWe value the relationship and look forward to keeping you updated on future developments.\n\nWarm regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
                   {id:"reschedule",icon:"🔄",title:"Cambio de horario",
                     gen:(co)=>{const mtg=(roadshow.meetings||[]).find(m=>m.companyId===co.id);const fmtH2=h=>{const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");};
-                    return `Subject: Schedule Change — ${co.name} meeting\n\nDear team,\n\nWe need to adjust the timing of our meeting. The updated details are:\n\n📅 New date: ${mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"[new date]"}\n🕐 New time: ${mtg?fmtH2(mtg.hour):"[new time]"}\n📍 Location: ${mtg?.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):co.hqAddress||"[location]"}\n\nWe apologize for any inconvenience and appreciate your flexibility.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                    return `Subject: Schedule Change — ${co.name} meeting\n\nDear team,\n\nWe need to adjust the timing of our meeting. The updated details are:\n\n📅 New date: ${mtg?new Date(mtg.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}):"[new date]"}\n🕐 New time: ${mtg?fmtH2(mtg.hour):"[new time]"}\n📍 Location: ${mtg?.location==="ls_office"?officeAddressOf(mtg,roadshow.trip):co.hqAddress||"[location]"}\n\nWe apologize for any inconvenience and appreciate your flexibility.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
                 ].map(tmpl=>(
                   <div key={tmpl.id} className="card" style={{padding:"12px 14px",cursor:"default"}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>

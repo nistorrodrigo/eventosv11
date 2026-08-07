@@ -14,6 +14,37 @@ export function detectMeetingPlatform(link){
 export const PLATFORM_LABELS={zoom:"Zoom",teams:"Microsoft Teams",meet:"Google Meet",webex:"Webex",other:"Reunión virtual"};
 export const PLATFORM_ICONS={zoom:"🟦",teams:"🟪",meet:"🟩",webex:"🟧",other:"💻"};
 
+// ── LS venues ───────────────────────────────────────────────────────
+// Latin Securities has two offices. A meeting held "at the office" records
+// WHICH one in `officeId`, so the address travels with the meeting everywhere
+// (agenda, PDF, ICS, emails, maps). Meetings saved before the picker existed
+// have no officeId and fall back to trip.officeAddress.
+export const LS_OFFICES=[
+  {id:"ls",         name:"Latin Securities", short:"LS",         address:"Arenales 707, 6° Piso, CABA"},
+  {id:"casa_latin", name:"Casa Latin",       short:"Casa Latin", address:"Av. Pres. Figueroa Alcorta 3221, CABA"},
+];
+export const DEFAULT_OFFICE_ADDRESS=LS_OFFICES[0].address;
+export const officeById=id=>LS_OFFICES.find(o=>o.id===id)||null;
+export function officeAddressOf(m,trip){
+  const o=officeById(m?.officeId);
+  return o?o.address:(trip?.officeAddress||DEFAULT_OFFICE_ADDRESS);
+}
+export function officeNameOf(m){ return (officeById(m?.officeId)||LS_OFFICES[0]).name; }
+export function officeShortOf(m){ return (officeById(m?.officeId)||LS_OFFICES[0]).short; }
+// Oficina por defecto de un viaje: se deduce de trip.officeAddress (el campo que
+// existía antes del selector). Sin esto, abrir y guardar una reunión vieja de un
+// viaje configurado en Casa Latin la movería en silencio a Arenales.
+// Matchea por número de calle, que es lo distintivo (707 vs 3221).
+export function defaultOfficeIdFor(trip){
+  const a=(trip?.officeAddress||"").toLowerCase();
+  if(!a) return LS_OFFICES[0].id;
+  const hit=LS_OFFICES.find(o=>{
+    const num=o.address.match(/\d+/)?.[0];
+    return num?a.includes(num):false;
+  });
+  return hit?hit.id:LS_OFFICES[0].id;
+}
+
 export function isVirtualMeeting(m){
   return m?.location==="virtual";
 }
@@ -26,7 +57,7 @@ export function getMeetingLocationLabel(m, co, trip, opts={}){
     if(opts.short) return PLATFORM_ICONS[plat]+" "+label;
     return (PLATFORM_ICONS[plat]||"💻")+" "+label;
   }
-  if(m?.location==="ls_office") return trip?.officeAddress||"Arenales 707, 6° Piso, CABA";
+  if(m?.location==="ls_office") return officeAddressOf(m,trip);
   if(m?.location==="hq") return co?(co.hqAddress||co.name+" HQ"):"HQ";
   return m?.locationCustom||"TBD";
 }
@@ -34,7 +65,7 @@ export function getMeetingLocationLabel(m, co, trip, opts={}){
 export function getMeetingAddress(m, co, officeAddress){
   if(m.location==="virtual") return ""; // no physical address for virtual
   if(m.fullAddress) return m.fullAddress;
-  if(m.location==="ls_office") return officeAddress||"Arenales 707, 6° Piso, CABA, Argentina";
+  if(m.location==="ls_office") return officeAddressOf(m,{officeAddress})||"Arenales 707, 6° Piso, CABA, Argentina";
   if(m.location==="hq") return co?.hqAddress||co?.locationCustom||co?.name+", Buenos Aires, Argentina";
   return m.locationCustom||"Buenos Aires, Argentina";
 }

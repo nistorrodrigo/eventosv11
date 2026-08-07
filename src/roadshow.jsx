@@ -1,6 +1,6 @@
 // ── roadshow.js — roadshow constants, email generators, ICS ──
 import { useState, useRef } from 'react';
-import { stripNeighborhood, PLATFORM_LABELS, PLATFORM_ICONS } from './travel.js';
+import { stripNeighborhood, PLATFORM_LABELS, PLATFORM_ICONS, officeAddressOf, officeNameOf } from './travel.js';
 import { esc, safeUrl } from './storage.jsx';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -265,7 +265,7 @@ export function rsToEntity(rs,rsCos,opts={}){
         if(!mm) return "";
         const c=mm.type==="company"?rm.get(mm.companyId):null;
         if(mm.location==="virtual") return PLATFORM_LABELS[mm.meetingPlatform]||"Virtual";
-        if(mm.location==="ls_office") return "Latin Securities";
+        if(mm.location==="ls_office") return officeNameOf(mm);
         if(mm.location==="hq") return c?c.name:"HQ";
         return mm.locationCustom||"destino";
       };
@@ -275,7 +275,7 @@ export function rsToEntity(rs,rsCos,opts={}){
         const prev=byDay[date][idx-1];
         travelRows.push({travelRow:true,travelText:`Travel from ${shortLoc(prev)} to ${shortLoc(m)} · approx. ${m.travelMinutes} min`});
       }
-      const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?(trip.officeAddress||"Arenales 707, 6° Piso, CABA"):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+      const rawLoc=m.location==="virtual"?((PLATFORM_ICONS[m.meetingPlatform]||"💻")+" "+(PLATFORM_LABELS[m.meetingPlatform]||"Virtual")):m.location==="ls_office"?officeAddressOf(m,trip):m.location==="hq"?(co?co.hqAddress||co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
       const locL=m.location==="virtual"?rawLoc:stripNeighborhood(rawLoc);
       const st=m.status==="confirmed"?"✓ Confirmed":m.status==="cancelled"?"✗ Cancelled":"Tentative";
       // Reps: company contacts (selected) or free-text participants — sorted by last name
@@ -409,7 +409,7 @@ export function buildICS(meetings, companies, trip){
     // The clickable meeting link lives in URL: (RFC 5545 §3.8.4.6) — Outlook/Apple/GCal
     // render it as a "Join meeting" button. Putting the URL itself in LOCATION confuses
     // some clients (line breaks at colon, garbled rendering).
-    const locL=isVirt?platLabel:m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
+    const locL=isVirt?platLabel:m.location==="ls_office"?officeAddressOf(m,trip):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const start=fmtDT(m.date,m.hour);
     const mDur=m.duration||dur;
     const endDT=fmtUTC(new Date(baDate(m.date,m.hour).getTime()+mDur*60000));

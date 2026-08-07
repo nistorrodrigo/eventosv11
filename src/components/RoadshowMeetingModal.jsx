@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LS_INT_TYPES, ROADSHOW_HOURS, RS_CLR, fmtHour, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
-import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
+import { detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, LS_OFFICES, officeAddressOf, defaultOfficeIdFor } from "../travel.js";
 
 export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSave,onDelete,onDuplicate,onExportICS,onClose,onPatchCompany}){
   const [type,setType]=useState(meeting?.type||"company");
@@ -15,6 +15,9 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   const tripMode=trip?.mode||"in_person";
   const defaultLoc=tripMode==="virtual"?"virtual":"ls_office";
   const [loc,setLoc]=useState(meeting?.location||defaultLoc);
+  // Cuál de las dos oficinas LS (se guarda con la reunión). Para reuniones
+  // previas al selector, se deduce de la oficina configurada en el viaje.
+  const [officeId,setOfficeId]=useState(meeting?.officeId||defaultOfficeIdFor(trip));
   const [locCustom,setLocCustom]=useState(meeting?.locationCustom||"");
   const [meetingLink,setMeetingLink]=useState(meeting?.meetingLink||"");
   const [meetingPlatform,setMeetingPlatform]=useState(meeting?.meetingPlatform||detectMeetingPlatform(meeting?.meetingLink||trip?.defaultMeetingLink||""));
@@ -53,6 +56,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
       location:loc,locationCustom:locCustom,
+      officeId:loc==="ls_office"?officeId:"",
       meetingLink:loc==="virtual"?meetingLink.trim():"",
       meetingPlatform:loc==="virtual"?(meetingPlatform||detectMeetingPlatform(meetingLink)):"other",
       status,notes,postNotes,voiceNote,actualAttendees:actualReps,meetingFormat,
@@ -89,7 +93,7 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
       const primaryContact=mtgContacts[0]||contacts[0];
       const fmtH=hv=>{const hh=Math.floor(hv);const mm=Math.round((hv-hh)*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');};
       const newDate=new Date(m.date+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
-      const locStr=m.location==='virtual'?(`${PLATFORM_LABELS[m.meetingPlatform]||'Reunión virtual'}${m.meetingLink?' — '+m.meetingLink:''}`):m.location==='ls_office'?(trip.officeAddress||'Arenales 707, 6° Piso, CABA'):m.location==='hq'?(co?co.hqAddress||co.name+' HQ':'HQ'):(m.locationCustom||'TBD');
+      const locStr=m.location==='virtual'?(`${PLATFORM_LABELS[m.meetingPlatform]||'Reunión virtual'}${m.meetingLink?' — '+m.meetingLink:''}`):m.location==='ls_office'?officeAddressOf(m,trip):m.location==='hq'?(co?co.hqAddress||co.name+' HQ':'HQ'):(m.locationCustom||'TBD');
       const fund=trip.fund||trip.clientName||'nuestro cliente';
       const visitorNames=(trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(' ')[0]).join(' y ')||fund;
       const coName=co?co.name:(m.lsType||m.title||'la reunión');
@@ -194,6 +198,17 @@ Latin Securities`;
                 </div>
               </div>
             )}
+            {loc==="ls_office"&&(
+              <div style={{marginTop:5}}>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {LS_OFFICES.map(o=>(
+                    <button key={o.id} type="button" className={`btn bs ${officeId===o.id?"bg":"bo"}`} style={{fontSize:10,padding:"3px 9px"}}
+                      onClick={()=>setOfficeId(o.id)}>{o.id==="casa_latin"?"🏛":"🏢"} {o.name}</button>
+                  ))}
+                </div>
+                <div style={{fontSize:9.5,color:"var(--dim)",marginTop:4,fontFamily:"IBM Plex Mono,monospace"}}>📍 {(LS_OFFICES.find(o=>o.id===officeId)||LS_OFFICES[0]).address}</div>
+              </div>
+            )}
             {loc==="custom"&&<input className="inp" style={{marginTop:5}} value={locCustom} onChange={e=>setLocCustom(e.target.value)} placeholder="Dirección o lugar..."/>}
             {loc==="hq"&&selCo&&(
               <input className="inp" style={{marginTop:5,fontSize:11}} value={selCo.hqAddress||""} placeholder={`Dirección HQ de ${selCo.name}...`}
@@ -204,7 +219,7 @@ Latin Securities`;
               <div style={{marginTop:5}}>
                 <div className="lbl" style={{marginBottom:2,fontSize:9}}>Dirección completa</div>
                 <input className="inp" style={{fontSize:11}} value={fullAddr} onChange={e=>setFullAddr(e.target.value)}
-                  placeholder={loc==="ls_office"?(trip?.officeAddress||"Arenales 707, 6° Piso, CABA"):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
+                  placeholder={loc==="ls_office"?officeAddressOf({officeId},trip):loc==="hq"?(selCo?.hqAddress||"Dirección de la empresa..."):locCustom||"Dirección exacta..."}/>
               </div>
             )}
           </div>

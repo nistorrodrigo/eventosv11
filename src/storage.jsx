@@ -288,7 +288,7 @@ ${(()=>{
           <td class="tt">${esc(r.time)||""}</td>
           <td><div class="co-name">${esc(r.col1)}${r.col1b?`<span class="co-tick">${esc(r.col1b)}</span>`:""}</div>${r.reps||r.col2?`<div class="reps">${esc(r.reps||r.col2)}</div>`:""}</td>
           <td style="font-size:9pt;color:${typClr};font-weight:600;white-space:nowrap">${esc(typ)}</td>
-          <td style="font-size:9.5pt;color:#374151">${r.col4url?`<a href="${esc(r.col4url)}" style="color:#1e5ab0;text-decoration:none">${esc(loc)} 🗺</a>`:esc(loc)}</td>
+          <td style="font-size:9.5pt;color:#374151">${r.col4url?`<a href="${esc(r.col4url)}" style="color:#1e5ab0;text-decoration:none">${esc(loc)}</a>`:esc(loc)}</td>
           <td style="width:110px">${stBadge(st)}</td>
         </tr>`;
       }).join("");

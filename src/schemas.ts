@@ -37,6 +37,8 @@ export const MeetingSchema = z.looseObject({
   companyId: z.string().default(""),
   status: z.enum(["confirmed", "tentative", "cancelled"]).default("tentative"),
   location: z.enum(["ls_office", "hq", "custom", "virtual"]).default("ls_office"),
+  // Cuál oficina LS cuando location === "ls_office" ("" = la del viaje, legacy)
+  officeId: z.string().default(""),
   locationCustom: z.string().default(""),
   meetingLink: z.string().default(""),
   meetingPlatform: z.enum(["zoom", "teams", "meet", "webex", "other"]).default("other"),
