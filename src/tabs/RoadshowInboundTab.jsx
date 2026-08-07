@@ -10,7 +10,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, meetingsForFund, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 // Heavy email-modal templates live in their own chunk so the InboundTab JS
 // payload doesn't carry ~400 LOC of HTML strings unless the user actually
 // clicks ✉️ Email or 🌅 Daily.
@@ -83,6 +83,13 @@ export function RoadshowInboundTab({
         const [editingLeg,setEditingLeg]=useState(null); // { date, idx }
         const [editLegVal,setEditLegVal]=useState("");
         const [agendaView,setAgendaView]=useState("table"); // "table" | "calendar"
+        // Fund/investor filter for the agenda ("" = all funds). Only meaningful on
+        // multi-fund trips; a meeting with empty attendingFundIds is common to all.
+        const [agendaFund,setAgendaFund]=useState("");
+        const _fundRoster=getAllFunds(roadshow.trip).map(f=>f.id);
+        const inAgendaFund=m=>!agendaFund||!isMultiFund(roadshow.trip)||meetingsForFund([m],agendaFund,_fundRoster).length>0;
+        // Selected fund for the per-investor view (defaults to primary)
+        const [investorFundId,setInvestorFundId]=useState("__primary");
         const [pdfTz,setPdfTz]=useState(BASE_TZ); // target tz for the PDF export
         const [pdfFundId,setPdfFundId]=useState(""); // "" = combined; otherwise a specific fund id
         const [waBulkModal,setWaBulkModal]=useState(null);
@@ -430,6 +437,13 @@ export function RoadshowInboundTab({
                       </button>
                     );
                   })}
+                  {isMultiFund(roadshow.trip)&&(
+                    <select className="sel" style={{fontSize:9,padding:"2px 6px",width:"auto",height:"auto",marginLeft:6,borderColor:agendaFund?"#1e5ab0":undefined}}
+                      value={agendaFund} onChange={e=>setAgendaFund(e.target.value)} title="Filtrar la agenda por inversor">
+                      <option value="">👥 Todos los inversores</option>
+                      {getAllFunds(roadshow.trip).map(f=><option key={f.id} value={f.id}>👤 {fundLabel(f)}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
                   <div style={{display:"flex",borderRadius:5,overflow:"hidden",border:"1px solid rgba(30,90,176,.18)"}}>
@@ -476,7 +490,7 @@ export function RoadshowInboundTab({
               {/* Kanban Pipeline View */}
               {agendaView==="kanban"&&(
                 <KanbanBoard
-                  meetings={roadshow.meetings||[]}
+                  meetings={(roadshow.meetings||[]).filter(inAgendaFund)}
                   companies={roadshow.companies||[]}
                   rsCoById={rsCoById}
                   onClickMeeting={m=>setRsMtgModal({date:m.date,hour:m.hour,meeting:m})}
@@ -492,7 +506,7 @@ export function RoadshowInboundTab({
               {agendaView==="calendar"&&tripDays.length>0&&(
                 <WeekCalendar
                   tripDays={tripDays}
-                  meetings={roadshow.meetings||[]}
+                  meetings={(roadshow.meetings||[]).filter(inAgendaFund)}
                   companies={roadshow.companies||[]}
                   meetingDuration={roadshow.trip.meetingDuration||60}
                   rsCoById={rsCoById}
@@ -510,7 +524,7 @@ export function RoadshowInboundTab({
               ):(
                 <>
                 {rsDayFilter&&(()=>{
-                  const dayMtgs=mtgsByDay[rsDayFilter]||[];
+                  const dayMtgs=(mtgsByDay[rsDayFilter]||[]).filter(inAgendaFund);
                   const dayDate=new Date(rsDayFilter+"T12:00:00");
                   const DN=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
                   const fmtH=fmtHour;
@@ -696,7 +710,8 @@ export function RoadshowInboundTab({
                         ROADSHOW_HOURS.forEach((h,hi)=>{
                           (rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays).forEach(date=>{
                             if(skip[date][hi]) return;
-                            const mtg=rsBySlot[`${date}-${h}`];
+                            const _m0=rsBySlot[`${date}-${h}`];
+                            const mtg=_m0&&inAgendaFund(_m0)?_m0:null;
                             if(mtg){
                               const rows=Math.max(1,Math.round((mtg.duration||60)/30));
                               for(let r=1;r<rows;r++){
@@ -715,7 +730,8 @@ export function RoadshowInboundTab({
                               if(skip[date][hi]) return null;
                               const d=new Date(date+"T12:00:00");
                               const isWE=d.getDay()===0||d.getDay()===6;
-                              const mtg=rsBySlot[`${date}-${h}`];
+                              const _mm0=rsBySlot[`${date}-${h}`];
+                              const mtg=_mm0&&inAgendaFund(_mm0)?_mm0:null;
                               const co=mtg?.type==="company"?rsCoById.get(mtg.companyId):null;
                               const clr=mtg?(mtg.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e"):null;
                               const lbl=mtg?(mtg.type==="company"?(co?.ticker||"?"):(mtg.lsType?.split(" – ").pop()?.slice(0,9)||mtg.title?.slice(0,9)||"Int")):"";
@@ -784,7 +800,7 @@ export function RoadshowInboundTab({
                                     </div>
                                     {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
                                   </div>}
-                                  {(rsSlotExtras?.[`${date}-${h}`]||[]).map(x=>{
+                                  {(rsSlotExtras?.[`${date}-${h}`]||[]).filter(inAgendaFund).map(x=>{
                                     const xco=x.type==="company"?rsCoById.get(x.companyId):null;
                                     const xclr=x.type==="company"?(RS_CLR[xco?.sector]||"#666"):"#23a29e";
                                     const xlbl=x.type==="company"?(xco?.ticker||xco?.name?.slice(0,9)||"?"):(x.lsType?.split(" – ").pop()?.slice(0,9)||x.title?.slice(0,9)||"Int");
@@ -847,7 +863,7 @@ export function RoadshowInboundTab({
                 <div>
                   <div className="sec-hdr" style={{marginBottom:8}}>📋 Todas las reuniones</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    {[...roadshow.meetings].sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour).map(m=>{
+                    {[...roadshow.meetings].filter(inAgendaFund).sort((a,b)=>a.date.localeCompare(b.date)||a.hour-b.hour).map(m=>{
                       const co=m.type==="company"?rsCoById.get(m.companyId):null;
                       const clr=m.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e";
                       const d=new Date(m.date+"T12:00:00");
@@ -941,10 +957,15 @@ export function RoadshowInboundTab({
           {/* EMPRESAS */}
           {/* VISTA POR INVERSOR */}
           {rsSubTab==="investor"&&(()=>{
-            const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name);
-            const fund=roadshow.trip.fund||roadshow.trip.clientName||"Inversor";
+            // Fund switcher: on multi-fund trips this view shows ONE investor's
+            // agenda at a time — selectable, defaulting to the primary fund.
+            const allFunds=getAllFunds(roadshow.trip);
+            const multiF=isMultiFund(roadshow.trip);
+            const selFund=allFunds.find(f=>f.id===investorFundId)||allFunds[0];
+            const visitors=(selFund.visitors||[]).filter(v=>v.name);
+            const fund=fundLabel(selFund)!=="Fondo sin nombre"?fundLabel(selFund):(roadshow.trip.fund||roadshow.trip.clientName||"Inversor");
             const rmMap=rsCoById;
-            const sortedMtgs=sortedActiveMtgs;
+            const sortedMtgs=multiF?meetingsForFund(sortedActiveMtgs,selFund.id,allFunds.map(f=>f.id)):sortedActiveMtgs;
             const byDay={};
             sortedMtgs.forEach(m=>{if(!byDay[m.date])byDay[m.date]=[];byDay[m.date].push(m);});
             const days=Object.keys(byDay).sort();
@@ -954,14 +975,22 @@ export function RoadshowInboundTab({
             return(
             <div>
               <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                {multiF&&(<>
+                  <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>👤 inversor:</span>
+                  <select className="sel" style={{fontSize:10,padding:"3px 8px",minWidth:160,height:"auto"}} value={selFund.id} onChange={e=>setInvestorFundId(e.target.value)}>
+                    {allFunds.map(f=><option key={f.id} value={f.id}>{fundLabel(f)}</option>)}
+                  </select>
+                  <span style={{width:10}}/>
+                </>)}
                 <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace"}}>🕐 zona horaria del PDF:</span>
                 <select className="sel" style={{fontSize:10,padding:"3px 8px",minWidth:200,height:"auto"}} value={pdfTz} onChange={e=>setPdfTz(e.target.value)}>
                   {TIMEZONES.map(t=>(<option key={t.value} value={t.value}>{t.label}{t.value!==BASE_TZ?" ("+tzOffsetLabel(t.value)+")":""}</option>))}
                 </select>
                 <button className="btn bo bs" style={{fontSize:10}} onClick={()=>{
-                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz});
+                  // On multi-fund trips the PDF matches the investor on screen
+                  const e=rsToEntity(roadshow,roadshow.companies,{tz:pdfTz,fundId:multiF?selFund.id:null});
                   if(!e){toast("Sin reuniones.");return;}
-                  const meta={...config,eventTitle:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow"),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};
+                  const meta={...config,eventTitle:(multiF?fund:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow")),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};
                   openPrint(buildPrintHTML([e],meta));
                 }}>📄 PDF agenda</button>
               </div>
