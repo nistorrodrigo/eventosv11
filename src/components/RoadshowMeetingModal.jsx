@@ -46,7 +46,10 @@ export function RoadshowMeetingModal({mode,date,hour,meeting,companies,trip,onSa
   function save(){
     if(type==="company"&&!coId){alert("Seleccioná una empresa.");return;}
     const prevM=meeting||{};
-    const m={id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
+    // Spread prevM FIRST: fields this modal doesn't edit (feedback, icsUid,
+    // future additions) must survive a save — rebuilding the object from
+    // scratch silently erased the captured feedback of the meeting.
+    const m={...prevM,id:meeting?.id||`rsm-${Date.now()}`,date:selectedDate||date,hour:parseFloat(h),duration:parseInt(dur),type,
       companyId:type==="company"?coId:"",lsType:type==="ls_internal"?lsType:"",
       title:type==="custom"?title:type==="ls_internal"?lsType:"",
       location:loc,locationCustom:locCustom,

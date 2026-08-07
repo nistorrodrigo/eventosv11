@@ -12,7 +12,7 @@ import { EventProvider } from "./src/contexts/EventContext.tsx";
 import { supabaseRetry } from "./src/utils/retry.ts";
 // Cloud-sync pure helpers (extracted for testability — see
 // src/__tests__/cloudSync.test.js for the spec).
-import { hashEventData, normalizeRoadshow } from "./src/utils/cloudSync.ts";
+import { normalizeRoadshow } from "./src/utils/cloudSync.ts";
 // Lucide icons removed — caused "sr is not a constructor" in production build
 import { TabErrorBoundary } from "./src/components/TabErrorBoundary.tsx";
 // XLSX lazy-loaded: preloaded on first interaction, not at page load (~200 KB saved)
@@ -22,6 +22,10 @@ async function getXLSX(){if(!_XLSX)_XLSX=await import("xlsx");return _XLSX;}
 const _preloadXLSX=()=>{getXLSX();document.removeEventListener("click",_preloadXLSX);document.removeEventListener("keydown",_preloadXLSX);};
 document.addEventListener("click",_preloadXLSX,{once:true});
 document.addEventListener("keydown",_preloadXLSX,{once:true});
+
+// Local-date "today" (YYYY-MM-DD). toISOString() is UTC: in Buenos Aires (UTC-3)
+// it flips to tomorrow at 21:00, breaking reminders, the favicon badge and day mode.
+const todayLocal=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
 
 // ── Constants & pure utils ─────────────────────────────────────────
 import {
@@ -110,6 +114,9 @@ export default function App(){
   const _cloudSaveTimers=useRef(new Map()); // eventId → timer id
   const _unlockedEvents=useRef(new Set()); // events unlocked by password this session
   function saveCurrentEvent(patch){
+    // Viewer-role guard for ALL event kinds (it only existed in saveRoadshow, so
+    // a viewer could edit conference data and queue upserts that fail in a loop).
+    if(currentEvent?._shared&&currentEvent?._sharedRole==="viewer"){toast("Solo podés ver este evento (acceso viewer).");return;}
     _lastLocalEdit.current=Date.now();
     const evId=activeEv;
     setEvents(prev=>{
@@ -213,8 +220,12 @@ export default function App(){
     hashPwd(pwd).then(hash=>{
       // Use the functional setter so we don't race against concurrent edits.
       setEvents(prev=>{
-        const next=prev.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined}:e);
+        const next=prev.map(e=>e.id===evId?{...e,passwordHash:pwd?hash:undefined,_updatedAt:Date.now()}:e);
         saveEvents(next);
+        // Sync to cloud — otherwise the lock silently disappears on the next
+        // loadFromCloud (the cloud row never learned about passwordHash).
+        const updated=next.find(e=>e.id===evId);
+        if(updated) cloudSaveEvent(updated);
         return next;
       });
       toast(pwd?"🔒 Contraseña configurada.":"🔓 Contraseña eliminada.");
@@ -254,7 +265,9 @@ export default function App(){
       meetings:[],
       expenses:[],
       travelOverrides:{},
-      trip:{...orig.roadshow.trip,arrivalDate:"",departureDate:"",notes:""},
+      // Clear everything client-specific: a template duplicated from BlackRock's
+      // trip must not leak BlackRock's fund/visitors/hotel into Templeton's PDFs.
+      trip:{...orig.roadshow.trip,arrivalDate:"",departureDate:"",notes:"",fund:"",clientName:"",hotel:"",visitors:[],funds:[]},
       companies:(orig.roadshow.companies||[]).map(c=>({
         ...c,
         contacts:(c.contacts||[]).map(ct=>({...ct})), // deep copy contacts
@@ -398,8 +411,9 @@ export default function App(){
     const travelBuffer=30; // minutes for travel between meetings
     const busyMtgs=new Set();
     (roadshow.meetings||[]).filter(m=>m.status!=="cancelled").forEach(m=>{
-      const totalBlockMin=dur+travelBuffer;
-      // Block every 30-min slot from meeting start to meeting end + travel buffer
+      // Block with EACH meeting's own duration (a 120' meeting must block 4 slots,
+      // not just the trip default) + travel buffer
+      const totalBlockMin=(m.duration||dur)+travelBuffer;
       for(let offset=0;offset<totalBlockMin;offset+=30){
         busyMtgs.add(`${m.date}-${m.hour+offset/60}`);
       }
@@ -436,8 +450,10 @@ export default function App(){
         newSlots.push({event_id:activeEv,event_label:`${trip.fund||trip.clientName||"Roadshow"} — ${trip.city||"Buenos Aires"} — ${trip.arrivalDate} al ${trip.departureDate}${modeTag}`,slot_date:day,slot_hour:h,office_address:trip.officeAddress||"",owner_id:authUser.id});
       }
     }
-    // Delete old slots for this event
-    await supabase.from("roadshow_slots").delete().eq("event_id",activeEv);
+    // Delete old slots for this event — abort on failure (otherwise the insert
+    // below duplicates every slot)
+    const {error:delErr}=await supabase.from("roadshow_slots").delete().eq("event_id",activeEv);
+    if(delErr){toastErr("Error limpiando slots anteriores: "+delErr.message);return;}
     // Insert new
     if(newSlots.length){const {error:insErr}=await supabase.from("roadshow_slots").insert(newSlots);if(insErr){toastErr("Error publicando slots: "+insErr.message);return;}}
     const url=`${window.location.origin}/#/book/${activeEv}`;
@@ -709,7 +725,7 @@ Daily Summary — ${dayLabel}
     const check=()=>{
       if(Notification.permission!=="granted") return;
       const now=new Date();
-      const todayISO=now.toISOString().slice(0,10);
+      const todayISO=todayLocal();
       const nowH=now.getHours()+now.getMinutes()/60;
       (roadshow?.meetings||[]).filter(m=>m.date===todayISO&&m.status!=="cancelled").forEach(m=>{
         const minUntil=(m.hour-nowH)*60;
@@ -733,7 +749,7 @@ Daily Summary — ${dayLabel}
 
     // Dynamic favicon with today's meeting count badge
     useEffect(()=>{
-      const today=new Date().toISOString().slice(0,10);
+      const today=todayLocal();
       const todayMtgs=(roadshow?.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").length;
       if(!todayMtgs) return;
       const canvas=document.createElement("canvas");canvas.width=32;canvas.height=32;
@@ -749,10 +765,20 @@ Daily Summary — ${dayLabel}
     // Load from cloud when auth user changes (auth state managed by AuthContext)
     const [cloudLoaded,setCloudLoaded]=useState(false);
     const [syncStatus,setSyncStatus]=useState("idle"); // "idle"|"syncing"|"synced"|"offline"
-    // Track last save hash per event so the realtime echo can be suppressed
-    // without colliding across events (the old length-based key clobbered echoes
-    // between different events whose payloads happened to be the same byte-length).
-    const _lastSaveHash=useRef(new Map()); // eventId → content hash of last save
+    // Track the _updatedAt stamp of the last save per event so the realtime echo
+    // can be suppressed. Content hashing broke here: jsonb reorders object keys,
+    // so the round-tripped JSON never hashed equal and our own saves came back
+    // as "remote changes" that reverted in-flight typing.
+    const _lastSaveStamp=useRef(new Map()); // eventId → _updatedAt of last save
+    // Mirror refs for use inside long-lived closures (realtime channel handler)
+    const _activeEvRef=useRef(activeEv);
+    useEffect(()=>{_activeEvRef.current=activeEv;},[activeEv]);
+    const _eventsRef=useRef(events);
+    useEffect(()=>{_eventsRef.current=events;},[events]);
+    // Events deleted on purpose (this device or via realtime) — loadFromCloud must
+    // not resurrect them from a stale local copy.
+    const _tombstones=useRef(new Set((()=>{try{return JSON.parse(localStorage.getItem("ls_deleted_events")||"[]");}catch{return[];}})()));
+    const markDeleted=id=>{_tombstones.current.add(id);try{localStorage.setItem("ls_deleted_events",JSON.stringify([...(_tombstones.current)].slice(-200)));}catch{}};
     useEffect(()=>{
       if(authUser&&!cloudLoaded) loadFromCloud(authUser.id);
     },[authUser]);// eslint-disable-line
@@ -771,24 +797,27 @@ Daily Summary — ${dayLabel}
         .on("postgres_changes",{event:"*",schema:"public",table:"ls_events",filter:`user_id=eq.${authUser.id}`},payload=>{
           if(payload.eventType==="UPDATE"||payload.eventType==="INSERT"){
             const r=payload.new;
-            // Skip if this is our own save (avoid echo). Compare full content hash
-            // per event so two different events with same-length payloads don't
-            // suppress each other's legitimate updates.
-            if(_lastSaveHash.current.get(r.id)===hashEventData(r.data)) return;
+            // Oversized rows arrive with `data` missing/empty (realtime payload cap).
+            // Persisting that would store a naked {id,name,kind} over the local copy
+            // and the next edit would upload the empty blob — refetch instead.
+            if(!r.data||typeof r.data!=="object"||!Object.keys(r.data).length){
+              supabase.from("ls_events").select("id,name,kind,data").eq("id",r.id).single().then(({data:row})=>{
+                if(row?.data&&Object.keys(row.data).length) applyRemoteEvent({id:row.id,name:row.name,kind:row.kind,...row.data});
+              });
+              return;
+            }
+            // Skip our own save echo: anything not newer than what this device last sent.
+            const remoteStamp=r.data._updatedAt||0;
+            if(remoteStamp&&remoteStamp<=(_lastSaveStamp.current.get(r.id)||0)) return;
             // Conflict detection: if we edited locally in the last 5 seconds, warn
             const timeSinceLocalEdit=Date.now()-_lastLocalEdit.current;
-            if(timeSinceLocalEdit<5000&&r.id===activeEv){
+            if(timeSinceLocalEdit<5000&&r.id===_activeEvRef.current){
               toastWarn("⚠ Otro dispositivo modificó este evento. Se aplicaron los cambios remotos.");
             }
-            const updated={id:r.id,name:r.name,kind:r.kind,...r.data};
-            setEvents(prev=>{
-              const exists=prev.find(e=>e.id===r.id);
-              const next=exists?prev.map(e=>e.id===r.id?updated:e):[...prev,updated];
-              saveEvents(next);
-              return next;
-            });
+            applyRemoteEvent({id:r.id,name:r.name,kind:r.kind,...r.data});
             setSyncStatus("synced");setTimeout(()=>setSyncStatus("idle"),2000);
           } else if(payload.eventType==="DELETE"){
+            markDeleted(payload.old.id);
             setEvents(prev=>{const next=prev.filter(e=>e.id!==payload.old.id);saveEvents(next);return next;});
           }
         })
@@ -796,7 +825,36 @@ Daily Summary — ${dayLabel}
       return()=>{supabase.removeChannel(channel);};
     },[authUser]);
 
+  // Apply a remote event row to state + localStorage, and refresh the roadshow/
+  // outbound mirrors when it's the active event — those are useState snapshots
+  // that otherwise only resync on activeEv change, so the next local edit would
+  // push the stale mirror over the fresh cloud blob.
+  function applyRemoteEvent(updated){
+    setEvents(prev=>{
+      const exists=prev.find(e=>e.id===updated.id);
+      const next=exists?prev.map(e=>e.id===updated.id?updated:e):[...prev,updated];
+      saveEvents(next);
+      return next;
+    });
+    if(updated.id===_activeEvRef.current){
+      setRoadshow(normalizeRoadshow(updated.roadshow)||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
+      setOutbound(updated.outbound||OB_DEF);
+    }
+  }
+
   async function loadFromCloud(userId){
+    // Replay saves queued offline in a previous session (persisted queue) BEFORE
+    // reading the cloud, so the read below already sees them.
+    try{
+      const pend=JSON.parse(localStorage.getItem("ls_pending_saves")||"null");
+      if(pend?.userId===userId&&Array.isArray(pend.events)&&pend.events.length){
+        for(const ev of pend.events){
+          const{id,name,kind,_shared,_sharedRole,_sharedBy,...data}=ev;
+          await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||userId}));
+        }
+        localStorage.removeItem("ls_pending_saves");
+      }
+    }catch{/* still offline — keep the queue for the next attempt */}
     // Load own events
     const{data:evRows,error:evErr}=await supabase.from("ls_events").select("id,name,kind,data").eq("user_id",userId);
     if(evErr){
@@ -810,14 +868,29 @@ Daily Summary — ${dayLabel}
       return; // cloudLoaded stays false ⇒ retry effect will try again
     }
     let allEvs=[];
+    const localCopy=loadEvents();
     if(evRows?.length){
-      allEvs=evRows.map(r=>({id:r.id,name:r.name,kind:r.kind,owner_id:userId,...r.data}));
+      // Per-event recency merge: never overwrite a newer local copy with a stale
+      // cloud row (tab closed before the debounced upsert fired) — keep the local
+      // version and push it back up.
+      allEvs=evRows.map(r=>{
+        const cloud={id:r.id,name:r.name,kind:r.kind,owner_id:userId,...r.data};
+        const loc=localCopy.find(e=>e.id===r.id);
+        if(loc&&(loc._updatedAt||0)>(cloud._updatedAt||0)){cloudSaveEvent({...loc,owner_id:loc.owner_id||userId});return {...loc,owner_id:loc.owner_id||userId};}
+        return cloud;
+      });
+      // Local events missing from the cloud (created offline): keep + re-upload,
+      // unless they were deleted on purpose (tombstoned).
+      for(const loc of localCopy){
+        if(loc._shared||_tombstones.current.has(loc.id)) continue;
+        if(!allEvs.find(e=>e.id===loc.id)){const ev={...loc,owner_id:loc.owner_id||userId};allEvs.push(ev);cloudSaveEvent(ev);}
+      }
     } else {
       // First login: migrate localStorage events to cloud
-      const local=loadEvents();
+      const local=localCopy.filter(ev=>!_tombstones.current.has(ev.id));
       if(local.length){
         for(const ev of local){
-          const{id,name,kind,...data}=ev;
+          const{id,name,kind,_shared,_sharedRole,_sharedBy,...data}=ev;
           await supabase.from("ls_events").upsert({id,name,kind,data,user_id:userId});
         }
         allEvs=local.map(ev=>({...ev,owner_id:userId}));
@@ -847,10 +920,27 @@ Daily Summary — ${dayLabel}
         }
       }
     }
-    if(allEvs.length){setEvents(allEvs);saveEvents(allEvs);setActiveEv(prev=>allEvs.find(e=>e.id===prev)?prev:allEvs[0]?.id||null);}
+    if(allEvs.length){
+      setEvents(allEvs);saveEvents(allEvs);
+      const active=allEvs.find(e=>e.id===_activeEvRef.current)?_activeEvRef.current:allEvs[0]?.id||null;
+      setActiveEv(active);
+      // Refresh the roadshow/outbound mirrors with the merged copy — same reason
+      // as applyRemoteEvent: they don't resync when activeEv keeps the same id.
+      const activeEvObj=allEvs.find(e=>e.id===active);
+      if(activeEvObj){
+        setRoadshow(normalizeRoadshow(activeEvObj.roadshow)||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]});
+        setOutbound(activeEvObj.outbound||OB_DEF);
+      }
+    }
     // Load library
     const{data:dbRow}=await supabase.from("ls_global_db").select("data").eq("user_id",userId).maybeSingle();
     if(dbRow?.data){setGlobalDB(dbRow.data);saveDB(dbRow.data);}
+    else{
+      // First login with an empty cloud library: migrate the local copy up so the
+      // Librería stops living only in this device's localStorage.
+      const localDB=loadDB();
+      if((localDB.companies||[]).length||(localDB.investors||[]).length) cloudSaveGlobalDB(localDB);
+    }
     setCloudLoaded(true); // mark loaded only after a successful cloud read
   }
 
@@ -858,21 +948,49 @@ Daily Summary — ${dayLabel}
   // queued edit when the user switched to B and edited there.
   const _pendingSaves=useRef(new Map()); // eventId → event payload
   const _lastLocalEdit=useRef(0); // timestamp of last local edit
+  // Persist the offline queue so closing the tab doesn't lose it (replayed by
+  // loadFromCloud on the next session).
+  function persistPending(){
+    try{
+      if(_pendingSaves.current.size) localStorage.setItem("ls_pending_saves",JSON.stringify({userId:authUser?.id,events:Array.from(_pendingSaves.current.values())}));
+      else localStorage.removeItem("ls_pending_saves");
+    }catch{}
+  }
   async function cloudSaveEvent(ev){
     if(!authUser) return;
-    const{id,name,kind,...data}=ev;
-    _lastSaveHash.current.set(id,hashEventData(data));
+    // _shared/_sharedRole/_sharedBy are per-viewer decorations — never persist them
+    // into the blob (they made the OWNER's copy load as read-only shared). And the
+    // upsert must keep the original owner: an editor saving a shared event was
+    // re-assigning user_id to himself, vanishing the event from the owner's account.
+    const{id,name,kind,_shared,_sharedRole,_sharedBy,...data}=ev;
+    _lastSaveStamp.current.set(id,data._updatedAt||Date.now());
     setSyncStatus("syncing");
     try{
-      await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:authUser.id}));
-      setSyncStatus("synced");_pendingSaves.current.delete(id);setTimeout(()=>setSyncStatus("idle"),2000);
+      await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||authUser.id}));
+      setSyncStatus("synced");_pendingSaves.current.delete(id);persistPending();setTimeout(()=>setSyncStatus("idle"),2000);
     }catch(err){
       setSyncStatus("offline");
-      _pendingSaves.current.set(id,ev); // queue per-event for retry when back online
+      _pendingSaves.current.set(id,ev);persistPending(); // queue per-event for retry when back online
       toastWarn("⚠ Sin conexión — los cambios se guardarán cuando vuelva internet.");
       console.error("[CloudSave] Failed:",err.message);
     }
   }
+  // Flush debounced cloud saves immediately — used when the tab is hidden/closed
+  // and before sign-out, so last-second edits don't die with the 1.5s timer.
+  function flushCloudSaves(){
+    for(const [evId,tid] of Array.from(_cloudSaveTimers.current.entries())){
+      clearTimeout(tid);_cloudSaveTimers.current.delete(evId);
+      const ev=_eventsRef.current.find(x=>x.id===evId);
+      if(ev) cloudSaveEvent(ev);
+    }
+  }
+  useEffect(()=>{
+    if(!authUser) return;
+    const onHide=()=>{if(document.visibilityState==="hidden") flushCloudSaves();};
+    window.addEventListener("visibilitychange",onHide);
+    window.addEventListener("pagehide",flushCloudSaves);
+    return()=>{window.removeEventListener("visibilitychange",onHide);window.removeEventListener("pagehide",flushCloudSaves);};
+  },[authUser]);// eslint-disable-line
   // Retry pending saves when connection returns — flushes every queued event,
   // not just the most recent one.
   useEffect(()=>{
@@ -900,7 +1018,7 @@ Daily Summary — ${dayLabel}
     for(const tid of _cloudSaveTimers.current.values()) clearTimeout(tid);
     _cloudSaveTimers.current.clear();
     _pendingSaves.current.clear();
-    _lastSaveHash.current.clear();
+    _lastSaveStamp.current.clear();
     setCloudLoaded(false);
   },[authUser]);// eslint-disable-line
 
@@ -959,6 +1077,7 @@ Daily Summary — ${dayLabel}
         toastProgress(PROG_ID,`📍 Geocodificando ${done}/${total} direcciones…`);
       });
       let legDone=0;
+      const mtgPatches=new Map(); // meetingId → travelMinutes (arriving meeting)
       for(const {date,dayMtgs,addrs} of dayData){
         const results={};
         for(let i=0;i<dayMtgs.length-1;i++){
@@ -970,10 +1089,18 @@ Daily Summary — ${dayLabel}
             const deptHour=dayMtgs[i].hour+dur/60;
             results[`${date}-${i}`]=base?applyBATraffic(base.durationSec,deptHour,base.distanceText):null;
           }
+          // Persist the leg on the ARRIVING meeting (travels with it if moved, and
+          // it's what the agenda PDF renders). Manual overrides win over OSRM.
+          const ovSec=(roadshow.travelOverrides||{})[`${date}-${i}`];
+          const sec=ovSec!=null?applyBATraffic(ovSec,dayMtgs[i].hour+dur/60,null).durationSec:results[`${date}-${i}`]?.durationSec;
+          if(sec) mtgPatches.set(dayMtgs[i+1].id,Math.round(sec/60));
           legDone++;
           toastProgress(PROG_ID,`🛣 Calculando ruta ${legDone}/${totalLegs}…`);
         }
         setTravelCache(prev=>({...prev,[date]:results}));
+      }
+      if(mtgPatches.size){
+        saveRoadshow({...roadshow,meetings:(roadshow.meetings||[]).map(m=>mtgPatches.has(m.id)?{...m,travelMinutes:mtgPatches.get(m.id)}:m)});
       }
       toastClear(PROG_ID);
       toastOk(`✅ Tiempos de viaje listos — ${dayData.length} día${dayData.length!==1?"s":""}, ${totalLegs} tramo${totalLegs!==1?"s":""}`);
@@ -1012,6 +1139,18 @@ Daily Summary — ${dayLabel}
       toastProgress(PROG_ID,`🛣 Calculando tramo ${i+1}/${totalLegs}…`);
     }
     setTravelCache(prev=>({...prev,[date]:results}));
+    // Persist per-meeting travel minutes (arriving meeting) so the PDF and
+    // reloads keep the calculated times; manual overrides win over OSRM.
+    const _ov=roadshow.travelOverrides||{};
+    const _patches=new Map();
+    for(let i=0;i<totalLegs;i++){
+      const ovSec=_ov[`${date}-${i}`];
+      const sec=ovSec!=null?applyBATraffic(ovSec,dayMtgs[i].hour+dur/60,null).durationSec:results[`${date}-${i}`]?.durationSec;
+      if(sec) _patches.set(dayMtgs[i+1].id,Math.round(sec/60));
+    }
+    if(_patches.size){
+      saveRoadshow({...roadshow,meetings:(roadshow.meetings||[]).map(m=>_patches.has(m.id)?{...m,travelMinutes:_patches.get(m.id)}:m)});
+    }
     toastClear(PROG_ID);
     toastOk(`✅ Tiempos del día calculados — ${totalLegs} tramo${totalLegs!==1?"s":""}`);
     setTravelLoading(false);
@@ -1272,13 +1411,13 @@ Daily Summary — ${dayLabel}
         <button className="btn bo bs" style={{fontSize:9,padding:"3px 8px"}} onClick={()=>setDashboardView(true)} title="Volver al dashboard">←</button>
         <span className="hdr-ev-label" style={{fontSize:10,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",textTransform:"uppercase",letterSpacing:".06em"}}>Evento:</span>
         <select className="sel" style={{width:"auto",fontSize:11,padding:"4px 8px"}} value={activeEv||""}
-          onChange={e=>{setActiveEv(e.target.value);setTab("schedule");}}>
+          onChange={e=>{handleOpenEvent(e.target.value);}}>
           {events.filter(e=>!e.archived||e.id===activeEv).map(e=><option key={e.id} value={e.id}>{e.archived?"🗄 ":e.kind==="roadshow"?"🗺️ ":e.kind==="outbound"?"✈️ ":"🏛 "}{e.name}</option>)}
         </select>
         <button className="btn bo bs" style={{fontSize:9}} onClick={()=>setShowEvMgr(true)}>＋ Nuevo</button>
         <button className="btn bo bs" style={{fontSize:9}} title="Búsqueda global" onClick={()=>{setSearchFilter("all");setSearchStatus("all");setShowSearch(true);}}>🔍</button>
         {evKind==="roadshow"&&(()=>{
-          const _today=new Date().toISOString().slice(0,10);
+          const _today=todayLocal();
           const _todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===_today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
           const _todayCount=_todayMtgs.length;
           const _nowH=new Date().getHours()+new Date().getMinutes()/60;
@@ -1304,7 +1443,7 @@ Daily Summary — ${dayLabel}
         <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 8px",background:"rgba(30,90,176,.08)",borderRadius:6}}>
           <span style={{fontSize:9,color:"var(--dim)",fontFamily:"IBM Plex Mono,monospace",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>☁ {authUser?.email}</span>
           <button className="btn bo bs" style={{fontSize:11,padding:"2px 6px"}} title="Configuración personal" onClick={()=>setSettingsOpen(true)}>⚙</button>
-          <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={signOut}>Salir</button>
+          <button className="btn bo bs" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>{flushCloudSaves();signOut();}}>Salir</button>
         {syncStatus!=="idle"&&<span style={{fontSize:8,fontFamily:"IBM Plex Mono,monospace",color:syncStatus==="syncing"?"#f59e0b":syncStatus==="offline"?"#dc2626":"#22c55e",display:"flex",alignItems:"center",gap:3}} title={syncStatus==="syncing"?"Guardando...":syncStatus==="offline"?"Sin conexión — cambios pendientes":"Sincronizado"}>
           {syncStatus==="syncing"?"⟳ Sync...":syncStatus==="offline"?"⚡ Offline":"✓ Synced"}
         </span>}
@@ -1373,6 +1512,13 @@ Daily Summary — ${dayLabel}
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
                   {events.length>1&&<button className="btn bd bs" title="Eliminar evento" onClick={()=>{
                     if(confirm(`Eliminar "${e.name}"? Esta acción no se puede deshacer.`)){
+                      // Cancel any in-flight debounced save/queue for this event so a
+                      // posthumous upsert can't resurrect the row in the cloud.
+                      const tid=_cloudSaveTimers.current.get(e.id);
+                      if(tid){clearTimeout(tid);_cloudSaveTimers.current.delete(e.id);}
+                      _pendingSaves.current.delete(e.id);persistPending();
+                      _lastSaveStamp.current.delete(e.id);
+                      markDeleted(e.id);
                       const next=events.filter(x=>x.id!==e.id);setEvents(next);saveEvents(next);cloudDeleteEvent(e.id);
                       if(activeEv===e.id) setActiveEv(next[0]?.id||null);
                     }

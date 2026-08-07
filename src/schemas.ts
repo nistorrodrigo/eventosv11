@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 // ── Contact ──
-export const ContactSchema = z.object({
+export const ContactSchema = z.looseObject({
   id: z.string().min(1),
   name: z.string().min(1, "Nombre requerido"),
   title: z.string().default(""),
@@ -78,7 +78,7 @@ export const MeetingSchema = z.looseObject({
 });
 
 // ── Expense ──
-export const ExpenseSchema = z.object({
+export const ExpenseSchema = z.looseObject({
   id: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   category: z.string().min(1),

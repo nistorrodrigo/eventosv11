@@ -3,10 +3,10 @@ import { useState, useRef } from 'react';
 import { FeedbackWidget } from "./FeedbackWidget.jsx";
 import { INTEREST_LABELS, NEXT_LABELS } from "../constants.jsx";
 import { PLATFORM_LABELS, PLATFORM_ICONS } from "../travel.js";
-import { fmtHour } from "../roadshow.jsx";
+import { fmtHour, todayLocal } from "../roadshow.jsx";
 
 export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,kioskIdx,setKioskIdx,kioskFb,setKioskFb,kioskFbData,setKioskFbData,onClose,onSaveMtg}){
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayLocal();
   const kioskDate=kioskDateProp||(tripDays.includes(today)?today:(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]||today));
   const kioskMtgs=(roadshow.meetings||[]).filter(m=>m.date===kioskDate&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
   const cur=kioskMtgs[Math.min(kioskIdx,kioskMtgs.length-1)];
@@ -160,15 +160,23 @@ export function KioskModal({roadshow,tripDays,rsCoById,kioskDate:kioskDateProp,k
                   ))}
                 </div>
               )}
-              {/* Location */}
+              {/* Location — tap opens Google Maps (day mode lives on the phone, in the car) */}
               {locStr&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10,padding:"8px 10px",background:"rgba(255,255,255,.04)",borderRadius:7}}>
                 <div style={{display:"flex",gap:7}}>
                   <span style={{flexShrink:0}}>{isCurVirt?"💻":"📍"}</span>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,.55)",lineHeight:1.5}}>{locStr}</span>
+                  {isCurVirt
+                    ?<span style={{fontSize:11,color:"rgba(255,255,255,.55)",lineHeight:1.5}}>{locStr}</span>
+                    :<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locStr)}`} target="_blank" rel="noreferrer" style={{fontSize:11,color:"#a5c4ff",lineHeight:1.5,textDecoration:"underline",textDecorationColor:"rgba(165,196,255,.35)"}}>{locStr} 🗺️</a>}
                 </div>
                 {isCurVirt&&cur?.meetingLink&&(
                   <a href={cur.meetingLink} target="_blank" rel="noreferrer" style={{display:"inline-block",padding:"6px 10px",background:"rgba(74,158,255,.18)",border:"1px solid rgba(74,158,255,.4)",borderRadius:5,color:"#a5c4ff",fontSize:11,fontWeight:600,textDecoration:"none",marginTop:4,fontFamily:"IBM Plex Mono,monospace",alignSelf:"flex-start"}}>🔗 Unirse a la reunión</a>
                 )}
+                {(()=>{
+                  const next=kioskMtgs[Math.min(kioskIdx,kioskMtgs.length-1)+1];
+                  return (next&&next.travelMinutes>0)
+                    ?<div style={{fontSize:10,color:"rgba(255,255,255,.4)",fontFamily:"IBM Plex Mono,monospace"}}>🚗 ~{next.travelMinutes} min a la próxima ({fmtHour(next.hour)})</div>
+                    :null;
+                })()}
               </div>}
               {/* Notes */}
               {cur?.notes&&<div style={{padding:"8px 10px",background:"rgba(255,255,255,.03)",borderRadius:7,borderLeft:"3px solid "+clr+"60",marginBottom:6}}>

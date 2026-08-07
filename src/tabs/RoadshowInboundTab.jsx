@@ -10,7 +10,7 @@ import { WeekCalendar } from "../components/WeekCalendar.tsx";
 import { EmptyState } from "../components/EmptyState.tsx";
 import { KanbanBoard } from "../components/KanbanBoard.tsx";
 // Lucide icons removed — caused production build error
-import { ROADSHOW_HOURS, fmtHour, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
+import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, RS_CLR, LS_INT_TYPES, genRSEmail, rsToEntity, parseICS, buildICS, buildBookingPage, fmtDateRange, TIMEZONES, BASE_TZ, tzOffsetLabel, getAllFunds, isMultiFund, fundLabel } from "../roadshow.jsx";
 // Heavy email-modal templates live in their own chunk so the InboundTab JS
 // payload doesn't carry ~400 LOC of HTML strings unless the user actually
 // clicks ✉️ Email or 🌅 Daily.
@@ -93,7 +93,7 @@ export function RoadshowInboundTab({
         // Expense tracker state (must be at top level, not inside IIFE)
         const EXPENSE_CATS=["🚗 Transfer","🍽 Comida","🏨 Hotel","✈️ Vuelo","📱 Comunicaciones","🎫 Entretenimiento","📦 Otros"];
         const EXPENSE_CURRENCIES=["ARS","USD","EUR","BRL","GBP"];
-        const [expForm,setExpForm]=useState({date:new Date().toISOString().slice(0,10),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:"",receipt:null,receiptName:null});
+        const [expForm,setExpForm]=useState({date:todayLocal(),category:"🚗 Transfer",description:"",amount:"",currency:"USD",paidBy:"",notes:"",receipt:null,receiptName:null});
         const [expEdit,setExpEdit]=useState(null);
         const [weather,setWeather]=useState(null); // {temp, icon, desc}
         useEffect(()=>{
@@ -417,7 +417,7 @@ export function RoadshowInboundTab({
                   </button>
                   {tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;}).map(d=>{
                     const dd=new Date(d+"T12:00:00");
-                    const today=new Date().toISOString().slice(0,10);
+                    const today=todayLocal();
                     const isToday=d===today;
                     const lbl=dd.toLocaleDateString("es-AR",{weekday:"short",day:"numeric"});
                     return(
@@ -439,7 +439,7 @@ export function RoadshowInboundTab({
                   </div>
                   <button className="btn bo bs" style={{fontSize:9,gap:4,borderColor:"rgba(30,90,176,.3)"}} title="Modo día — vista simplificada para celular"
                     onClick={()=>{
-                      const today=new Date().toISOString().slice(0,10);
+                      const today=todayLocal();
                       const todayMtgs=(roadshow.meetings||[]).filter(m=>m.date===today&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
                       const targetDate=todayMtgs.length?today:(rsDayFilter||(tripDays.find(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;})||tripDays[0]));
                       if(!targetDate){toast("Configurá las fechas del viaje primero.");return;}
@@ -571,7 +571,7 @@ export function RoadshowInboundTab({
                                 const subject=`Meeting Confirmation — ${co.name} & ${fund2} · ${dateStr}`;
                                 const linkLine=isV&&m.meetingLink?`\nMeeting Link: ${m.meetingLink}`:"";
                                 const body=`Dear team,\n\nWe are pleased to confirm the following meeting:\n\nDate: ${dateStr}\nTime: ${fmtH(m.hour)} (Buenos Aires)\nLocation: ${locStr}${linkLine}\nAttendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}`;
-                                const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
+                                const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:null;if(!from){toastErr("Configurá tu email @latinsecurities en Config → Contactos LS antes de enviar (el fallback de prueba de Resend cae en spam).");return;}
                                 try{
                                   const briefHtml=`<html><body style="font-family:Calibri,sans-serif;padding:20px"><h2 style="color:#000039">${co.name}</h2><p><strong>Date:</strong> ${dateStr}<br><strong>Time:</strong> ${fmtH(m.hour)} (Buenos Aires)<br><strong>Location:</strong> ${locStr}${isV&&m.meetingLink?`<br><strong>Meeting Link:</strong> <a href="${m.meetingLink}">${m.meetingLink}</a>`:""}<br><strong>Attendees:</strong> ${visitors}</p>${m.notes?`<p><strong>Agenda:</strong> ${m.notes}</p>`:""}<p style="color:#6b7280;font-size:10pt;margin-top:20px">Latin Securities · Confidential</p></body></html>`;
                                   const briefB64=btoa(unescape(encodeURIComponent(briefHtml)));
@@ -682,7 +682,7 @@ export function RoadshowInboundTab({
                             <th key={date} style={{background:isWE?"rgba(30,90,176,.02)":"#1e5ab0",color:isWE?"var(--dim)":"#fff",borderBottom:"2px solid rgba(30,90,176,.12)",padding:"4px 3px",textAlign:"center"}}>
                               <div style={{fontFamily:"IBM Plex Mono,monospace",fontSize:7.5,letterSpacing:".08em",marginBottom:1}}>{DN[d.getDay()]}</div>
                               <div style={{fontSize:14,fontWeight:700,lineHeight:1}}>{d.getDate()}</div>
-                              <div style={{fontSize:7,opacity:.75}}>Abr</div>
+                              <div style={{fontSize:7,opacity:.75}}>{(()=>{const s=d.toLocaleDateString("es-AR",{month:"short"}).replace(".","");return s.charAt(0).toUpperCase()+s.slice(1);})()}</div>
                             </th>);
                         })}
                       </tr>
@@ -728,7 +728,8 @@ export function RoadshowInboundTab({
                                   onDragOver={e=>{
                                     if(!dragMtg||mtg||isWE) return;
                                     e.preventDefault();
-                                    const dur2=roadshow.trip.meetingDuration||60;
+                                    // Validate with the DRAGGED meeting's own duration, not the trip default
+                                    const dur2=((roadshow.meetings||[]).find(x=>x.id===dragMtg.id)?.duration)||roadshow.trip.meetingDuration||60;
                                     const endH=h+dur2/60;
                                     // Check for conflicts with other meetings on this day
                                     const dayMtgs=(roadshow.meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled"&&m.id!==dragMtg.id);
@@ -746,8 +747,8 @@ export function RoadshowInboundTab({
                                   onDrop={e=>{
                                     e.currentTarget.style.background="";e.currentTarget.title="";
                                     if(!dragMtg||mtg||isWE) return;
-                                    // Warn on conflict
-                                    const dur2=roadshow.trip.meetingDuration||60;
+                                    // Warn on conflict — use the dragged meeting's own duration
+                                    const dur2=((roadshow.meetings||[]).find(x=>x.id===dragMtg.id)?.duration)||roadshow.trip.meetingDuration||60;
                                     const endH2=h+dur2/60;
                                     const dayMtgs2=(roadshow.meetings||[]).filter(m=>m.date===date&&m.status!=="cancelled"&&m.id!==dragMtg.id);
                                     const hasConflict=dayMtgs2.some(m=>{const mEnd=m.hour+(m.duration||dur2)/60;return(h<mEnd&&endH2>m.hour);});
@@ -815,7 +816,9 @@ export function RoadshowInboundTab({
                                       const _chipKey=`${date}-${pi}`;
                                       const _chipOverrideSec=roadshow.travelOverrides?.[_chipKey];
                                       const _chipDeptH=mA.hour+(mA.duration||60)/60;
-                                      travelInfo=dayT[_chipKey]||((_chipOverrideSec!=null)?{...applyBATraffic(_chipOverrideSec,_chipDeptH,null),source:"manual"}:null);
+                                      travelInfo=(_chipOverrideSec!=null)?{...applyBATraffic(_chipOverrideSec,_chipDeptH,null),source:"manual"}
+                                        :dayT[_chipKey]
+                                        ||((mB.travelMinutes>0)?{durationText:`${mB.travelMinutes} min`,durationSec:mB.travelMinutes*60,distanceText:"",source:"saved"}:null);
                                       // Only show on first gap slot
                                       if(h===aEnd) break;
                                       else {travelInfo=null;break;}
@@ -856,7 +859,7 @@ export function RoadshowInboundTab({
                           <div style={{width:34,height:34,borderRadius:6,background:clr,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:8.5,fontWeight:700,fontFamily:"IBM Plex Mono,monospace",textAlign:"center",flexShrink:0,lineHeight:1.2}}>{co?.ticker||"LS"}</div>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:12,fontWeight:700,color:"var(--cream)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{co?co.name:(m.lsType||m.title||"Reunión")}</div>
-                            <div style={{fontSize:10,color:"var(--dim)",marginTop:1}}>{dayStr} · {m.hour}:00 · {locL}</div>
+                            <div style={{fontSize:10,color:"var(--dim)",marginTop:1}}>{dayStr} · {fmtHour(m.hour)} · {locL}</div>
                           </div>
                           <div style={{fontSize:9,padding:"2px 6px",borderRadius:4,flexShrink:0,fontFamily:"IBM Plex Mono,monospace",background:m.status==="confirmed"?"rgba(58,140,92,.12)":m.status==="cancelled"?"rgba(214,68,68,.10)":"rgba(30,90,176,.08)",color:m.status==="confirmed"?"var(--grn)":m.status==="cancelled"?"var(--red)":"var(--dim)"}}>
                             {m.status==="confirmed"?"✓":m.status==="cancelled"?"✗":"⏳"}
@@ -1105,6 +1108,7 @@ export function RoadshowInboundTab({
                               {Object.keys(RS_CLR).filter(s=>s!=="LS Internal").map(s=><option key={s} value={s}>{s}</option>)}
                             </select>
                             {hasMtg&&<span style={{fontSize:9,color:"var(--grn)",fontFamily:"IBM Plex Mono,monospace",flexShrink:0}}>✓ reunión</span>}
+                            {!hasMtg&&co.outreachAt&&<span title={`Email enviado/copiado el ${new Date(co.outreachAt).toLocaleDateString("es-AR")} — sin reunión todavía`} style={{fontSize:9,color:"#e8850a",fontFamily:"IBM Plex Mono,monospace",flexShrink:0}}>✉️ {new Date(co.outreachAt).toLocaleDateString("es-AR",{day:"numeric",month:"numeric"})}</span>}
                           </div>
                         </div>
                         <button className={`btn bs ${co.active?"bg":"bo"}`} style={{fontSize:9,padding:"3px 7px",flexShrink:0}} onClick={()=>setCo("active",!co.active)}>{co.active?"Activa":"Off"}</button>
@@ -1248,10 +1252,14 @@ export function RoadshowInboundTab({
                         const _travelKey=`${date}-${mi}`;
                         const _overrideSec=roadshow.travelOverrides?.[_travelKey];
                         const _deptH=m.hour+dur/60;
-                        const travelData=mi<dayMtgs.length-1
-                          ?(dayTravel[_travelKey]||((_overrideSec!=null)?{...applyBATraffic(_overrideSec,_deptH,null),source:"manual"}:null))
-                          :null;
                         const nextM=mi<dayMtgs.length-1?dayMtgs[mi+1]:null;
+                        // Precedence: manual override > OSRM cache > minutes saved on the
+                        // arriving meeting (survives reloads — the cache is memory-only).
+                        const travelData=nextM
+                          ?((_overrideSec!=null)?{...applyBATraffic(_overrideSec,_deptH,null),source:"manual"}
+                            :dayTravel[_travelKey]
+                            ||((nextM.travelMinutes>0)?{durationText:`${nextM.travelMinutes} min`,durationSec:nextM.travelMinutes*60,distanceText:"",source:"saved",baseSec:nextM.travelMinutes*60}:null))
+                          :null;
                         const conflict=nextM?checkTravelConflict(m,nextM,travelData?.durationSec??null,dur):null;
                         return(
                           <div key={m.id}>
@@ -1268,7 +1276,7 @@ export function RoadshowInboundTab({
                                   </div>
                                   <button style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:"var(--dim)",padding:"0 0 0 8px",whiteSpace:"nowrap",flexShrink:0}}
                                     aria-label="Ver en Maps"
-                                    onClick={()=>{const prev=mi>0?getMeetingAddress(dayMtgs[mi-1],mi>0&&dayMtgs[mi-1].type==="company"?rmMap.get(dayMtgs[mi-1].companyId):null,roadshow.trip.officeAddress):null;if(prev)openGoogleMapsDirections(prev,addr);else window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`,"_blank");}}>
+                                    onClick={()=>{const prev=mi>0?getMeetingAddress(dayMtgs[mi-1],mi>0&&dayMtgs[mi-1].type==="company"?rsCoById.get(dayMtgs[mi-1].companyId):null,roadshow.trip.officeAddress):null;if(prev)openGoogleMapsDirections(prev,addr);else window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`,"_blank");}}>
                                     🗺️
                                   </button>
                                 </div>
@@ -1299,7 +1307,10 @@ export function RoadshowInboundTab({
                                             const v=parseInt(editLegVal);
                                             if(v>0){
                                               const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
-                                              saveRoadshow({...roadshow,travelOverrides:overrides});
+                                              // Also anchor the minutes on the arriving MEETING (id-based, feeds the PDF
+                                              // and survives reorders — the positional override key shifts when meetings move)
+                                              const applied=Math.round(applyBATraffic(v*60,_deptH,null).durationSec/60);
+                                              saveRoadshow({...roadshow,travelOverrides:overrides,meetings:(roadshow.meetings||[]).map(x=>x.id===nextM?.id?{...x,travelMinutes:applied}:x)});
                                               // Also update travelCache so it shows immediately
                                               setTravelCache(prev=>({...prev,[date]:{...(prev[date]||{}),
                                                 [_travelKey]:{...applyBATraffic(v*60,_deptH,null),source:"manual"}}}));
@@ -1315,7 +1326,8 @@ export function RoadshowInboundTab({
                                           const v=parseInt(editLegVal);
                                           if(v>0){
                                             const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
-                                            saveRoadshow({...roadshow,travelOverrides:overrides});
+                                            const applied=Math.round(applyBATraffic(v*60,_deptH,null).durationSec/60);
+                                            saveRoadshow({...roadshow,travelOverrides:overrides,meetings:(roadshow.meetings||[]).map(x=>x.id===nextM?.id?{...x,travelMinutes:applied}:x)});
                                             setTravelCache(prev=>({...prev,[date]:{...(prev[date]||{}),
                                               [_travelKey]:{...applyBATraffic(v*60,_deptH,null),source:"manual"}}}));
                                           }
@@ -1525,7 +1537,18 @@ export function RoadshowInboundTab({
                     return `Subject: Meeting Confirmation — ${co.name} & ${roadshow.trip.fund}\n\nDear team,\n\nWe are pleased to confirm the following meeting:\n\n📅 Date: ${dateStr}\n🕐 Time: ${mtg?fmtH2(mtg.hour):"[time]"} (Buenos Aires time)\n📍 Location: ${mtg?.location==="ls_office"?(roadshow.trip.officeAddress||"LS Offices"):co.hqAddress||"TBD"}\n👤 Attendees: ${visitors}\n\nPlease let us know if you need any changes.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
                   {id:"followup",icon:"📞",title:"Follow-up post reunión",
                     gen:(co)=>{const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name.split(" ")[0]).join(" and ")||roadshow.trip.fund;
-                    return `Subject: Follow-up — ${co.name} meeting\n\nDear team,\n\nThank you for taking the time to meet with ${visitors} during our Buenos Aires roadshow.\n\nAs discussed, we will:\n- [action item 1]\n- [action item 2]\n\nPlease don't hesitate to reach out if you need any additional information.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
+                    // Feed the follow-up with what was actually captured for this
+                    // company's meeting (postNotes + feedback.nextStep) instead of
+                    // empty placeholders. "no_interest" stays internal — never
+                    // leak that into a client-facing email.
+                    const mtg=(roadshow.meetings||[]).find(m=>m.companyId===co.id);
+                    const NEXT_TXT={send_info:"Send additional information / materials",schedule_call:"Schedule a follow-up call",send_model:"Send the financial model",intro:"Make an introduction",follow_up:"Follow up in the coming weeks"};
+                    const items=[];
+                    if(mtg?.postNotes) items.push(...mtg.postNotes.split("\n").map(s=>s.trim()).filter(Boolean).slice(0,4));
+                    const nx=mtg?.feedback?.nextStep;
+                    if(nx&&nx!=="no_interest"&&NEXT_TXT[nx]) items.push(NEXT_TXT[nx]);
+                    const actionBlock=items.length?items.map(s=>`- ${s}`).join("\n"):`- [action item 1]\n- [action item 2]`;
+                    return `Subject: Follow-up — ${co.name} meeting\n\nDear team,\n\nThank you for taking the time to meet with ${visitors} during our Buenos Aires roadshow.\n\nAs discussed, we will:\n${actionBlock}\n\nPlease don't hesitate to reach out if you need any additional information.\n\nBest regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
                   {id:"thankyou",icon:"🙏",title:"Thank you — fin del roadshow",
                     gen:(co)=>{const visitors=(roadshow.trip.visitors||[]).filter(v=>v.name).map(v=>v.name).join(" and ")||roadshow.trip.fund;const fund=roadshow.trip.fund||roadshow.trip.clientName||"our client";
                     return `Subject: Thank you — ${fund} Buenos Aires Roadshow\n\nDear team,\n\nOn behalf of ${visitors} and the Latin Securities team, we would like to thank you for the meeting during ${fund}'s visit to Buenos Aires.\n\nWe value the relationship and look forward to keeping you updated on future developments.\n\nWarm regards,\n${lsCont?.name||"Latin Securities"}\n${lsCont?.email||""}`;}},
@@ -1539,7 +1562,7 @@ export function RoadshowInboundTab({
                       <span style={{fontSize:12,fontWeight:700,color:"var(--cream)"}}>{tmpl.title}</span>
                     </div>
                     <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                      {roadshow.companies.filter(c=>c.active).slice(0,8).map(co=>{
+                      {roadshow.companies.filter(c=>c.active).map(co=>{
                         const contacts=(co.contacts||[]).filter(c=>c.email);
                         const hasResend=!!resendKey;
                         return(<div key={co.id} style={{display:"inline-flex",gap:2}}>
@@ -1550,7 +1573,7 @@ export function RoadshowInboundTab({
                           {hasResend&&contacts.length>0&&<button className="btn bo bs" style={{fontSize:9,padding:"2px 5px",color:"#1e5ab0"}} title={`Enviar a ${contacts.map(c=>c.email).join(", ")}`} onClick={async()=>{
                             const text=tmpl.gen(co);const subject=text.split("\n")[0].replace("Subject: ","");const body=text.split("\n").slice(2).join("\n");
                             const to=contacts.map(c=>c.email);
-                            const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:`Latin Securities <onboarding@resend.dev>`;
+                            const from=lsCont?.email?.includes("latinsecurities")?`${lsCont.name} <${lsCont.email}>`:null;if(!from){toastErr("Configurá tu email @latinsecurities en Config → Contactos LS antes de enviar (el fallback de prueba de Resend cae en spam).");return;}
                             try{
                               const res=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${resendKey}`},body:JSON.stringify({from,to,subject,text:body,reply_to:lsCont?.email})});
                               if(res.ok)toastOk(`✅ Email enviado a ${to.join(", ")}`);else toastErr("Error: "+(await res.text()));
@@ -1677,9 +1700,7 @@ export function RoadshowInboundTab({
                   <div style={{display:"flex",gap:6,marginTop:6}} onClick={e=>e.stopPropagation()}>
                     <button className="btn bo bs" style={{fontSize:8}} onClick={()=>exportPostRoadshowReport(pdfTz)}>🖨 Imprimir/PDF</button>
                     <button className="btn bo bs" style={{fontSize:8}} onClick={()=>{
-                      // Generate same HTML and download as .doc
-                      const {_exportPostRoadshowReport}=require("../../src/utils/exporters.ts");
-                      // Simpler: call openPrint but with downloadBlob instead
+                      // require() no existe en el bundle ESM — el import() dinámico de abajo alcanza
                       const fn=`PostRoadshow_${(roadshow.trip.fund||"Report").replace(/[^a-zA-Z0-9]/g,"_")}.doc`;
                       // We need the HTML - regenerate it
                       import("../../src/utils/exporters.ts").then(mod=>{
@@ -1719,11 +1740,9 @@ export function RoadshowInboundTab({
                   <div className="ex-card-t">Importar .ICS (Outlook → App)</div>
                   <div className="ex-card-s">Cargá un archivo .ics exportado de Outlook o Google Calendar para importar reuniones.</div>
                 </div>
-                <div className="ex-card" role="button" tabIndex={0} onClick={exportBookingPage} onKeyDown={e=>{if(e.key==="Enter")exportBookingPage();}}>
-                  <div className="ex-card-ico">🔗</div>
-                  <div className="ex-card-t">Página de reserva (HTML offline)</div>
-                  <div className="ex-card-s">Descarga HTML estático — funciona sin conexión pero no sincroniza con la app.</div>
-                </div>
+                {/* La página de reserva HTML offline se retiró: el "Ocupado" vivía en el
+                    localStorage de CADA visitante, así que dos personas podían reservar
+                    el mismo slot sin enterarse. El flujo online (abajo) es el válido. */}
                 {publishBookingSlots&&<div className="ex-card" role="button" tabIndex={0} onClick={publishBookingSlots} onKeyDown={e=>{if(e.key==="Enter")publishBookingSlots();}} style={{borderColor:"#1e5ab033",background:"linear-gradient(135deg,#f8faff,#eef3ff)"}}>
                   <div className="ex-card-ico">🌐</div>
                   <div className="ex-card-t">Link de reserva online</div>
@@ -1734,12 +1753,14 @@ export function RoadshowInboundTab({
               <div className="card">
                 <p style={{fontSize:12,color:"var(--dim)",marginBottom:10,lineHeight:1.6}}>Genera un resumen de los horarios libres para enviar a las empresas por WhatsApp o email.</p>
                 <button className="btn bo bs" style={{gap:5}} onClick={()=>{
-                  const busy=new Set(roadshow.meetings.map(m=>`${m.date}-${m.hour}`));
+                  // Duration/cancelled-aware free slots (freeMeetingSlots) — the old Set
+                  // por hora de inicio ofrecía horarios pisados por reuniones largas.
+                  const free=freeMeetingSlots(roadshow.meetings,tripDays,roadshow.trip.meetingDuration||60);
                   const workDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
                   const lines=workDays.map(date=>{
                     const d=new Date(date+"T12:00:00");
                     const ds=d.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
-                    const fh=[9,10,11,12,14,15,16,17].filter(h=>!busy.has(`${date}-${h}`));
+                    const fh=free.filter(f=>f.day===date).map(f=>f.h);
                     if(!fh.length) return null;
                     return `${ds.charAt(0).toUpperCase()+ds.slice(1)}:\n${fh.map(h=>`  • ${h}:00 – ${h+1}:00 hs`).join("\n")}`;
                   }).filter(Boolean);
@@ -1853,6 +1874,7 @@ export function RoadshowInboundTab({
             company={rsEmailModal.company}
             emailData={rsEmailModal.emailData}
             onClose={()=>setRsEmailModal(null)}
+            onMarkOutreach={()=>patchCompanyField(rsEmailModal.company.id,"outreachAt",new Date().toISOString())}
           />}
           {/* ── ICS Import Modal ── */}
           {icsImportModal&&(

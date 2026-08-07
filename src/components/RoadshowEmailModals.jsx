@@ -126,11 +126,14 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
       // Resend requires a verified domain. Use lsContact email as reply-to.
       // If you have a verified domain, change "from" to match it.
       const senderName=lsContact?.name||"Latin Securities";
-      const senderEmail=lsContact?.email||"onboarding@resend.dev";
-      // For verified domain: use senderEmail. Fallback: onboarding@resend.dev (Resend test)
-      const from=senderEmail.includes("resend.dev")||senderEmail.includes("latinsecurities.ar")
-        ?`${senderName} <${senderEmail}>`
-        :`Latin Securities LS <onboarding@resend.dev>`;
+      const senderEmail=lsContact?.email||"";
+      // Only send from the verified LS domain — the resend.dev test sender lands
+      // in spam and looks unserious in front of an IR team.
+      if(!senderEmail.includes("latinsecurities")){
+        setSending(false);setSendResult("err:Configurá tu email @latinsecurities en Config → Contactos LS antes de enviar.");
+        return;
+      }
+      const from=`${senderName} <${senderEmail}>`;
       const replyTo=lsContact?.email?[{email:lsContact.email,name:senderName}]:undefined;
       const res=await fetch("https://api.resend.com/emails",{
         method:"POST",
@@ -347,7 +350,11 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
     setSending(true);setSendResult(null);
     try{
       const senderName=lsContact?.name||"Latin Securities";
-      const senderEmail=lsContact?.email||"onboarding@resend.dev";
+      const senderEmail=lsContact?.email||"";
+      if(!senderEmail.includes("latinsecurities")){
+        setSending(false);setSendResult("err:Configurá tu email @latinsecurities en Config → Contactos LS antes de enviar.");
+        return;
+      }
       const from=`${senderName} <${senderEmail}>`;
       const res=await fetch("https://api.resend.com/emails",{
         method:"POST",

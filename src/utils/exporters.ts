@@ -296,9 +296,17 @@ export function _exportDriverItinerary({filterDate, roadshow, travelCache, tripD
     if(!dayMtgs.length)return null;
     const dayT=travelCache[date]||{};
     const _overridesMap=roadshow.travelOverrides||{};
-    const getTravel=(key,deptH)=>{if(dayT[key])return dayT[key];const ov=_overridesMap[key];return ov!=null?{...applyBATraffic(ov,deptH,null),source:"manual"}:null;};
+    // Precedence: manual override > OSRM cache > minutes saved on the arriving
+    // meeting (the cache is memory-only, so after a reload this is what's left).
+    const getTravel=(key,deptH,arriving)=>{
+      const ov=_overridesMap[key];
+      if(ov!=null)return{...applyBATraffic(ov,deptH,null),source:"manual"};
+      if(dayT[key])return dayT[key];
+      if(arriving&&arriving.travelMinutes>0)return{durationText:`${arriving.travelMinutes} min`,durationSec:arriving.travelMinutes*60,distanceText:"",source:"saved"};
+      return null;
+    };
     const fmtDate=new Date(date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});
-    const leg0=getTravel(`${date}-0`,dayMtgs[0].hour);
+    const leg0=getTravel(`${date}-0`,dayMtgs[0].hour,dayMtgs[1]);
     const hotelTravelMin=leg0?.durationSec?Math.ceil(leg0.durationSec/60)+5:20;
     const pickupH=subMinutes(dayMtgs[0].hour,hotelTravelMin+10);
     let rows=`<tr class="hotel-row"><td class="time-cell">${fmtH(pickupH)}</td><td class="event-cell"><div class="event-title">🏨 Salida del hotel</div><div class="event-sub">${hotel}</div></td><td class="info-cell"><span class="badge badge-hotel">~${hotelTravelMin} min al destino</span></td></tr><tr class="gap-row"><td></td><td colspan="2"><div class="gap-line">🚗 traslado ≈ ${hotelTravelMin} min</div></td></tr>`;
@@ -315,9 +323,9 @@ export function _exportDriverItinerary({filterDate, roadshow, travelCache, tripD
       const repHTML=reps.filter(r=>r.name).map(r=>{const ph=r.phone?`<a href="tel:${r.phone.replace(/\s/g,'')}" style="color:#1e5ab0;text-decoration:none">📞 ${r.phone}</a>`:"";const wa=r.phone?`<a href="https://wa.me/${r.phone.replace(/[^\d]/g,'')}" style="color:#25d166;text-decoration:none;margin-left:6px">💬</a>`:"";return `<div style="margin-top:3px"><strong>${r.name}</strong>${r.title?` <span style="color:#6b7280;font-size:9pt">(${r.title})</span>`:""} ${ph}${wa}</div>`;}).join("");
       const statusBadge=m.status==="confirmed"?`<span class="badge badge-conf">✓ Confirmada</span>`:`<span class="badge badge-tent">◌ Tentativa</span>`;
       rows+=`<tr class="mtg-row"><td class="time-cell"><div style="font-weight:800;color:${clr}">${fmtH(m.hour)}</div><div style="font-size:8.5pt;color:#9ca3af;margin-top:1px">${fmtH(endH)}</div></td><td class="event-cell"><div class="event-title" style="color:${clr}">${name}${ticker?` <span class="ticker">${ticker}</span>`:""}</div><div class="event-sub">📍 ${addr}</div>${repHTML?`<div class="reps">${repHTML}</div>`:""}</td><td class="info-cell">${statusBadge}<div style="font-size:9pt;color:#6b7280;margin-top:5px">⏱ ${dur} min</div>${m.notes?`<div style="font-size:9pt;color:#374151;margin-top:5px;font-style:italic">📝 ${m.notes}</div>`:""}</td></tr>`;
-      if(mi<dayMtgs.length-1){const tData=getTravel(`${date}-${mi}`,m.hour+dur/60);const nextM=dayMtgs[mi+1];const gapMin=Math.round((nextM.hour-m.hour)*60-dur);const tMin=tData?Math.ceil(tData.durationSec/60):null;const conflict=tMin!=null&&gapMin<tMin;const warn=tMin!=null&&!conflict&&gapMin<tMin+10;const gapColor=conflict?"#dc2626":warn?"#d97706":"#059669";const travelSource=tData?.source==="osrm+traffic"?" (tráfico CABA est.)":(tData?" (sin tráfico)":"");const travelTxt=tData?`🚗 ${tData.durationText} · ${tData.distanceText}${travelSource}`:"🚗 traslado (tiempo no calculado)";const marginTxt=tMin!=null?` · ${gapMin-tMin} min de margen`:`${gapMin} min entre reuniones`;rows+=`<tr class="gap-row"><td></td><td colspan="2"><div class="gap-line" style="color:${gapColor}">${travelTxt}<span style="font-size:9pt;color:${gapColor};margin-left:8px">${conflict?"⚠ CONFLICTO":warn?"⚡ justo":""} ${marginTxt}</span></div></td></tr>`;}
+      if(mi<dayMtgs.length-1){const nextM=dayMtgs[mi+1];const tData=getTravel(`${date}-${mi}`,m.hour+dur/60,nextM);const gapMin=Math.round((nextM.hour-m.hour)*60-dur);const tMin=tData?Math.ceil(tData.durationSec/60):null;const conflict=tMin!=null&&gapMin<tMin;const warn=tMin!=null&&!conflict&&gapMin<tMin+10;const gapColor=conflict?"#dc2626":warn?"#d97706":"#059669";const travelSource=tData?.source==="osrm+traffic"?" (tráfico CABA est.)":(tData?" (sin tráfico)":"");const travelTxt=tData?`🚗 ${tData.durationText} · ${tData.distanceText}${travelSource}`:"🚗 traslado (tiempo no calculado)";const marginTxt=tMin!=null?` · ${gapMin-tMin} min de margen`:`${gapMin} min entre reuniones`;rows+=`<tr class="gap-row"><td></td><td colspan="2"><div class="gap-line" style="color:${gapColor}">${travelTxt}<span style="font-size:9pt;color:${gapColor};margin-left:8px">${conflict?"⚠ CONFLICTO":warn?"⚡ justo":""} ${marginTxt}</span></div></td></tr>`;}
     });
-    const lastM=dayMtgs[dayMtgs.length-1];const returnH=addMinutes(lastM.hour,dur);const lastLeg=getTravel(`${date}-${dayMtgs.length-2}`,dayMtgs[dayMtgs.length-2]?.hour+dur/60);const returnMin=lastLeg?Math.ceil(lastLeg.durationSec/60)+5:20;
+    const lastM=dayMtgs[dayMtgs.length-1];const returnH=addMinutes(lastM.hour,dur);const lastLeg=getTravel(`${date}-${dayMtgs.length-2}`,dayMtgs[dayMtgs.length-2]?.hour+dur/60,lastM);const returnMin=lastLeg?Math.ceil(lastLeg.durationSec/60)+5:20;
     rows+=`<tr class="gap-row"><td></td><td colspan="2"><div class="gap-line">🚗 traslado ≈ ${returnMin} min</div></td></tr><tr class="hotel-row"><td class="time-cell">${fmtH(addMinutes(returnH,returnMin))}</td><td class="event-cell"><div class="event-title">🏨 Regreso al hotel</div><div class="event-sub">${hotel}</div></td><td class="info-cell"></td></tr>`;
     return `<div class="day-block"><div class="day-hdr"><div class="day-label">${fmtDate.charAt(0).toUpperCase()+fmtDate.slice(1)}</div><div class="day-meta">${dayMtgs.length} reunión${dayMtgs.length!==1?"es":""} · ${dur} min c/u</div></div><table class="day-table"><tbody>${rows}</tbody></table></div>`;
   }).filter(Boolean).join("");

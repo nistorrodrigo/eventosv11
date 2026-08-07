@@ -1,10 +1,10 @@
 // ── RoadshowEmailModal.jsx ──
 import { useState } from 'react';
 
-export function RoadshowEmailModal({company,emailData,onClose}){
+export function RoadshowEmailModal({company,emailData,onClose,onMarkOutreach}){
   const [copied,setCopied]=useState(false);
-  function copy(){const t=`Para: ${emailData.to}\nAsunto: ${emailData.subject}\n\n${emailData.body}`;navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}).catch(()=>{const w=window.open("","_blank","width=680,height=520");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+t.replace(/</g,"&lt;")+"</pre>");w.document.close();});}
-  function openMail(){window.location.href=`mailto:${encodeURIComponent(emailData.to)}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;}
+  function copy(){const t=`Para: ${emailData.to}\nAsunto: ${emailData.subject}\n\n${emailData.body}`;navigator.clipboard.writeText(t).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);onMarkOutreach&&onMarkOutreach();}).catch(()=>{const w=window.open("","_blank","width=680,height=520");w.document.write("<pre style='font:13px monospace;padding:20px;white-space:pre-wrap'>"+t.replace(/</g,"&lt;")+"</pre>");w.document.close();});}
+  function openMail(){onMarkOutreach&&onMarkOutreach();window.location.href=`mailto:${encodeURIComponent(emailData.to)}?subject=${encodeURIComponent(emailData.subject)}&body=${encodeURIComponent(emailData.body)}`;}
   return(
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal" style={{maxWidth:610}}>

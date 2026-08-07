@@ -49,6 +49,8 @@ export function meetingsForFund(meetings, fundId, allFundIds=null){
   });
 }
 export function fmtHour(h){const hh=Math.floor(h);const mm=Math.round((h-hh)*60);return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0");}
+// Local-date "today" (YYYY-MM-DD) — toISOString() is UTC and flips to tomorrow at 21:00 in BA.
+export const todayLocal=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
 
 // ── Timezone support ───────────────────────────────────────────────
 // Base timezone for all stored meeting times: Buenos Aires (UTC-3, no DST)
@@ -167,11 +169,26 @@ export const RS_COS_DEF =[
   {id:"rc_edn",    name:"Edenor",                        ticker:"EDN",   sector:"Energy",      location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
   {id:"rc_glob",   name:"Globant",                       ticker:"GLOB",  sector:"TMT",         location:"ls_office",contacts:[],hqAddress:"",notes:"",active:true},
 ];
-export function genRSEmail(co,trip,meetings,lsContact,tripDays){
-  const busy=new Set((meetings||[]).map(m=>`${m.date}-${m.hour}`));
+// Free hour candidates for proposing meetings. A candidate is blocked when any
+// non-cancelled meeting OVERLAPS [candidate, candidate+dur) — the old Set only
+// matched exact start hours, so half-hour meetings, long durations and cancelled
+// rows produced double-booked proposals in the request emails.
+export function freeMeetingSlots(meetings, tripDays, defaultDur=60){
+  const act=(meetings||[]).filter(m=>m.status!=="cancelled");
   const workDays=(tripDays||[]).filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
   const free=[];
-  for(const day of workDays){for(const h of[9,10,11,12,14,15,16,17]){if(!busy.has(`${day}-${h}`))free.push({day,h});}}
+  for(const day of workDays){
+    const dayMs=act.filter(m=>m.date===day);
+    for(const h of [9,10,11,12,14,15,16,17]){
+      const end=h+defaultDur/60;
+      const clash=dayMs.some(m=>{const mEnd=m.hour+(m.duration||defaultDur)/60;return h<mEnd&&end>m.hour;});
+      if(!clash) free.push({day,h});
+    }
+  }
+  return free;
+}
+export function genRSEmail(co,trip,meetings,lsContact,tripDays){
+  const free=freeMeetingSlots(meetings,tripDays,trip.meetingDuration||60);
   const fmtD=iso=>{const s=new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});return s.charAt(0).toUpperCase()+s.slice(1);};
   const arr=fmtD(trip.arrivalDate||"2026-04-18");
   const dep=fmtD(trip.departureDate||"2026-04-24");
@@ -282,9 +299,22 @@ export function rsToEntity(rs,rsCos,opts={}){
       })();
       const fmt=m.meetingFormat||"Meeting";
         const col1Name=co?(co.name+(co.ticker?" ("+co.ticker+")":"")):(m.lsType||m.title||"Meeting");
+      // Tappable Maps link for physical locations — the agenda PDF is read on a phone
+      const col4url=(m.location!=="virtual"&&rawLoc&&!/TBD/.test(rawLoc))?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rawLoc)}`:null;
       return[...travelRows,{time:fmtH(m.hour,m.date),col1:col1Name,col1b:null,col1c:null,col1html:false,col1chtml:false,
-        col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col5:st}];})
+        col2:reps||"",col2html:false,col3:fmt,col3html:false,col4:locL,col4url,col5:st}];})
   })),
+  // Contacts directory (one entry per company with a meeting) — rendered by
+  // buildPrintHTML as a final page so the client has someone to call en route.
+  directory:(()=>{
+    const seen=new Set();const dir=[];
+    filteredMeetings.filter(m=>m.type==="company").forEach(m=>{
+      const c=rm.get(m.companyId);
+      if(c&&!seen.has(c.id)){seen.add(c.id);dir.push({name:c.name,ticker:c.ticker||"",hqAddress:c.hqAddress||"",reps:(c.contacts||[]).filter(r=>r.name)});}
+    });
+    dir.sort((a,b)=>a.name.localeCompare(b.name));
+    return dir;
+  })(),
   // Optional banner for the PDF when times are not BA local
   tzBanner:isOtherTz?(()=>{
     const lbl=(TIMEZONES.find(t=>t.value===tz)?.label||tz).replace(/^[^ ]+ /,"");
@@ -344,7 +374,7 @@ export function parseICS(icsText){
     const stripTrail=u=>u.replace(/[.,;:!?)\]>]+$/,""); // strip trailing punctuation that's typically not part of the URL
     const possibleLink=stripTrail(url||(/(https?:\/\/[^\s,;]+)/.exec(location)?.[1]||"")||(/(https?:\/\/[^\s,;]+)/.exec(desc)?.[1]||""));
     const isVirtual=!!possibleLink&&/(zoom|teams\.microsoft|teams\.live|meet\.google|webex)/i.test(possibleLink);
-    events.push({uid,title:summary,date:start.date,hour:Math.round(start.hour),
+    events.push({uid,title:summary,date:start.date,hour:Math.round(start.hour*2)/2,
       duration:durMin,
       location:isVirtual?"virtual":undefined,
       meetingLink:isVirtual?possibleLink:"",
@@ -359,10 +389,15 @@ export function buildICS(meetings, companies, trip){
   const rsCoMap=new Map((companies||[]).map(c=>[c.id,c]));
   const pad=n=>String(n).padStart(2,"0");
   const fmtNow=()=>{const n=new Date();return n.getUTCFullYear()+pad(n.getUTCMonth()+1)+pad(n.getUTCDate())+"T"+pad(n.getUTCHours())+pad(n.getUTCMinutes())+pad(n.getUTCSeconds())+"Z";};
-  const fmtDT=(dateStr,hour)=>{
-    const d=new Date(dateStr+"T"+pad(hour)+":00:00");
-    return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+"T"+pad(d.getUTCHours())+pad(d.getUTCMinutes())+"00Z";
+  // Explicit BA offset (-03:00, no DST): the export must not depend on the
+  // exporting laptop's timezone. And half-hours: pad(9.5)="9.5" produced an
+  // Invalid Date → DTSTART:NaN... that calendar clients reject.
+  const baDate=(dateStr,hour)=>{
+    const hh=Math.floor(hour), mm=Math.round((hour-hh)*60);
+    return new Date(`${dateStr}T${pad(hh)}:${pad(mm)}:00-03:00`);
   };
+  const fmtUTC=d=>d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+"T"+pad(d.getUTCHours())+pad(d.getUTCMinutes())+"00Z";
+  const fmtDT=(dateStr,hour)=>fmtUTC(baDate(dateStr,hour));
   const esc=s=>(s||"").replace(/[\,;]/g,"\\$&").replace(/\n/g,"\\n");
   const dur=trip.meetingDuration||60;
   const events=meetings.filter(m=>m.status!=="cancelled").map(m=>{
@@ -376,10 +411,8 @@ export function buildICS(meetings, companies, trip){
     // some clients (line breaks at colon, garbled rendering).
     const locL=isVirt?platLabel:m.location==="ls_office"?(trip.officeAddress||"LS Offices"):m.location==="hq"?(co?co.name+" HQ":"Company HQ"):(m.locationCustom||"TBD");
     const start=fmtDT(m.date,m.hour);
-    const endHour=m.hour+Math.floor(dur/60);const endMin=dur%60;
-    const d=new Date(m.date+"T"+pad(m.hour)+":00:00");
-    const endD=new Date(d.getTime()+dur*60000);
-    const endDT=endD.getUTCFullYear()+pad(endD.getUTCMonth()+1)+pad(endD.getUTCDate())+"T"+pad(endD.getUTCHours())+pad(endD.getUTCMinutes())+"00Z";
+    const mDur=m.duration||dur;
+    const endDT=fmtUTC(new Date(baDate(m.date,m.hour).getTime()+mDur*60000));
     const uid=`rs-${m.id}@latinsecurities.ar`;
     const attendees=(trip.visitors||[]).filter(v=>v.email).map(v=>`ATTENDEE;CN="${esc(v.name)}":mailto:${v.email}`).join("\r\n");
     // Use meeting-specific selected reps, fall back to all contacts
@@ -399,7 +432,15 @@ export function buildICS(meetings, companies, trip){
 
 /* ─── Booking Page HTML Generator ───────────────────────────────── */
 export function buildBookingPage(trip, companies, meetings, officeAddress){
-  const busySlots=new Set((meetings||[]).map(m=>`${m.date}-${m.hour}`));
+  // Duration-aware busy check (same rationale as freeMeetingSlots): a 60'
+  // meeting at 10:00 must also block the 10:30 candidate.
+  const actMs=(meetings||[]).filter(m=>m.status!=="cancelled");
+  const defDur=trip.meetingDuration||60;
+  const slotBusy=(day,h)=>actMs.some(m=>{
+    if(m.date!==day) return false;
+    const mEnd=m.hour+(m.duration||defDur)/60;
+    return h<mEnd&&(h+defDur/60)>m.hour;
+  });
   const workDays=[];
   if(trip.arrivalDate&&trip.departureDate){
     const s=new Date(trip.arrivalDate+"T12:00:00"),e=new Date(trip.departureDate+"T12:00:00");
@@ -413,7 +454,7 @@ export function buildBookingPage(trip, companies, meetings, officeAddress){
     // Use 30-min increments 8:30–18:00 for booking page
     const BOOK_HOURS=[9,9.5,10,10.5,11,11.5,12,12.5,14,14.5,15,15.5,16,16.5,17,17.5];
     for(const h of BOOK_HOURS){
-      if(!busySlots.has(`${day}-${h}`)) slots.push({day,h});
+      if(!slotBusy(day,h)) slots.push({day,h});
     }
   }
   const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});

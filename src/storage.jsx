@@ -243,7 +243,33 @@ ${(()=>{
   // When several agendas are bundled (one per fund), each opens with its own
   // heading so the reader can tell whose agenda they're looking at.
   const multiEntity=entities.length>1;
+  // Company contacts directory — final page per entity so the client has names,
+  // emails and phones at hand while on the road.
+  const buildDirectoryPage=(e)=>{
+    if(!e.directory||!e.directory.length) return "";
+    const rows=e.directory.map((c,i)=>`<tr class="${i%2===0?"even":""}">
+      <td><div class="co-name">${esc(c.name)}${c.ticker?`<span class="co-tick">${esc(c.ticker)}</span>`:""}</div></td>
+      <td style="font-size:9pt;color:#374151;line-height:1.6">${c.reps.length?c.reps.map(r=>`<div><strong style="color:#111827">${esc(r.name)}</strong>${r.title?` <span style="color:#6b7280">(${esc(r.title)})</span>`:""}${r.email?` &nbsp;·&nbsp; ${esc(r.email)}`:""}${r.phone?` &nbsp;·&nbsp; 📞 ${esc(r.phone)}`:""}</div>`).join(""):`<span style="color:#9ca3af">—</span>`}</td>
+      <td style="font-size:9pt;color:#374151">${c.hqAddress?`<a href="https://www.google.com/maps/search/?api=1&query=${esc(encodeURIComponent(c.hqAddress))}" style="color:#1e5ab0;text-decoration:none">${esc(c.hqAddress)}</a>`:""}</td>
+    </tr>`).join("");
+    return `<div class="page">
+      <div class="ls-hdr">
+        <img src="${LS_LOGO_DATA_URL}" style="height:40px;display:block" alt="Latin Securities"/>
+        <div class="ev-info"><div class="ev-title">${esc(meta.eventTitle||"LS Roadshow")}</div><div class="ev-sub">Company Directory</div></div>
+      </div>
+      <table>
+        <tr><td colspan="3" class="dh">Company Contacts</td></tr>
+        <tr class="th"><th style="width:180px">Company</th><th>Representatives</th><th style="width:200px">Address</th></tr>
+        ${rows}
+      </table>
+      <div class="page-footer">
+        <div><span class="footer-brand">Latin Securities</span> &nbsp;·&nbsp; Confidential — prepared for ${esc(e.name)}</div>
+        <div>Directory</div>
+      </div>
+    </div>`;
+  };
   return coverHTML+entities.flatMap((e,ei)=>{
+    const dirPage=buildDirectoryPage(e);
     return e.sections.map((sec,si)=>{
       const isEntityStart=si===0;
       const showHeading=isEntityStart&&(multiEntity||!coverHTML);
@@ -262,7 +288,7 @@ ${(()=>{
           <td class="tt">${esc(r.time)||""}</td>
           <td><div class="co-name">${esc(r.col1)}${r.col1b?`<span class="co-tick">${esc(r.col1b)}</span>`:""}</div>${r.reps||r.col2?`<div class="reps">${esc(r.reps||r.col2)}</div>`:""}</td>
           <td style="font-size:9pt;color:${typClr};font-weight:600;white-space:nowrap">${esc(typ)}</td>
-          <td style="font-size:9.5pt;color:#374151">${esc(loc)}</td>
+          <td style="font-size:9.5pt;color:#374151">${r.col4url?`<a href="${esc(r.col4url)}" style="color:#1e5ab0;text-decoration:none">${esc(loc)} 🗺</a>`:esc(loc)}</td>
           <td style="width:110px">${stBadge(st)}</td>
         </tr>`;
       }).join("");
@@ -291,7 +317,7 @@ ${(()=>{
         ${contactsHtml}
         ${footerHtml}
       </div>`;
-    });
+    }).concat(dirPage?[dirPage]:[]);
   }).join("");
 })()}
 </body></html>`;
