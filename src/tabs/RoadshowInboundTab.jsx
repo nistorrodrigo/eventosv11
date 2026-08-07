@@ -67,7 +67,7 @@ export function RoadshowInboundTab({
             const r=await saveResendKey(legacy);
             if(cancelled||r?.error) return;
             // Clear the legacy field from the JSON blob so collaborators stop seeing it
-            saveRoadshow({...roadshow,trip:{...roadshow.trip,resendKey:""}});
+            saveRoadshow(cur=>({...cur,trip:{...cur.trip,resendKey:""}}));
             toastOk("🔐 Tu Resend API key fue migrada a almacenamiento privado (no se comparte con colaboradores)");
           })();
           return()=>{cancelled=true;};
@@ -214,13 +214,13 @@ export function RoadshowInboundTab({
               <div className="lbl" style={{marginBottom:6}}>🌐 Modalidad del roadshow</div>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                 {[["in_person","🏛 Presencial","Reuniones físicas en BA"],["virtual","💻 Virtual","Todo por Zoom/Teams/Meet"],["hybrid","🔀 Híbrido","Mezcla presenciales y virtuales"]].map(([v,l,desc])=>(
-                  <button key={v} className={`btn bs ${(roadshow.trip.mode||"in_person")===v?"bg":"bo"}`} style={{fontSize:10,flex:1,minWidth:120,flexDirection:"column",alignItems:"flex-start",gap:2,padding:"7px 10px"}} onClick={()=>upTrip("mode",v)} title={desc}>
+                  <button key={v} className={`btn bs ${(cur.trip.mode||"in_person")===v?"bg":"bo"}`} style={{fontSize:10,flex:1,minWidth:120,flexDirection:"column",alignItems:"flex-start",gap:2,padding:"7px 10px"}} onClick={()=>upTrip("mode",v)} title={desc}>
                     <div style={{fontWeight:700}}>{l}</div>
                     <div style={{fontSize:8,opacity:.75,fontWeight:400}}>{desc}</div>
                   </button>
                 ))}
               </div>
-              {(roadshow.trip.mode==="virtual"||roadshow.trip.mode==="hybrid")&&(
+              {(cur.trip.mode==="virtual"||cur.trip.mode==="hybrid")&&(
                 <div style={{marginTop:8}}>
                   <div className="lbl" style={{marginBottom:3,fontSize:9}}>🔗 Link por defecto (se sugiere para cada nueva reunión virtual)</div>
                   <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}}
@@ -938,9 +938,9 @@ export function RoadshowInboundTab({
                                     if(!coId){
                                       coId="co_"+Date.now();
                                       const newCo={id:coId,name:b.company,hqAddress:"",ticker:"",sector:"",contacts:[{id:"rep_"+Date.now(),name:b.contact_name,title:"",email:b.email,phone:b.phone||""}]};
-                                      saveRoadshow({...roadshow,companies:[...(roadshow.companies||[]),newCo],meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(roadshow.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                      saveRoadshow(cur=>({...cur,companies:[...(cur.companies||[]),newCo],meetings:[...(cur.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(cur.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||cur.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||cur.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]}));
                                     }else{
-                                      saveRoadshow({...roadshow,meetings:[...(roadshow.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(roadshow.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||roadshow.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]});
+                                      saveRoadshow(cur=>({...cur,meetings:[...(cur.meetings||[]),{id:"mtg_"+Date.now(),date:b.slot_date,hour:b.slot_hour,companyId:coId,type:"company",status:"confirmed",location:b.location_pref||(cur.trip.mode==="virtual"?"virtual":"ls_office"),locationCustom:"",meetingLink:b.location_pref==="virtual"?(b.meeting_link||cur.trip.defaultMeetingLink||""):"",meetingPlatform:b.location_pref==="virtual"?detectMeetingPlatform(b.meeting_link||cur.trip.defaultMeetingLink||""):"other",notes:"Reserva online: "+b.confirm_code,postNotes:"",meetingFormat:"Meeting",attendeeIds:[],feedback:{},icsVersion:1}]}));
                                     }
                                     fetchBookings();fetchPendingCount();
                                   }}>✅ Aprobar + crear reunión</button>

@@ -165,6 +165,9 @@ export default function App(){
   function saveOutbound(ob){setOutbound(ob);saveCurrentEvent({outbound:ob});}
   const [obSubTab,setObSubTab]=useState("schedule");
   const [roadshow,setRoadshow]=useState(()=>{try{const ev=events.find(e=>e.id===activeEv);return normalizeRoadshow(ev?.roadshow)||{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};}catch{return{trip:RS_TRIP_DEF,companies:RS_COS_DEF,meetings:[]};} });
+  // Always-fresh mirror of `roadshow` for writes that land after an await.
+  const _roadshowRef=useRef(roadshow);
+  useEffect(()=>{_roadshowRef.current=roadshow;},[roadshow]);
   const [rsMtgModal,setRsMtgModal]=useState(null);
   const [rsDayFilter,setRsDayFilter]=useState(null); // null=all days, "YYYY-MM-DD"=single day
   const [kioskMode,setKioskMode]=useState(false);
@@ -374,9 +377,15 @@ export default function App(){
     if(format==="word") downloadBlob(`${co.ticker}_schedule.doc`,buildWordHTML(data.name,data.sub,data.sections,config),"application/msword");
     else openPrint(buildPrintHTML([{...data,attendees:co.attendees}],config));
   }
+  // Accepts an object OR an updater fn. The updater form is MANDATORY for writes
+  // that happen after an await (travel recalculation, uploads, booking approval):
+  // those closures captured `roadshow` seconds earlier, and writing it back
+  // silently reverted whatever the user edited in the meantime.
   function saveRoadshow(rs){
     if(currentEvent?._shared&&currentEvent?._sharedRole==="viewer"){toast("Solo podés ver este evento (acceso viewer).");return;}
-    setRoadshow(rs);saveCurrentEvent({roadshow:rs});
+    const next=typeof rs==="function"?rs(_roadshowRef.current):rs;
+    _roadshowRef.current=next; // keep the ref usable by back-to-back updater calls
+    setRoadshow(next);saveCurrentEvent({roadshow:next});
   }
   // exportRoadshowSummary + exportCompanyBrief → moved to src/utils/exporters.ts
   // tz is optional; defaults to Buenos Aires inside the exporters. The Export subtab
@@ -1114,7 +1123,10 @@ Daily Summary — ${dayLabel}
         setTravelCache(prev=>({...prev,[date]:results}));
       }
       if(mtgPatches.size){
-        saveRoadshow({...roadshow,meetings:(roadshow.meetings||[]).map(m=>mtgPatches.has(m.id)?{...m,travelMinutes:mtgPatches.get(m.id)}:m)});
+        // Updater form: este write ocurre segundos después (geocoding + OSRM) y
+        // el `roadshow` del closure ya quedó viejo — escribirlo revertía las
+        // ediciones hechas mientras tanto.
+        saveRoadshow(cur=>({...cur,meetings:(cur.meetings||[]).map(m=>mtgPatches.has(m.id)?{...m,travelMinutes:mtgPatches.get(m.id)}:m)}));
       }
       toastClear(PROG_ID);
       toastOk(`✅ Tiempos de viaje listos — ${dayData.length} día${dayData.length!==1?"s":""}, ${totalLegs} tramo${totalLegs!==1?"s":""}`);
@@ -1163,7 +1175,8 @@ Daily Summary — ${dayLabel}
       if(sec) _patches.set(dayMtgs[i+1].id,Math.round(sec/60));
     }
     if(_patches.size){
-      saveRoadshow({...roadshow,meetings:(roadshow.meetings||[]).map(m=>_patches.has(m.id)?{...m,travelMinutes:_patches.get(m.id)}:m)});
+      // Updater form — ver comentario en calcAllTravel: este write llega tarde.
+      saveRoadshow(cur=>({...cur,meetings:(cur.meetings||[]).map(m=>_patches.has(m.id)?{...m,travelMinutes:_patches.get(m.id)}:m)}));
     }
     toastClear(PROG_ID);
     toastOk(`✅ Tiempos del día calculados — ${totalLegs} tramo${totalLegs!==1?"s":""}`);
