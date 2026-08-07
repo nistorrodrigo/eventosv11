@@ -146,13 +146,19 @@ export default function BookingPage({eventId}){
   // Submit booking — race-condition safe.
   //
   // Concurrency model: two visitors can click the same slot at the same moment.
-  // To guarantee only one wins, we DELETE the slot first with .select(). PostgreSQL
-  // takes a row lock on the matching row; the second concurrent DELETE finds nothing
-  // and returns an empty array. Only the request that actually deleted the row
-  // proceeds to insert the booking.
+  // The claim happens SERVER-SIDE. The BEFORE INSERT trigger
+  // `booking_owner_from_slot` (SECURITY DEFINER) deletes the matching
+  // roadshow_slots row with `WHERE id = (SELECT ... LIMIT 1 FOR UPDATE)
+  // RETURNING owner_id`, so both requests serialise on that row lock. The
+  // loser's DELETE matches nothing, the trigger raises `slot_taken`
+  // (SQLSTATE PT409 → HTTP 409) and the whole INSERT rolls back.
   //
-  // If the booking insert fails *after* the slot was deleted (rare — network blip,
-  // RLS rule changes), we attempt to restore the slot so it's bookable again.
+  // The public page has NO delete rights on roadshow_slots anymore — that
+  // policy (DELETE/public/using(true)) let anyone holding the anon key wipe
+  // every published slot.
+  //
+  // Claim + insert are now one transaction, so there is nothing to roll back
+  // by hand: if the booking insert fails, the slot is still there.
   async function handleSubmit(e){
     e.preventDefault();
     if(!selected||!form.company.trim()||!form.name.trim()||!form.email.trim())return;
@@ -211,33 +217,16 @@ export default function BookingPage({eventId}){
     setSubmitting(true);
     setSubmitError(null);
 
-    // 1. Claim the slot atomically
-    const {data:deleted,error:delErr}=await supabase
-      .from("roadshow_slots").delete().eq("id",selected.id).select();
-    if(delErr){
-      setSubmitting(false);
-      setSubmitError("No se pudo confirmar el horario. Intentá de nuevo.");
-      return;
-    }
-    if(!deleted||deleted.length===0){
-      // Someone else won the race — refresh availability and tell the user
-      setSubmitting(false);
-      setSubmitError("Ese horario fue reservado por otra empresa hace un instante. Elegí otro de la lista actualizada.");
-      setSelected(null);
-      await loadSlots();
-      return;
-    }
-    const claimedSlot=deleted[0];
-
-    // 2. Slot is ours — insert the booking. We deliberately do NOT send
-    //    owner_id from the client: the server-side trigger
-    //    `booking_owner_from_slot` (migration 20260521_rls_hardening.sql)
-    //    derives it from the slot row, so a tampered client can't point
-    //    a booking at someone else's owner_id to pollute their queue.
+    // Insert the booking. The trigger claims the slot and derives owner_id from
+    // the very row it deletes, in the same transaction. We deliberately do NOT
+    // send owner_id: the slot table is the source of truth, so a tampered client
+    // can't point a booking at someone else's queue.
+    // Matching by (event_id, slot_date, slot_hour) instead of by slot id also
+    // fixes a stale-id bug — re-publishing slots mints new uuids.
     const confirmCode="RS-"+Date.now().toString(36).toUpperCase()+"-"+Math.random().toString(36).slice(2,6).toUpperCase();
     const linkSuffix=form.location==="virtual"&&form.meetingLink.trim()?` · 🔗 ${form.meetingLink.trim()}`:"";
     const {error:insErr}=await supabase.from("roadshow_bookings").insert({
-      event_id:eventId, slot_date:claimedSlot.slot_date, slot_hour:claimedSlot.slot_hour,
+      event_id:eventId, slot_date:selected.slot_date, slot_hour:selected.slot_hour,
       company:form.company.trim(), contact_name:form.name.trim(), email:form.email.trim(),
       phone:form.phone.trim()||null, location_pref:form.location,
       notes:(form.notes.trim()+linkSuffix).trim()||null,
@@ -245,21 +234,15 @@ export default function BookingPage({eventId}){
     });
 
     if(insErr){
-      // Best-effort rollback: put the slot back so the next visitor can book it.
-      // Even if this fails, the owner can re-publish slots from the agenda.
-      // owner_id is whatever the slot table told us; under hardened RLS only
-      // the slot's original owner can re-insert, but a failed rollback here
-      // is non-fatal — the owner can always re-publish.
-      await supabase.from("roadshow_slots").insert({
-        event_id:claimedSlot.event_id,
-        event_label:claimedSlot.event_label,
-        slot_date:claimedSlot.slot_date,
-        slot_hour:claimedSlot.slot_hour,
-        office_address:claimedSlot.office_address,
-        owner_id:claimedSlot.owner_id,
-      });
+      // PT409 / 'slot_taken' = alguien ganó la carrera por ese horario.
+      const taken=insErr.code==="PT409"||/slot_taken/i.test(insErr.message||"");
       setSubmitting(false);
-      setSubmitError("Error al guardar la reserva. El horario volvió a estar disponible — intentá de nuevo.");
+      if(taken){
+        setSubmitError("Ese horario fue reservado por otra empresa hace un instante. Elegí otro de la lista actualizada.");
+        setSelected(null); // el banner de página lo sigue mostrando
+      }else{
+        setSubmitError("Error al guardar la reserva. El horario sigue disponible — intentá de nuevo.");
+      }
       await loadSlots();
       return;
     }
@@ -304,6 +287,15 @@ export default function BookingPage({eventId}){
         {tripMode==="hybrid"&&<div style={{fontSize:11,marginTop:8,padding:"4px 10px",background:"rgba(255,255,255,.15)",borderRadius:5,display:"inline-block"}}>🔀 Roadshow híbrido — presencial o virtual a elección</div>}
       </div>
 
+      {/* Error de submit a nivel página. El banner de adentro del <form> se
+          desmonta cuando limpiamos `selected` al perder la carrera por un
+          horario, así que este lo cubre en ese caso. */}
+      {!selected&&submitError&&(
+        <div style={{marginBottom:16,padding:"10px 14px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,color:"#991b1b",fontSize:13,lineHeight:1.5}}>
+          ⚠ {submitError}
+        </div>
+      )}
+
       {/* Step 1: Pick a slot */}
       <div className="bp-card">
         <div style={{fontSize:15,fontWeight:700,marginBottom:14,color:"#000039"}}>1. Elegí un horario</div>
@@ -312,7 +304,7 @@ export default function BookingPage({eventId}){
             <div style={{fontSize:11,fontWeight:700,color:"#6b7280",textTransform:"capitalize",marginBottom:6,fontFamily:"IBM Plex Mono,monospace"}}>{fmtDay(date)}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {grouped[date].map(s=>(
-                <button key={s.id} className={`bp-slot${selected?.id===s.id?" on":""}`} onClick={()=>setSelected(s)}>
+                <button key={s.id} className={`bp-slot${selected?.id===s.id?" on":""}`} onClick={()=>{setSelected(s);setSubmitError(null);}}>
                   {fmtH(s.slot_hour)}
                 </button>
               ))}

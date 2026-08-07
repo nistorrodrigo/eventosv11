@@ -850,7 +850,10 @@ Daily Summary — ${dayLabel}
       if(pend?.userId===userId&&Array.isArray(pend.events)&&pend.events.length){
         for(const ev of pend.events){
           const{id,name,kind,_shared,_sharedRole,_sharedBy,...data}=ev;
-          await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||userId}));
+          if(ev._shared||(ev.owner_id&&ev.owner_id!==userId))
+            await supabaseRetry(()=>supabase.from("ls_events").update({name,kind,data}).eq("id",id));
+          else
+            await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||userId}));
         }
         localStorage.removeItem("ls_pending_saves");
       }
@@ -900,12 +903,15 @@ Daily Summary — ${dayLabel}
     const userEmail=authUser?.email?.toLowerCase();
     if(userEmail){
       // Column is `invited_email` (older code used `shared_with_email` which doesn't exist).
+      // Claim de las filas de share dirigidas a este email. El invitado ya NO tiene
+      // UPDATE sobre ls_event_shares (esa policy le permitía auto-promoverse a editor
+      // y repuntar event_id); el RPC es SECURITY DEFINER y solo toca shared_with_id.
+      // No es crítico: las policies también matchean por invited_email, así que si
+      // falla el usuario igual ve el evento.
+      const{error:claimErr}=await supabase.rpc("claim_event_shares");
+      if(claimErr) console.warn("[shares] claim_event_shares falló:",claimErr.message);
       const{data:shares}=await supabase.from("ls_event_shares").select("event_id,role,shared_with_id").eq("invited_email",userEmail);
       if(shares?.length){
-        // Update shared_with_id if not set (first time this user logs in after being shared)
-        for(const s of shares){
-          if(!s.shared_with_id) await supabase.from("ls_event_shares").update({shared_with_id:userId}).eq("event_id",s.event_id).eq("invited_email",userEmail);
-        }
         // Load shared event data
         const sharedIds=shares.map(s=>s.event_id).filter(id=>!allEvs.find(e=>e.id===id));
         if(sharedIds.length){
@@ -966,7 +972,15 @@ Daily Summary — ${dayLabel}
     _lastSaveStamp.current.set(id,data._updatedAt||Date.now());
     setSyncStatus("syncing");
     try{
-      await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||authUser.id}));
+      // Evento compartido (soy editor, no dueño): NO usar upsert. Bajo RLS,
+      // INSERT ... ON CONFLICT DO UPDATE exige pasar TAMBIÉN el WITH CHECK de
+      // INSERT ("Users own their events": auth.uid() = user_id), y acá mandamos
+      // el user_id del dueño real ⇒ 42501 y el evento queda en loop de reintentos.
+      // Un UPDATE plano pasa por "events_editor_update" y no toca user_id.
+      if(ev._shared||(ev.owner_id&&ev.owner_id!==authUser.id))
+        await supabaseRetry(()=>supabase.from("ls_events").update({name,kind,data}).eq("id",id));
+      else
+        await supabaseRetry(()=>supabase.from("ls_events").upsert({id,name,kind,data,user_id:ev.owner_id||authUser.id}));
       setSyncStatus("synced");_pendingSaves.current.delete(id);persistPending();setTimeout(()=>setSyncStatus("idle"),2000);
     }catch(err){
       setSyncStatus("offline");
@@ -1506,7 +1520,7 @@ Daily Summary — ${dayLabel}
                   </div>
                   <button className="btn bo bs" onClick={()=>handleOpenEvent(e.id)}>Abrir</button>
                   <button className="btn bo bs" title="Usar como template — copia empresas y contactos sin reuniones" onClick={()=>duplicateEvent(e.id)}>📋 Template</button>
-                  <button className="btn bo bs" title="Compartir evento" onClick={()=>openShareModal(e.id)}>👥</button>
+                  {!e._shared&&<button className="btn bo bs" title="Compartir evento" onClick={()=>openShareModal(e.id)}>👥</button>}
                   <button className="btn bo bs" title={e.passwordHash?"Cambiar contraseña":"Poner contraseña"} onClick={()=>{
                     setEvPasswordModal({evId:e.id,mode:"set"});setEvPasswordInput("");
                   }}>{e.passwordHash?"🔒":"🔓"}</button>
