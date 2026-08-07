@@ -214,13 +214,13 @@ export function RoadshowInboundTab({
               <div className="lbl" style={{marginBottom:6}}>🌐 Modalidad del roadshow</div>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                 {[["in_person","🏛 Presencial","Reuniones físicas en BA"],["virtual","💻 Virtual","Todo por Zoom/Teams/Meet"],["hybrid","🔀 Híbrido","Mezcla presenciales y virtuales"]].map(([v,l,desc])=>(
-                  <button key={v} className={`btn bs ${(cur.trip.mode||"in_person")===v?"bg":"bo"}`} style={{fontSize:10,flex:1,minWidth:120,flexDirection:"column",alignItems:"flex-start",gap:2,padding:"7px 10px"}} onClick={()=>upTrip("mode",v)} title={desc}>
+                  <button key={v} className={`btn bs ${(roadshow.trip.mode||"in_person")===v?"bg":"bo"}`} style={{fontSize:10,flex:1,minWidth:120,flexDirection:"column",alignItems:"flex-start",gap:2,padding:"7px 10px"}} onClick={()=>upTrip("mode",v)} title={desc}>
                     <div style={{fontWeight:700}}>{l}</div>
                     <div style={{fontSize:8,opacity:.75,fontWeight:400}}>{desc}</div>
                   </button>
                 ))}
               </div>
-              {(cur.trip.mode==="virtual"||cur.trip.mode==="hybrid")&&(
+              {(roadshow.trip.mode==="virtual"||roadshow.trip.mode==="hybrid")&&(
                 <div style={{marginTop:8}}>
                   <div className="lbl" style={{marginBottom:3,fontSize:9}}>🔗 Link por defecto (se sugiere para cada nueva reunión virtual)</div>
                   <input className="inp" style={{fontFamily:"IBM Plex Mono,monospace",fontSize:11}}
