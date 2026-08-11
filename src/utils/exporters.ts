@@ -298,11 +298,12 @@ export function _exportDriverItinerary({filterDate, roadshow, travelCache, tripD
     const _overridesMap=roadshow.travelOverrides||{};
     // Precedence: manual override > OSRM cache > minutes saved on the arriving
     // meeting (the cache is memory-only, so after a reload this is what's left).
+    // Precedencia: manual de la reunión > override del tramo > estimación.
     const getTravel=(key,deptH,arriving)=>{
+      if(arriving&&arriving.travelMinutes>0)return{durationText:`${arriving.travelMinutes} min`,durationSec:arriving.travelMinutes*60,distanceText:"",source:"manual"};
       const ov=_overridesMap[key];
       if(ov!=null)return{...applyBATraffic(ov,deptH,null),source:"manual"};
       if(dayT[key])return dayT[key];
-      if(arriving&&arriving.travelMinutes>0)return{durationText:`${arriving.travelMinutes} min`,durationSec:arriving.travelMinutes*60,distanceText:"",source:"saved"};
       return null;
     };
     const fmtDate=new Date(date+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});

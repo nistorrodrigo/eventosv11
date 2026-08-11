@@ -49,6 +49,22 @@ export function isVirtualMeeting(m){
   return m?.location==="virtual";
 }
 
+// ¿Dos reuniones seguidas son en el MISMO lugar? Compara direcciones ignorando
+// mayúsculas, tildes, puntuación y "piso/of." — si coinciden no hay traslado.
+const _normAddr=s=>(s||"")
+  .toLowerCase()
+  .normalize("NFD").replace(/[̀-ͯ]/g,"")
+  .replace(/\b(piso|p\.|of\.|oficina|dpto|depto|1er|2do|3er|[0-9]+°)\b/g,"")
+  .replace(/[^a-z0-9]+/g," ")
+  .trim();
+export function sameAddress(a,b){
+  const na=_normAddr(a), nb=_normAddr(b);
+  if(!na||!nb) return false;
+  if(na===nb) return true;
+  // Uno contenido en el otro (una versión trae más detalle que la otra)
+  return na.length>8&&nb.length>8&&(na.includes(nb)||nb.includes(na));
+}
+
 // Single source of truth for meeting display location string
 export function getMeetingLocationLabel(m, co, trip, opts={}){
   if(m?.location==="virtual"){

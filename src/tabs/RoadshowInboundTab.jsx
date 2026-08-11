@@ -16,7 +16,7 @@ import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, meetingsForFund,
 // clicks ✉️ Email or 🌅 Daily.
 const RoadshowAgendaEmailModal = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.RoadshowAgendaEmailModal})));
 const DailyBriefingEmailModal  = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.DailyBriefingEmailModal})));
-import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel, officeAddressOf, officeShortOf, LS_OFFICES, defaultOfficeIdFor } from "../travel.js";
+import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel, officeAddressOf, officeShortOf, LS_OFFICES, defaultOfficeIdFor, sameAddress } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
 import { FeedbackWidget } from "../components/FeedbackWidget.jsx";
@@ -142,11 +142,10 @@ export function RoadshowInboundTab({
           const ex=roadshow.meetings.find(x=>x.id===m.id);
           const ms=ex?roadshow.meetings.map(x=>x.id===m.id?m:x):[...roadshow.meetings,m];
           saveRoadshow({...roadshow,meetings:ms});setRsMtgModal(null);
-          // Auto-recalculate travel for affected day(s)
-          if(calcDayTravel&&m.date){
-            calcDayTravel(m.date);
-            if(ex&&ex.date!==m.date) calcDayTravel(ex.date);
-          }
+          // Los traslados NO se recalculan solos al guardar: el valor manual manda
+          // (dos reuniones en el mismo lugar no tienen traslado, y el estimador de
+          // ruta igual devolvía minutos). Se recalcula solo con los botones
+          // "Calcular" del tab 🗺️ Recorrido.
         }
         function delMtg(id){saveRoadshow({...roadshow,meetings:roadshow.meetings.filter(m=>m.id!==id)});setRsMtgModal(null);}
         // Memoise derived collections — they are recomputed only when meetings change,
@@ -782,11 +781,8 @@ export function RoadshowInboundTab({
                                     if(hasConflict&&!confirm("⚠ Esta reunión se superpone con otra. ¿Mover igual?")){setDragMtg(null);return;}
                                     const updated=(roadshow.meetings||[]).map(m=>m.id===dragMtg.id?{...m,date,hour:h,changeLog:[...(m.changeLog||[]),{at:new Date().toISOString(),field:"moved",from:`${dragMtg.origDate} ${fmtHour(dragMtg.origHour)}`,to:`${date} ${fmtHour(h)}`}]}:m);
                                     saveRoadshow({...roadshow,meetings:updated});
-                                    // Auto-recalculate travel for affected days
-                                    if(calcDayTravel){
-                                      calcDayTravel(date);
-                                      if(dragMtg.origDate!==date) calcDayTravel(dragMtg.origDate);
-                                    }
+                                    // Sin recálculo automático de traslados: los minutos
+                                    // son manuales (botones "Calcular" del tab Recorrido).
                                     setDragMtg(null);
                                   }}
                                   style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
@@ -843,9 +839,14 @@ export function RoadshowInboundTab({
                                       const _chipKey=`${date}-${pi}`;
                                       const _chipOverrideSec=roadshow.travelOverrides?.[_chipKey];
                                       const _chipDeptH=mA.hour+(mA.duration||60)/60;
-                                      travelInfo=(_chipOverrideSec!=null)?{...applyBATraffic(_chipOverrideSec,_chipDeptH,null),source:"manual"}
-                                        :dayT[_chipKey]
-                                        ||((mB.travelMinutes>0)?{durationText:`${mB.travelMinutes} min`,durationSec:mB.travelMinutes*60,distanceText:"",source:"saved"}:null);
+                                      // Mismo lugar / virtual ⇒ sin traslado (no mostrar chip)
+                                      const _aAddr=getMeetingAddress(mA,mA.type==="company"?rsCoById.get(mA.companyId):null,roadshow.trip.officeAddress);
+                                      const _bAddr=getMeetingAddress(mB,mB.type==="company"?rsCoById.get(mB.companyId):null,roadshow.trip.officeAddress);
+                                      if(!(mB.travelMinutes>0)&&(mA.location==="virtual"||mB.location==="virtual"||sameAddress(_aAddr,_bAddr))){travelInfo=null;break;}
+                                      // Misma precedencia que el tab Recorrido: manual primero
+                                      travelInfo=(mB.travelMinutes>0)?{durationText:`${mB.travelMinutes} min`,durationSec:mB.travelMinutes*60,distanceText:"",source:"manual"}
+                                        :(_chipOverrideSec!=null)?{...applyBATraffic(_chipOverrideSec,_chipDeptH,null),source:"manual"}
+                                        :dayT[_chipKey]||null;
                                       // Only show on first gap slot
                                       if(h===aEnd) break;
                                       else {travelInfo=null;break;}
@@ -1293,13 +1294,18 @@ export function RoadshowInboundTab({
                         const _overrideSec=roadshow.travelOverrides?.[_travelKey];
                         const _deptH=m.hour+dur/60;
                         const nextM=mi<dayMtgs.length-1?dayMtgs[mi+1]:null;
-                        // Precedence: manual override > OSRM cache > minutes saved on the
-                        // arriving meeting (survives reloads — the cache is memory-only).
-                        const travelData=nextM
-                          ?((_overrideSec!=null)?{...applyBATraffic(_overrideSec,_deptH,null),source:"manual"}
-                            :dayTravel[_travelKey]
-                            ||((nextM.travelMinutes>0)?{durationText:`${nextM.travelMinutes} min`,durationSec:nextM.travelMinutes*60,distanceText:"",source:"saved",baseSec:nextM.travelMinutes*60}:null))
-                          :null;
+                        // Precedencia: valor manual de la reunión > mismo lugar / virtual
+                        // (traslado 0) > override manual del tramo > estimación de ruta.
+                        // El "mismo lugar" se detecta comparando direcciones: antes el
+                        // estimador devolvía minutos aunque fuera la misma dirección.
+                        const nextAddr=nextM?getMeetingAddress(nextM,nextM.type==="company"?rsCoMapForTravel.get(nextM.companyId):null,roadshow.trip.officeAddress):null;
+                        const noTrip=!!nextM&&(nextM.location==="virtual"||m.location==="virtual"||sameAddress(addr,nextAddr));
+                        const travelData=!nextM?null
+                          :(nextM.travelMinutes>0)
+                            ?{durationText:`${nextM.travelMinutes} min`,durationSec:nextM.travelMinutes*60,distanceText:"",source:"manual",baseSec:nextM.travelMinutes*60}
+                          :noTrip?{durationText:(nextM.location==="virtual"||m.location==="virtual")?"💻 virtual — sin traslado":"mismo lugar — sin traslado",durationSec:0,distanceText:"",source:"same",baseSec:0}
+                          :(_overrideSec!=null)?{...applyBATraffic(_overrideSec,_deptH,null),source:"manual"}
+                          :dayTravel[_travelKey]||null;
                         const conflict=nextM?checkTravelConflict(m,nextM,travelData?.durationSec??null,dur):null;
                         return(
                           <div key={m.id}>
@@ -1339,13 +1345,13 @@ export function RoadshowInboundTab({
                                       <span style={{color:"var(--dim)"}}>🚗 Tiempo base (min):</span>
                                       <input
                                         autoFocus
-                                        type="number" min="1" max="120"
+                                        type="number" min="0" max="120"
                                         value={editLegVal}
                                         onChange={e=>setEditLegVal(e.target.value)}
                                         onKeyDown={e=>{
                                           if(e.key==="Enter"){
                                             const v=parseInt(editLegVal);
-                                            if(v>0){
+                                            if(v>=0&&!Number.isNaN(v)){
                                               const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
                                               // Also anchor the minutes on the arriving MEETING (id-based, feeds the PDF
                                               // and survives reorders — the positional override key shifts when meetings move)
@@ -1364,7 +1370,7 @@ export function RoadshowInboundTab({
                                       <button className="btn bg bs" style={{fontSize:9,padding:"2px 8px"}}
                                         onClick={()=>{
                                           const v=parseInt(editLegVal);
-                                          if(v>0){
+                                          if(v>=0&&!Number.isNaN(v)){
                                             const overrides={...(roadshow.travelOverrides||{}),[_travelKey]:v*60};
                                             const applied=Math.round(applyBATraffic(v*60,_deptH,null).durationSec/60);
                                             saveRoadshow({...roadshow,travelOverrides:overrides,meetings:(roadshow.meetings||[]).map(x=>x.id===nextM?.id?{...x,travelMinutes:applied}:x)});

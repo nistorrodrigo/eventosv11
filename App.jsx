@@ -60,7 +60,7 @@ import {
 import {
   getMeetingAddress, cleanAddr,
   openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict,
-  geocodeAll, osrmRoute, applyBATraffic,
+  geocodeAll, osrmRoute, applyBATraffic, sameAddress,
 } from "./src/travel.js";
 
 // ── UI Components ──────────────────────────────────────────────────
@@ -1104,8 +1104,8 @@ Daily Summary — ${dayLabel}
       for(const {date,dayMtgs,addrs} of dayData){
         const results={};
         for(let i=0;i<dayMtgs.length-1;i++){
-          if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
-            results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
+          if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"||sameAddress(addrs[i],addrs[i+1])){
+            results[`${date}-${i}`]=(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual")?{durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0}:{durationText:"mismo lugar",durationSec:0,distanceText:"",source:"same",baseSec:0};
           }else{
             const o=coords[addrs[i]];const d=coords[addrs[i+1]];
             const base=(o&&d)?await osrmRoute(o,d):null;
@@ -1116,7 +1116,7 @@ Daily Summary — ${dayLabel}
           // it's what the agenda PDF renders). Manual overrides win over OSRM.
           const ovSec=(roadshow.travelOverrides||{})[`${date}-${i}`];
           const sec=ovSec!=null?applyBATraffic(ovSec,dayMtgs[i].hour+dur/60,null).durationSec:results[`${date}-${i}`]?.durationSec;
-          if(sec) mtgPatches.set(dayMtgs[i+1].id,Math.round(sec/60));
+          if(sec&&!(dayMtgs[i+1].travelMinutes>0)) mtgPatches.set(dayMtgs[i+1].id,Math.round(sec/60)); // nunca pisar un valor manual
           legDone++;
           toastProgress(PROG_ID,`🛣 Calculando ruta ${legDone}/${totalLegs}…`);
         }
@@ -1154,8 +1154,8 @@ Daily Summary — ${dayLabel}
     const totalLegs=dayMtgs.length-1;
     const results={};
     for(let i=0;i<totalLegs;i++){
-      if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"){
-        results[`${date}-${i}`]={durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0};
+      if(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual"||sameAddress(addrs[i],addrs[i+1])){
+        results[`${date}-${i}`]=(dayMtgs[i].location==="virtual"||dayMtgs[i+1].location==="virtual")?{durationText:"💻 Virtual",durationSec:0,distanceText:"",source:"virtual",baseSec:0}:{durationText:"mismo lugar",durationSec:0,distanceText:"",source:"same",baseSec:0};
       }else{
         const o=coords[addrs[i]];const d=coords[addrs[i+1]];
         const base=(o&&d)?await osrmRoute(o,d):null;
@@ -1172,7 +1172,7 @@ Daily Summary — ${dayLabel}
     for(let i=0;i<totalLegs;i++){
       const ovSec=_ov[`${date}-${i}`];
       const sec=ovSec!=null?applyBATraffic(ovSec,dayMtgs[i].hour+dur/60,null).durationSec:results[`${date}-${i}`]?.durationSec;
-      if(sec) _patches.set(dayMtgs[i+1].id,Math.round(sec/60));
+      if(sec&&!(dayMtgs[i+1].travelMinutes>0)) _patches.set(dayMtgs[i+1].id,Math.round(sec/60)); // nunca pisar un valor manual
     }
     if(_patches.size){
       // Updater form — ver comentario en calcAllTravel: este write llega tarde.
