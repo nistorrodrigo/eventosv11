@@ -721,9 +721,11 @@ export function RoadshowInboundTab({
                           (rsDayFilter?tripDays.filter(d=>d===rsDayFilter):tripDays).forEach(date=>{
                             if(skip[date][hi]) return;
                             const _m0=rsBySlot[`${date}-${h}`];
-                            const mtg=_m0&&inAgendaFund(_m0)?_m0:null;
-                            if(mtg){
-                              const rows=Math.max(1,Math.round((mtg.duration||60)/30));
+                            // Mismo criterio que al renderizar: la celda ocupa lo que dure
+                            // la MÁS LARGA de las reuniones simultáneas de ese slot.
+                            const _slot=[...((_m0&&inAgendaFund(_m0))?[_m0]:[]),...((rsSlotExtras?.[`${date}-${h}`]||[]).filter(inAgendaFund))];
+                            if(_slot.length){
+                              const rows=Math.max(..._slot.map(sm=>Math.max(1,Math.round((sm.duration||60)/30))));
                               for(let r=1;r<rows;r++){
                                 if(hi+r<ROADSHOW_HOURS.length) skip[date][hi+r]=true;
                               }
@@ -745,14 +747,18 @@ export function RoadshowInboundTab({
                               const co=mtg?.type==="company"?rsCoById.get(mtg.companyId):null;
                               const clr=mtg?(mtg.type==="company"?(RS_CLR[co?.sector]||"#666"):"#23a29e"):null;
                               const lbl=mtg?(mtg.type==="company"?(co?.ticker||"?"):(mtg.lsType?.split(" – ").pop()?.slice(0,9)||mtg.title?.slice(0,9)||"Int")):"";
-                              const rows=mtg?Math.max(1,Math.round((mtg.duration||60)/30)):1;
+                              // Todas las reuniones de este slot (la principal + las simultáneas),
+                              // que se dibujan lado a lado. La celda toma la duración más larga.
+                              const slotMtgs=[...(mtg?[mtg]:[]),...((rsSlotExtras?.[`${date}-${h}`]||[]).filter(inAgendaFund))];
+                              const isMulti=slotMtgs.length>1;
+                              const rows=slotMtgs.length?Math.max(...slotMtgs.map(sm=>Math.max(1,Math.round((sm.duration||60)/30)))):1;
                               const rowH=rows*28;
                               return(
                                 <td key={date}
                                   rowSpan={rows}
-                                  onClick={()=>{if(dragMtg)return;!isWE&&setRsMtgModal({date,hour:h,meeting:mtg||null});}}
+                                  onClick={()=>{if(dragMtg)return;!isWE&&setRsMtgModal({date,hour:h,meeting:slotMtgs[0]||null});}}
                                   onDragOver={e=>{
-                                    if(!dragMtg||mtg||isWE) return;
+                                    if(!dragMtg||slotMtgs.length||isWE) return;
                                     e.preventDefault();
                                     // Validate with the DRAGGED meeting's own duration, not the trip default
                                     const dur2=((roadshow.meetings||[]).find(x=>x.id===dragMtg.id)?.duration)||roadshow.trip.meetingDuration||60;
@@ -772,7 +778,7 @@ export function RoadshowInboundTab({
                                   onDragLeave={e=>{e.currentTarget.style.background="";e.currentTarget.title="";}}
                                   onDrop={e=>{
                                     e.currentTarget.style.background="";e.currentTarget.title="";
-                                    if(!dragMtg||mtg||isWE) return;
+                                    if(!dragMtg||slotMtgs.length||isWE) return;
                                     // Warn on conflict — use the dragged meeting's own duration
                                     const dur2=((roadshow.meetings||[]).find(x=>x.id===dragMtg.id)?.duration)||roadshow.trip.meetingDuration||60;
                                     const endH2=h+dur2/60;
@@ -785,42 +791,46 @@ export function RoadshowInboundTab({
                                     // son manuales (botones "Calcular" del tab Recorrido).
                                     setDragMtg(null);
                                   }}
-                                  style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":mtg?`${clr}18`:"transparent",cursor:isWE?"default":"pointer",padding:mtg?2:1,verticalAlign:"top",height:mtg?rowH:28}}>
-                                  {mtg&&<div title={`${mtg.type==="company"?(co?.name||"?"):(mtg.lsType||mtg.title||"Reunión")} · ${fmtHour(h)} · Click para editar`} draggable onDragStart={()=>setDragMtg({id:mtg.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)} style={{background:clr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,height:rowH-6,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1,outline:rsOverlapSet.has(mtg.id)?"2px solid #e05050":undefined,outlineOffset:"-2px",cursor:"pointer",opacity:dragMtg?.id===mtg.id?.4:1,transition:"filter .1s"}}
-                                    onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.15)"}
-                                    onMouseLeave={e=>e.currentTarget.style.filter=""}>
-                                    <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-                                      {mtg.postNotes&&<span title="Tiene notas post-reunión" style={{fontSize:6,opacity:.8}}>📝</span>}
-                                      <span>{lbl}</span>
-                                      <span 
-                                        style={{fontSize:7,cursor:"pointer",padding:"1px 3px",borderRadius:2,background:mtg.status==="confirmed"?"rgba(0,0,0,.2)":"transparent"}}
-                                        title={mtg.status==="confirmed"?"Click para marcar tentativa":"Click para confirmar"}
-                                        onClick={e=>{
-                                          e.stopPropagation();
-                                          const next=mtg.status==="confirmed"?"tentative":"confirmed";
-                                          const updated=(roadshow.meetings||[]).map(m=>m.id===mtg.id?{...m,status:next}:m);
-                                          saveRoadshow({...roadshow,meetings:updated});
-                                        }}>
-                                        {mtg.status==="confirmed"?"✓":"○"}
-                                      </span>
-                                      {mtg.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
+                                  style={{border:"1px solid rgba(30,90,176,.05)",background:isWE?"rgba(0,0,0,.015)":slotMtgs.length?`${(slotMtgs[0].type==="company"?(RS_CLR[rsCoById.get(slotMtgs[0].companyId)?.sector]||"#666"):"#23a29e")}18`:"transparent",cursor:isWE?"default":"pointer",padding:slotMtgs.length?2:1,verticalAlign:"top",height:slotMtgs.length?rowH:28}}>
+                                  {/* Reuniones simultáneas: lado a lado, mismo ancho y alto
+                                      (antes la segunda iba abajo, más chica) */}
+                                  {slotMtgs.length>0&&(
+                                    <div style={{display:"flex",gap:2,height:rowH-4,alignItems:"stretch"}}>
+                                      {slotMtgs.map(sm=>{
+                                        const sco=sm.type==="company"?rsCoById.get(sm.companyId):null;
+                                        const sclr=sm.type==="company"?(RS_CLR[sco?.sector]||"#666"):"#23a29e";
+                                        const slbl=sm.type==="company"?(sco?.ticker||sco?.name?.slice(0,9)||"?"):(sm.lsType?.split(" – ").pop()?.slice(0,9)||sm.title?.slice(0,9)||"Int");
+                                        return(
+                                          <div key={sm.id}
+                                            title={`${sm.type==="company"?(sco?.name||"?"):(sm.lsType||sm.title||"Reunión")} · ${fmtHour(sm.hour)}${isMulti?" · simultánea":""} · Click para editar`}
+                                            draggable onDragStart={()=>setDragMtg({id:sm.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)}
+                                            onClick={e=>{e.stopPropagation();setRsMtgModal({date,hour:sm.hour,meeting:sm});}}
+                                            style={{flex:"1 1 0",minWidth:0,background:sclr,color:"#fff",borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:700,overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"space-between",gap:1,outline:(isMulti||rsOverlapSet.has(sm.id))?"2px solid #e05050":undefined,outlineOffset:"-2px",cursor:"pointer",opacity:dragMtg?.id===sm.id?.4:1,transition:"filter .1s"}}
+                                            onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.15)"}
+                                            onMouseLeave={e=>e.currentTarget.style.filter=""}>
+                                            <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                                              {sm.postNotes&&<span title="Tiene notas post-reunión" style={{fontSize:6,opacity:.8}}>📝</span>}
+                                              <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{slbl}</span>
+                                              <span
+                                                style={{fontSize:7,cursor:"pointer",padding:"1px 3px",borderRadius:2,background:sm.status==="confirmed"?"rgba(0,0,0,.2)":"transparent",flexShrink:0}}
+                                                title={sm.status==="confirmed"?"Click para marcar tentativa":"Click para confirmar"}
+                                                onClick={e=>{
+                                                  e.stopPropagation();
+                                                  const next=sm.status==="confirmed"?"tentative":"confirmed";
+                                                  const updated=(roadshow.meetings||[]).map(m=>m.id===sm.id?{...m,status:next}:m);
+                                                  saveRoadshow({...roadshow,meetings:updated});
+                                                }}>
+                                                {sm.status==="confirmed"?"✓":"○"}
+                                              </span>
+                                              {sm.status==="cancelled"&&<span style={{fontSize:7,opacity:.7}}>✗</span>}
+                                            </div>
+                                            {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(sm.hour)}–{fmtHour(sm.hour+(sm.duration||60)/60)}</div>}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
-                                    {rows>=2&&<div style={{fontSize:7.5,opacity:.8,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{fmtHour(h)}–{fmtHour(h+(mtg.duration||60)/60)}</div>}
-                                  </div>}
-                                  {(rsSlotExtras?.[`${date}-${h}`]||[]).filter(inAgendaFund).map(x=>{
-                                    const xco=x.type==="company"?rsCoById.get(x.companyId):null;
-                                    const xclr=x.type==="company"?(RS_CLR[xco?.sector]||"#666"):"#23a29e";
-                                    const xlbl=x.type==="company"?(xco?.ticker||xco?.name?.slice(0,9)||"?"):(x.lsType?.split(" – ").pop()?.slice(0,9)||x.title?.slice(0,9)||"Int");
-                                    return(
-                                      <div key={x.id} title={`${x.type==="company"?(xco?.name||"?"):(x.lsType||x.title||"Reunión")} · ${fmtHour(x.hour)} · simultánea — click para editar`}
-                                        draggable onDragStart={()=>setDragMtg({id:x.id,origDate:date,origHour:h})} onDragEnd={()=>setDragMtg(null)}
-                                        onClick={e=>{e.stopPropagation();setRsMtgModal({date,hour:h,meeting:x});}}
-                                        style={{background:xclr,color:"#fff",borderRadius:4,padding:"2px 5px",fontSize:8.5,fontWeight:700,marginTop:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",outline:"2px solid #e05050",outlineOffset:"-2px",cursor:"pointer",opacity:dragMtg?.id===x.id?.4:1}}>
-                                        ⧉ {xlbl} {x.status==="confirmed"?"✓":x.status==="cancelled"?"✗":"○"}
-                                      </div>
-                                    );
-                                  })}
-                                  {!mtg&&!isWE&&(()=>{
+                                  )}
+                                  {!slotMtgs.length&&!isWE&&(()=>{
                                   // Check if this is a gap slot between two meetings — show travel info
                                   const dayMtgsSorted=[...(roadshow.meetings||[])].filter(m=>m.date===date&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
                                   const prevMtgIdx=dayMtgsSorted.findIndex(m=>{
