@@ -2000,6 +2000,9 @@ export function RoadshowInboundTab({
               tripDays={tripDays}
               lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
               resendKey={resendKey}
+              // Arranca con el inversor que ya venías mirando (filtro de la agenda
+              // o vista por inversor); dentro del modal se puede cambiar.
+              initialFundId={agendaFund||investorFundId}
               onClose={()=>setRsAgendaEmailModal(false)}
             />}
             {rsDailyEmailModal&&<DailyBriefingEmailModal
@@ -2008,6 +2011,7 @@ export function RoadshowInboundTab({
               tripDays={tripDays}
               lsContact={(config.contacts||[])[roadshow.trip.lsContactIdx||0]||{}}
               resendKey={resendKey}
+              initialFundId={agendaFund||investorFundId}
               onClose={()=>setRsDailyEmailModal(false)}
             />}
           </Suspense>

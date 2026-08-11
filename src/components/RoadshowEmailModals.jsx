@@ -8,11 +8,11 @@ import { esc, safeUrl } from "../storage.jsx";
 import { PLATFORM_LABELS, stripNeighborhood, officeAddressOf, officeNameOf } from "../travel.js";
 import {
   fmtHourInTZ, dateInTZ, TIMEZONES, BASE_TZ, tzOffsetLabel,
-  joinNames, fmtDateRange,
+  joinNames, fmtDateRange, getAllFunds, isMultiFund, meetingsForFund, fundLabel,
 } from "../roadshow.jsx";
 
 /* ─── Roadshow Agenda Email Modal ───────────────────────────────── */
-export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp}){
+export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp, initialFundId}){
   const[copied,setCopied]=useState(false);
   const[fmt,setFmt]=useState("text"); // "text" | "html"
   const[sending,setSending]=useState(false);
@@ -22,7 +22,14 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
   const tzLabel=(TIMEZONES.find(t=>t.value===tz)?.label||tz);
   const tzOffset=tzOffsetLabel(tz);
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
-  const{trip,meetings}=roadshow;
+  const{trip,meetings:allMeetings}=roadshow;
+  // En viajes multi-fondo el mail debe llevar SOLO la agenda del inversor
+  // elegido (y sus visitantes), no la agenda combinada de todos.
+  const allFunds=getAllFunds(trip);
+  const multiF=isMultiFund(trip);
+  const[fundId,setFundId]=useState(initialFundId||allFunds[0].id);
+  const selFund=allFunds.find(f=>f.id===fundId)||allFunds[0];
+  const meetings=multiF?meetingsForFund(allMeetings,selFund.id,allFunds.map(f=>f.id)):(allMeetings||[]);
   // fmtH now is tz-aware. When tz === BA we keep the original cheap formatter.
   const fmtH=(h,date)=>fmtHourInTZ(date,h,tz);
   const fmtDay=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
@@ -40,9 +47,9 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
     return ta.localeCompare(tb);
   }));
   const days=Object.keys(byDay).sort();
-  const fund=trip.fund||(trip.clientName?"":"")||"";
-  const client=trip.clientName||fund||"[Client]";
-  const visitors=(trip.visitors||[]).filter(v=>v.name);
+  const fund=multiF?(selFund.fund||selFund.clientName||""):(trip.fund||"");
+  const client=(multiF?(selFund.clientName||selFund.fund):trip.clientName)||fund||"[Client]";
+  const visitors=((multiF?selFund.visitors:trip.visitors)||[]).filter(v=>v.name);
   const firstNames=visitors.map(v=>v.name.split(" ")[0]);
   const greeting=firstNames.length>0?`Dear ${joinNames(firstNames)},`:"Dear [Name],";
   const visitorsFull=visitors.map(v=>v.name+(v.title?` (${v.title})`:""));
@@ -172,6 +179,18 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
               <div style={{fontSize:12,color:"var(--cream)",background:"var(--ink3)",padding:"5px 10px",borderRadius:5,fontWeight:600}}>{subject}</div>
             </div>
           </div>
+          {/* Selector de inversor — el mail lleva SOLO su agenda y sus visitantes */}
+          {multiF&&(
+            <div style={{marginBottom:10}}>
+              <div className="lbl" style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                👤 Inversor
+                <span style={{fontSize:9,color:"var(--gold)",fontWeight:400}}>· solo se envían sus reuniones ({meetings.filter(m=>m.status!=="cancelled").length} de {(allMeetings||[]).filter(m=>m.status!=="cancelled").length})</span>
+              </div>
+              <select className="sel" value={selFund.id} onChange={e=>setFundId(e.target.value)}>
+                {allFunds.map(f=><option key={f.id} value={f.id}>{fundLabel(f)}</option>)}
+              </select>
+            </div>
+          )}
           {/* Timezone selector — convert times for investors in other zones */}
           <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"flex-end"}}>
             <div style={{flex:1}}>
@@ -229,9 +248,15 @@ export function RoadshowAgendaEmailModal({roadshow, rsCos, tripDays, lsContact, 
 }
 
 /* ─── Daily Briefing Email Modal ─────────────────────────────────── */
-export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp}){
+export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, onClose, resendKey:resendKeyProp, initialFundId}){
   const rm=new Map((rsCos||[]).map(c=>[c.id,c]));
-  const{trip,meetings}=roadshow;
+  const{trip,meetings:allMeetings}=roadshow;
+  // Igual que la agenda completa: en multi-fondo va solo lo del inversor elegido.
+  const allFunds=getAllFunds(trip);
+  const multiF=isMultiFund(trip);
+  const[fundId,setFundId]=useState(initialFundId||allFunds[0].id);
+  const selFund=allFunds.find(f=>f.id===fundId)||allFunds[0];
+  const meetings=multiF?meetingsForFund(allMeetings,selFund.id,allFunds.map(f=>f.id)):(allMeetings||[]);
   const activeDays=tripDays.filter(d=>{const dow=new Date(d+"T12:00:00").getDay();return dow!==0&&dow!==6;});
   // default: first day that has meetings, or first workday
   const daysWithMtgs=activeDays.filter(d=>(meetings||[]).some(m=>m.date===d&&m.status!=="cancelled"));
@@ -250,10 +275,10 @@ export function DailyBriefingEmailModal({roadshow, rsCos, tripDays, lsContact, o
   const fmtShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
 
   const dayMtgs=(meetings||[]).filter(m=>m.date===selDay&&m.status!=="cancelled").sort((a,b)=>a.hour-b.hour);
-  const visitors=(trip.visitors||[]).filter(v=>v.name);
+  const visitors=((multiF?selFund.visitors:trip.visitors)||[]).filter(v=>v.name);
   const firstNames=visitors.map(v=>v.name.split(" ")[0]);
   const greeting=firstNames.length>0?`Good morning ${joinNames(firstNames)},`:"Good morning,";
-  const fund=trip.fund||(trip.clientName||"[Client]");
+  const fund=(multiF?(selFund.fund||selFund.clientName):trip.fund)||trip.clientName||"[Client]";
   const hotel=trip.hotel;
 
   // Plain text
@@ -385,6 +410,14 @@ ${dayMtgs.length?`<table style="width:100%;border-collapse:collapse;margin-botto
                 })}
               </select>
             </div>
+            {multiF&&(
+              <div style={{flex:1.2,minWidth:160}}>
+                <div className="lbl">👤 Inversor</div>
+                <select className="sel" value={selFund.id} onChange={e=>setFundId(e.target.value)}>
+                  {allFunds.map(f=><option key={f.id} value={f.id}>{fundLabel(f)}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{flex:1.5,minWidth:200}}>
               <div className="lbl">🕐 Zona horaria</div>
               <select className="sel" value={tz} onChange={e=>setTz(e.target.value)}>
