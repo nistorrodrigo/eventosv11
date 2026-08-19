@@ -16,6 +16,9 @@ import { ROADSHOW_HOURS, fmtHour, todayLocal, freeMeetingSlots, meetingsForFund,
 // clicks ✉️ Email or 🌅 Daily.
 const RoadshowAgendaEmailModal = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.RoadshowAgendaEmailModal})));
 const DailyBriefingEmailModal  = lazy(() => import("../components/RoadshowEmailModals.jsx").then(m=>({default:m.DailyBriefingEmailModal})));
+// Puente Event Manager → CRM (comparten Supabase): sube fondos como clientes
+// + interacción de participación. Lazy — solo carga al hacer click.
+const CrmSyncModal = lazy(() => import("../components/CrmSyncModal.jsx").then(m=>({default:m.CrmSyncModal})));
 import { getMeetingAddress, cleanAddr, stripNeighborhood, openGoogleMapsRoute, openGoogleMapsDirections, checkTravelConflict, applyBATraffic, detectMeetingPlatform, PLATFORM_LABELS, PLATFORM_ICONS, getMeetingLocationLabel, officeAddressOf, officeShortOf, LS_OFFICES, defaultOfficeIdFor, sameAddress } from "../travel.js";
 import { downloadBlob, buildPrintHTML, esc } from "../storage.jsx";
 import { DatePicker, DayDateInput } from "../components/DatePicker.jsx";
@@ -90,6 +93,8 @@ export function RoadshowInboundTab({
         const inAgendaFund=m=>!agendaFund||!isMultiFund(roadshow.trip)||meetingsForFund([m],agendaFund,_fundRoster).length>0;
         // Selected fund for the per-investor view (defaults to primary)
         const [investorFundId,setInvestorFundId]=useState("__primary");
+        // Modal "Subir a CRM" (puente al CRM compartido)
+        const [crmSyncOpen,setCrmSyncOpen]=useState(false);
         const [pdfTz,setPdfTz]=useState(BASE_TZ); // target tz for the PDF export
         const [pdfFundId,setPdfFundId]=useState(""); // "" = combined; otherwise a specific fund id
         const [waBulkModal,setWaBulkModal]=useState(null);
@@ -1015,6 +1020,8 @@ export function RoadshowInboundTab({
                   const meta={...config,eventTitle:(multiF?fund:(roadshow.trip.fund||roadshow.trip.clientName||"Roadshow")),eventType:"Latin Securities · Roadshow",eventDates:tripDays.length?fmtDateRange(tripDays[0],tripDays[tripDays.length-1],{locale:"en-US",short:true,withYear:true}):""};
                   openPrint(buildPrintHTML([e],meta));
                 }}>📄 PDF agenda</button>
+                <button className="btn bg bs" style={{fontSize:10}} title="Subir los fondos del viaje al CRM como clientes + registrar la participación como interacción" onClick={()=>setCrmSyncOpen(true)}>
+                  ⬆️ Subir a CRM{roadshow.crmSync&&Object.keys(roadshow.crmSync).length>0?" ✓":""}</button>
               </div>
               {/* Header card */}
               <div style={{background:"linear-gradient(135deg,#1e5ab0 0%,#23a29e 100%)",borderRadius:12,padding:"20px 24px",marginBottom:20,color:"#fff"}}>
@@ -2014,6 +2021,7 @@ export function RoadshowInboundTab({
               initialFundId={agendaFund||investorFundId}
               onClose={()=>setRsDailyEmailModal(false)}
             />}
+            {crmSyncOpen&&<CrmSyncModal onClose={()=>setCrmSyncOpen(false)}/>}
           </Suspense>
           {kioskMode&&<KioskModal
             roadshow={roadshow}
